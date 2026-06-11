@@ -1,40 +1,67 @@
-# Courtside Pickleball Scoreboard
+# Portable Courtside Pickleball Scoreboard
 
-Android-first MVP for a portable courtside pickleball scoreboard.
+Single-phone Android scoreboard for live pickleball games, optimized for courtside readability and fast rally entry.
 
-## MVP Scope
+## Current Product
 
-- Standard doubles side-out scoring.
-- Starts at `0 - 0 - 2`.
-- Serving-team-first score call.
-- Server 1 / Server 2 handling.
-- First-server exception.
-- Game to 11, win by 2.
-- Rally winner controls.
-- Undo.
-- Reset confirmation.
-- Landscape-first scoreboard UI.
-- Keep screen awake.
+The MVP is an Android app built with Kotlin, Jetpack Compose, and MVVM. It supports:
+
+- Landscape-first phone scoreboard UI.
+- Player/team name setup before a game.
+- Standard doubles side-out scoring rules.
+- Game start at `0 - 0 - 2`.
+- Rally entry by tapping the score for the team that won the rally.
+- Automatic serving team, server number, and side-out transitions.
+- Unlimited undo within the current match.
+- End game confirmation that returns to setup.
+- Spoken score calls using Android Text-to-Speech.
 - Offline operation.
+- Keep-screen-awake behavior.
+- Wear OS companion app prototype using the shared scoring engine.
 
-## Architecture
+Timed play is the current default assumption, so scores continue beyond 11. Formal match completion can be added later as a configurable mode.
 
-The scoring engine is pure Kotlin and independent from Android UI code:
+## Project Structure
 
-- `domain/` contains immutable game state and scoring rules.
-- `ui/` contains the Compose screen and ViewModel.
-- `MainActivity` hosts the app and keeps the display awake.
+- `app/` - Phone Android app, Compose UI, ViewModel, TTS, launcher activity.
+- `wear/` - Standalone Wear OS app prototype.
+- `shared/` - Pure Kotlin scoring domain and unit tests.
+- `docs/` - Source-of-truth project documentation.
 
-This keeps scoring testable and reusable for future Wear OS and tablet display phases.
-
-## Build
+## Build And Test
 
 Open the project in Android Studio and sync Gradle.
 
-The project uses:
+Useful commands:
 
-- Kotlin
-- Jetpack Compose
-- Material 3
-- MVVM with `StateFlow`
-- JUnit tests for scoring logic
+```bash
+./gradlew :shared:test :app:test
+./gradlew :app:assembleDebug
+./gradlew :wear:assembleDebug
+```
+
+Install only the phone app on a connected phone:
+
+```bash
+./gradlew :app:installDebug
+```
+
+Avoid running root `./gradlew installDebug` against a phone because it installs every installable module, including the standalone Wear prototype, which creates an extra launcher icon.
+
+For local development on this Mac, Android Studio's bundled JBR has been used successfully:
+
+```bash
+JAVA_HOME=/Applications/Android\ Studio.app/Contents/jbr/Contents/Home \
+ANDROID_HOME=/Users/dericteong/Library/Android/sdk \
+./gradlew :shared:test :app:test :app:assembleDebug
+```
+
+## Documentation
+
+Start with:
+
+- [docs/PRD.md](docs/PRD.md)
+- [docs/Architecture.md](docs/Architecture.md)
+- [docs/ScoringRules.md](docs/ScoringRules.md)
+- [docs/Roadmap.md](docs/Roadmap.md)
+- [AGENTS.md](AGENTS.md)

@@ -89,7 +89,7 @@ class PickleballScoringEngineTest {
     }
 
     @Test
-    fun gameCompletesAtElevenWithTwoPointMargin() {
+    fun gameKeepsGoingPastElevenForTimedPlay() {
         val state = GameState(
             teamAScore = 10,
             teamBScore = 8,
@@ -100,13 +100,14 @@ class PickleballScoringEngineTest {
 
         val next = engine.recordRallyWinner(state, Team.A)
 
-        assertEquals(GameStatus.Complete(Team.A), next.status)
+        assertTrue(next.status is GameStatus.InProgress)
+        assertEquals(11, next.teamAScore)
     }
 
     @Test
-    fun gameDoesNotCompleteWithoutTwoPointMargin() {
+    fun scoreCanContinueAboveEleven() {
         val state = GameState(
-            teamAScore = 10,
+            teamAScore = 14,
             teamBScore = 10,
             servingTeam = Team.A,
             serverNumber = ServerNumber.One,
@@ -116,7 +117,7 @@ class PickleballScoringEngineTest {
         val next = engine.recordRallyWinner(state, Team.A)
 
         assertTrue(next.status is GameStatus.InProgress)
-        assertEquals(11, next.teamAScore)
+        assertEquals(15, next.teamAScore)
     }
 
     @Test

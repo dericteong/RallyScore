@@ -5,17 +5,15 @@ plugins {
 }
 
 android {
-    namespace = "com.courtside.pickleball"
+    namespace = "com.courtside.pickleball.wear"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.courtside.pickleball"
-        minSdk = 26
+        applicationId = "com.courtside.pickleball.wear"
+        minSdk = 30
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
-
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
@@ -48,20 +46,10 @@ dependencies {
     implementation(project(":shared"))
 
     implementation(composeBom)
-    androidTestImplementation(composeBom)
-
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
-    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
-    debugImplementation("androidx.compose.ui:ui-test-manifest")
-
-    testImplementation("junit:junit:4.13.2")
-    androidTestImplementation("androidx.test.ext:junit:1.2.1")
-    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
 }

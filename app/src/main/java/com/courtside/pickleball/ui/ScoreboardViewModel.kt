@@ -17,10 +17,25 @@ class ScoreboardViewModel(
 
     val state: StateFlow<GameState> = _state.asStateFlow()
 
-    fun recordRallyWinner(team: Team) {
+    fun startMatch(teamAName: String, teamBName: String, startingTeam: Team) {
+        history.clear()
+        _state.value = GameState(
+            servingTeam = startingTeam,
+            settings = GameSettings(
+                teamAName = teamAName.trim().ifEmpty { "Team A" },
+                teamBName = teamBName.trim().ifEmpty { "Team B" }
+            )
+        )
+    }
+
+    fun recordRallyWinner(team: Team): GameState {
         val current = _state.value
+        val next = scoringEngine.recordRallyWinner(current, team)
+        if (next == current) return current
+
         history += current
-        _state.value = scoringEngine.recordRallyWinner(current, team)
+        _state.value = next
+        return next
     }
 
     fun undo() {
@@ -28,9 +43,12 @@ class ScoreboardViewModel(
         _state.value = previous
     }
 
-    fun reset(settings: GameSettings = _state.value.settings) {
+    fun reset(
+        settings: GameSettings = _state.value.settings,
+        startingTeam: Team = Team.A
+    ) {
         history.clear()
-        _state.value = GameState(settings = settings)
+        _state.value = GameState(settings = settings, servingTeam = startingTeam)
     }
 
     fun canUndo(): Boolean = history.isNotEmpty()

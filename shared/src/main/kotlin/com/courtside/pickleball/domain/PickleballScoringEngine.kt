@@ -13,8 +13,7 @@ class PickleballScoringEngine {
 
     private fun scorePoint(state: GameState): GameState {
         val nextScore = state.scoreFor(state.servingTeam) + 1
-        val nextState = state.withScore(state.servingTeam, nextScore)
-        return nextState.copy(status = statusFor(nextState, state.servingTeam))
+        return state.withScore(state.servingTeam, nextScore)
     }
 
     private fun loseServe(state: GameState): GameState {
@@ -34,13 +33,4 @@ class PickleballScoringEngine {
             serverNumber = ServerNumber.One
         )
 
-    private fun statusFor(state: GameState, scoringTeam: Team): GameStatus {
-        val score = state.scoreFor(scoringTeam)
-        val opponentScore = state.scoreFor(scoringTeam.opponent())
-        return if (score >= state.settings.targetScore && score - opponentScore >= state.settings.winBy) {
-            GameStatus.Complete(scoringTeam)
-        } else {
-            GameStatus.InProgress
-        }
-    }
 }
