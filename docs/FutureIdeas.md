@@ -8,20 +8,22 @@ These ideas are not MVP commitments. Move items to `Roadmap.md` only after they 
 - Slower/faster voice speed control.
 - Repeat current score button.
 - Optional announcements for side out or server change.
+- Bluetooth-specific voice mode.
+- Tablet voice announcements.
 
-## Watch And Remote Control
+## Watch Controller Polish
 
-- Wear OS remote control for phone scoreboard.
-- Phone remains scoreboard display while watch controls rally input.
-- Haptic feedback on watch after rally entry.
-- Reconnect/resync state after watch disconnect.
+- Haptic feedback variants after watch rally entry.
+- Optional watch complication or tile for current score.
+- Repeat current score from watch.
+- Left-handed watch layout option.
 
 ## External Display
 
 - Dedicated external scoreboard display mode.
-- Phone as controller, monitor as display.
 - Spectator-only view with no controls.
 - HDMI/USB-C monitor layout testing.
+- Alternate tablet-first display layout.
 
 ## Game And Match Modes
 

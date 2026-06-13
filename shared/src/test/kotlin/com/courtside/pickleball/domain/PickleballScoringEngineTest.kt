@@ -89,6 +89,32 @@ class PickleballScoringEngineTest {
     }
 
     @Test
+    fun spokenScoreCallUsesServingTeamFirst() {
+        val state = GameState(
+            teamAScore = 8,
+            teamBScore = 6,
+            servingTeam = Team.B,
+            serverNumber = ServerNumber.One,
+            isFirstServerException = false
+        )
+
+        assertEquals("six eight one", state.spokenScoreCall())
+    }
+
+    @Test
+    fun spokenScoreCallFallsBackToDigitsAboveTwenty() {
+        val state = GameState(
+            teamAScore = 21,
+            teamBScore = 20,
+            servingTeam = Team.A,
+            serverNumber = ServerNumber.Two,
+            isFirstServerException = false
+        )
+
+        assertEquals("21 twenty two", state.spokenScoreCall())
+    }
+
+    @Test
     fun gameKeepsGoingPastElevenForTimedPlay() {
         val state = GameState(
             teamAScore = 10,

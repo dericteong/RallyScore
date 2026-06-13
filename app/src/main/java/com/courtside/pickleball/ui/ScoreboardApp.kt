@@ -69,37 +69,50 @@ import com.courtside.pickleball.domain.GameState
 import com.courtside.pickleball.domain.GameStatus
 import com.courtside.pickleball.domain.ServerNumber
 import com.courtside.pickleball.domain.Team
+import com.courtside.pickleball.domain.displayValue
+import com.courtside.pickleball.domain.spokenScoreCall
 import java.util.Locale
 
-private val Ink = Color(0xFF182333)
-private val Paper = Color(0xFFF5F2EA)
-private val PanelWhite = Color(0xFFF8F8F3)
-private val CourtBlue = Color(0xFF087BA8)
-private val TeamABlue = Color(0xFF1E73BE)
-private val TeamBGreen = Color(0xFF2E9D62)
+private val Ink = Color(0xFF050607)
+private val Paper = Color(0xFFFFFFFF)
+private val PanelWhite = Color(0xFFFFFFFF)
+private val TeamABlue = Color(0xFF005BBB)
+private val TeamBGreen = Color(0xFF007A3D)
+private val ConnectedAmber = Color(0xFFFFC107)
+private val ProblemRed = Color(0xFFB00020)
 private val ServerDot = Color(0xFFECEBE3)
-private val ServerAccent = Color(0xFFD6FF3F)
+private val ServerAccent = Color.White
 private val Warning = Color(0xFFB23A48)
-private val TableLine = Color(0xFF5F6872)
+private val TableLine = Color(0xFF242A31)
 private val SetupTeamCardHeight = 96.dp
 private val SetupTeamCardCompactHeight = 88.dp
 private val SetupPlayerInputHeight = 46.dp
 private val SetupPlayerInputCompactHeight = 44.dp
-private val ScoreCellWidth = 160.dp
-private val ServeCellWidth = 78.dp
+private val ScoreCellWidth = 180.dp
+private val ServeCellWidth = 96.dp
+private val ScoreControlButtonWidth = 92.dp
+private const val ScoreSpeechRate = 0.9f
+
+private enum class VoiceAnnouncementMode {
+    Off,
+    PhoneSpeaker
+}
 
 @Composable
 fun ScoreboardApp(viewModel: ScoreboardViewModel) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    var matchStarted by remember { mutableStateOf(false) }
+    val matchStarted by viewModel.matchActive.collectAsStateWithLifecycle()
+    val watchConnected by viewModel.watchConnected.collectAsStateWithLifecycle()
     var setupTeamAPlayer1 by remember { mutableStateOf("") }
     var setupTeamAPlayer2 by remember { mutableStateOf("") }
     var setupTeamBPlayer1 by remember { mutableStateOf("") }
     var setupTeamBPlayer2 by remember { mutableStateOf("") }
     var startingTeam by remember { mutableStateOf<Team?>(null) }
     var showEndMatchDialog by remember { mutableStateOf(false) }
+    var voiceAnnouncementMode by remember { mutableStateOf(VoiceAnnouncementMode.PhoneSpeaker) }
     var ttsReady by remember { mutableStateOf(false) }
     var pendingScoreCall by remember { mutableStateOf<String?>(null) }
+    var lastObservedMatchState by remember { mutableStateOf<GameState?>(null) }
     val context = LocalContext.current
     val density = LocalDensity.current
     val tts = remember(context) {
@@ -110,6 +123,8 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
 
     fun speakScoreCall(scoreCall: String) {
         tts.useBestAvailableVoice()
+        tts.setSpeechRate(ScoreSpeechRate)
+        tts.setPitch(1.0f)
         tts.speak(scoreCall, TextToSpeech.QUEUE_FLUSH, null, "score-${System.nanoTime()}")
     }
 
@@ -131,7 +146,31 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
     }
 
     LaunchedEffect(ttsReady) {
-        if (ttsReady) tts.useBestAvailableVoice()
+        if (ttsReady) {
+            tts.useBestAvailableVoice()
+            tts.setSpeechRate(ScoreSpeechRate)
+            tts.setPitch(1.0f)
+        }
+    }
+
+    LaunchedEffect(voiceAnnouncementMode) {
+        if (voiceAnnouncementMode == VoiceAnnouncementMode.Off) {
+            pendingScoreCall = null
+            tts.stop()
+        }
+    }
+
+    LaunchedEffect(matchStarted, state, voiceAnnouncementMode) {
+        if (!matchStarted) {
+            lastObservedMatchState = null
+            return@LaunchedEffect
+        }
+
+        val previous = lastObservedMatchState
+        lastObservedMatchState = state
+        if (previous != null && state != previous && voiceAnnouncementMode == VoiceAnnouncementMode.PhoneSpeaker) {
+            announceScore(state)
+        }
     }
 
     DisposableEffect(tts) {
@@ -149,8 +188,9 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
                 ScoreboardScreen(
                     state = state,
                     canUndo = viewModel.canUndo(),
-                    onTeamARally = { announceScore(viewModel.recordRallyWinner(Team.A)) },
-                    onTeamBRally = { announceScore(viewModel.recordRallyWinner(Team.B)) },
+                    watchConnected = watchConnected,
+                    onTeamARally = { viewModel.recordRallyWinner(Team.A) },
+                    onTeamBRally = { viewModel.recordRallyWinner(Team.B) },
                     onUndo = viewModel::undo,
                     onEndMatchRequested = { showEndMatchDialog = true }
                 )
@@ -166,6 +206,9 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
                     onTeamBPlayer1Change = { setupTeamBPlayer1 = normalizePlayerNamesInput(it) },
                     onTeamBPlayer2Change = { setupTeamBPlayer2 = normalizePlayerNamesInput(it) },
                     onStartingTeamChange = { startingTeam = it },
+                    watchConnected = watchConnected,
+                    voiceAnnouncementMode = voiceAnnouncementMode,
+                    onVoiceAnnouncementModeChange = { voiceAnnouncementMode = it },
                     onStart = {
                         val server = startingTeam ?: Team.A
                         viewModel.startMatch(
@@ -173,8 +216,6 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
                             teamBName = formatTeamName(setupTeamBPlayer1, setupTeamBPlayer2, Team.B),
                             startingTeam = server
                         )
-                        matchStarted = true
-                        announceScore(viewModel.state.value)
                     }
                 )
             }
@@ -188,9 +229,8 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
                 confirmButton = {
                     Button(
                         onClick = {
-                            viewModel.reset()
+                            viewModel.endMatch()
                             showEndMatchDialog = false
-                            matchStarted = false
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Warning)
                     ) {
@@ -219,6 +259,9 @@ private fun MatchSetupScreen(
     onTeamBPlayer1Change: (String) -> Unit,
     onTeamBPlayer2Change: (String) -> Unit,
     onStartingTeamChange: (Team) -> Unit,
+    watchConnected: Boolean,
+    voiceAnnouncementMode: VoiceAnnouncementMode,
+    onVoiceAnnouncementModeChange: (VoiceAnnouncementMode) -> Unit,
     onStart: () -> Unit
 ) {
     val density = LocalDensity.current
@@ -282,6 +325,7 @@ private fun MatchSetupScreen(
                         fontWeight = FontWeight.Bold,
                         maxLines = 1
                     )
+                    ConnectionStatusBadge(connected = watchConnected)
                 }
                 SetupTeamNameFields(
                     label = "Team A players",
@@ -315,6 +359,12 @@ private fun MatchSetupScreen(
                 verticalArrangement = Arrangement.spacedBy(if (keyboardVisible) 8.dp else 12.dp)
             ) {
                 ScorePreviewCard(startingTeam, compact = keyboardVisible)
+                if (!keyboardVisible) {
+                    VoiceAnnouncementControls(
+                        selectedMode = voiceAnnouncementMode,
+                        onModeChange = onVoiceAnnouncementModeChange
+                    )
+                }
                 if (keyboardVisible) {
                     OutlinedButton(
                         modifier = Modifier
@@ -341,7 +391,7 @@ private fun MatchSetupScreen(
                         onClick = onStart,
                         enabled = canStart,
                         shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = CourtBlue)
+                        colors = ButtonDefaults.buttonColors(containerColor = Ink)
                     ) {
                         Text(
                             text = "START 0 - 0 - 2",
@@ -545,6 +595,7 @@ private fun ScorePreviewCard(startingTeam: Team?, compact: Boolean = false) {
 private fun ScoreboardScreen(
     state: GameState,
     canUndo: Boolean,
+    watchConnected: Boolean,
     onTeamARally: () -> Unit,
     onTeamBRally: () -> Unit,
     onUndo: () -> Unit,
@@ -560,8 +611,8 @@ private fun ScoreboardScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .safeDrawingPadding()
-                .padding(horizontal = 24.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+                .padding(horizontal = 22.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             ScoreboardBody(
                 modifier = Modifier.weight(1f),
@@ -572,6 +623,7 @@ private fun ScoreboardScreen(
             ControlBar(
                 state = state,
                 canUndo = canUndo,
+                watchConnected = watchConnected,
                 onUndo = onUndo,
                 onEndMatchRequested = onEndMatchRequested
             )
@@ -591,10 +643,10 @@ private fun ScoreboardBody(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
+            .clip(RoundedCornerShape(10.dp))
             .background(TableLine)
-            .padding(10.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+            .padding(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         TeamScoreTableRow(
             modifier = Modifier.weight(1f),
@@ -633,7 +685,7 @@ private fun TeamScoreTableRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(6.dp))
             .background(PanelWhite),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(0.dp)
@@ -666,7 +718,6 @@ private fun TeamScoreTableRow(
         TableDivider()
         ScoreTapTarget(
             modifier = Modifier
-                .width(ScoreCellWidth)
                 .fillMaxHeight(),
             score = score,
             color = color,
@@ -684,48 +735,24 @@ private fun TeamNameDisplay(
 ) {
     val parts = name.uppercase().split(" & ", limit = 2)
     if (parts.size == 2) {
-        Row(
-            modifier = modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text(
-                modifier = Modifier.weight(1f),
-                text = parts[0],
-                color = color,
-                fontSize = 34.sp,
-                fontWeight = FontWeight.Black,
-                lineHeight = 38.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = "&",
-                color = color,
-                fontSize = 34.sp,
-                fontWeight = FontWeight.Black,
-                lineHeight = 38.sp,
-                maxLines = 1
-            )
-            Text(
-                modifier = Modifier.weight(1f),
-                text = parts[1],
-                color = color,
-                fontSize = 34.sp,
-                fontWeight = FontWeight.Black,
-                lineHeight = 38.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
+        Text(
+            modifier = modifier,
+            text = "${parts[0]} & ${parts[1]}",
+            color = color,
+            fontSize = 38.sp,
+            fontWeight = FontWeight.Black,
+            lineHeight = 42.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     } else {
         Text(
             modifier = modifier,
             text = name.uppercase(),
             color = color,
-            fontSize = 34.sp,
+            fontSize = 38.sp,
             fontWeight = FontWeight.Black,
-            lineHeight = 38.sp,
+            lineHeight = 42.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
@@ -751,27 +778,145 @@ private fun TableDivider() {
     Box(
         modifier = Modifier
             .fillMaxHeight()
-            .width(3.dp)
+            .width(4.dp)
             .background(TableLine)
+    )
+}
+
+@Composable
+private fun ConnectionStatusBadge(
+    connected: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val background = if (connected) ConnectedAmber else ProblemRed
+    val text = if (connected) "WATCH CONNECTED" else "WATCH OFFLINE"
+    val textColor = if (connected) Ink else Color.White
+
+    Box(
+        modifier = modifier
+            .height(32.dp)
+            .background(background, RoundedCornerShape(8.dp))
+            .padding(horizontal = 10.dp, vertical = 3.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            color = textColor,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Black,
+            lineHeight = 12.sp,
+            textAlign = TextAlign.Center,
+            maxLines = 1
+        )
+    }
+}
+
+@Composable
+private fun VoiceAnnouncementControls(
+    selectedMode: VoiceAnnouncementMode,
+    onModeChange: (VoiceAnnouncementMode) -> Unit
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(5.dp)
+    ) {
+        Text(
+            text = "VOICE ANNOUNCEMENTS",
+            color = Ink,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Black,
+            maxLines = 1
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            VoiceModeButton(
+                modifier = Modifier.weight(1f),
+                label = "OFF",
+                selected = selectedMode == VoiceAnnouncementMode.Off,
+                onClick = { onModeChange(VoiceAnnouncementMode.Off) }
+            )
+            VoiceModeButton(
+                modifier = Modifier.weight(1.45f),
+                label = "PHONE SPEAKER",
+                selected = selectedMode == VoiceAnnouncementMode.PhoneSpeaker,
+                onClick = { onModeChange(VoiceAnnouncementMode.PhoneSpeaker) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun VoiceModeButton(
+    modifier: Modifier,
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    val shape = RoundedCornerShape(8.dp)
+    if (selected) {
+        Button(
+            modifier = modifier.height(40.dp),
+            onClick = onClick,
+            shape = shape,
+            colors = ButtonDefaults.buttonColors(containerColor = Ink),
+            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+        ) {
+            Text(
+                text = label,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Black,
+                textAlign = TextAlign.Center,
+                maxLines = 1
+            )
+        }
+    } else {
+        OutlinedButton(
+            modifier = modifier.height(40.dp),
+            onClick = onClick,
+            shape = shape,
+            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+        ) {
+            Text(
+                text = label,
+                color = Ink,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Black,
+                textAlign = TextAlign.Center,
+                maxLines = 1
+            )
+        }
+    }
+}
+
+@Composable
+private fun WatchConnectionRail(
+    connected: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val background = if (connected) ConnectedAmber else ProblemRed
+
+    Box(
+        modifier = modifier
+            .width(10.dp)
+            .fillMaxHeight()
+            .background(background, RoundedCornerShape(6.dp))
     )
 }
 
 @Composable
 private fun ServeDots(color: Color, isServing: Boolean, serverNumber: ServerNumber) {
     Row(
-        modifier = Modifier.size(width = 68.dp, height = 32.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+        modifier = Modifier.size(width = 78.dp, height = 38.dp),
+        horizontalArrangement = Arrangement.spacedBy(9.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (isServing) {
-            val dotCount = when (serverNumber) {
-                ServerNumber.One -> 1
-                ServerNumber.Two -> 2
-            }
-            repeat(dotCount) {
+            repeat(serverNumber.displayValue) {
                 Box(
                     modifier = Modifier
-                        .size(22.dp)
+                        .size(26.dp)
                         .background(color, CircleShape)
                 )
             }
@@ -789,16 +934,17 @@ private fun ScoreTapTarget(
 ) {
     Box(
         modifier = modifier
+            .width(ScoreCellWidth)
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = score.toString(),
             color = color,
-            fontSize = 76.sp,
+            fontSize = 86.sp,
             fontWeight = FontWeight.Black,
             textAlign = TextAlign.Center,
-            lineHeight = 80.sp,
+            lineHeight = 90.sp,
             maxLines = 1
         )
     }
@@ -808,6 +954,7 @@ private fun ScoreTapTarget(
 private fun ControlBar(
     state: GameState,
     canUndo: Boolean,
+    watchConnected: Boolean,
     onUndo: () -> Unit,
     onEndMatchRequested: () -> Unit
 ) {
@@ -816,8 +963,8 @@ private fun ControlBar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(82.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+            .height(88.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
@@ -831,32 +978,37 @@ private fun ControlBar(
             Text(
                 text = state.callBarText(status),
                 color = Color.White,
-                fontSize = 46.sp,
+                fontSize = 44.sp,
                 fontWeight = FontWeight.Black,
-                lineHeight = 50.sp,
+                lineHeight = 48.sp,
                 maxLines = 1
             )
         }
+        WatchConnectionRail(
+            modifier = Modifier
+                .fillMaxHeight(),
+            connected = watchConnected
+        )
         OutlinedButton(
             modifier = Modifier
                 .fillMaxHeight()
-                .weight(0.22f),
+                .width(ScoreControlButtonWidth),
             onClick = onUndo,
             enabled = canUndo,
             shape = RoundedCornerShape(8.dp),
             contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
         ) {
-            Text("UNDO", fontSize = 15.sp, fontWeight = FontWeight.Black, maxLines = 1)
+            Text("UNDO", fontSize = 18.sp, fontWeight = FontWeight.Black, maxLines = 1)
         }
         OutlinedButton(
             modifier = Modifier
                 .fillMaxHeight()
-                .weight(0.22f),
+                .width(ScoreControlButtonWidth),
             onClick = onEndMatchRequested,
             shape = RoundedCornerShape(8.dp),
             contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
         ) {
-            Text("END", fontSize = 15.sp, fontWeight = FontWeight.Black, maxLines = 1)
+            Text("END", fontSize = 18.sp, fontWeight = FontWeight.Black, maxLines = 1)
         }
     }
 }
@@ -886,12 +1038,7 @@ private fun GameState.callBarText(status: GameStatus) = buildAnnotatedString {
     pop()
     append(" - ")
     pushStyle(SpanStyle(color = teamColor(servingTeam)))
-    append(
-        when (serverNumber) {
-            ServerNumber.One -> "1"
-            ServerNumber.Two -> "2"
-        }
-    )
+    append(serverNumber.displayValue.toString())
     pop()
 }
 
@@ -914,39 +1061,6 @@ private fun formatTeamName(player1: String, player2: String, team: Team): String
         second.isNotEmpty() -> second
         else -> fallback
     }
-}
-
-private fun GameState.spokenScoreCall(): String =
-    "${servingScore.spokenNumber()} ${receivingScore.spokenNumber()} ${serverNumber.spokenNumber()}"
-
-private fun ServerNumber.spokenNumber(): String = when (this) {
-    ServerNumber.One -> "one"
-    ServerNumber.Two -> "two"
-}
-
-private fun Int.spokenNumber(): String = when (this) {
-    0 -> "zero"
-    1 -> "one"
-    2 -> "two"
-    3 -> "three"
-    4 -> "four"
-    5 -> "five"
-    6 -> "six"
-    7 -> "seven"
-    8 -> "eight"
-    9 -> "nine"
-    10 -> "ten"
-    11 -> "eleven"
-    12 -> "twelve"
-    13 -> "thirteen"
-    14 -> "fourteen"
-    15 -> "fifteen"
-    16 -> "sixteen"
-    17 -> "seventeen"
-    18 -> "eighteen"
-    19 -> "nineteen"
-    20 -> "twenty"
-    else -> toString()
 }
 
 private fun TextToSpeech.useBestAvailableVoice() {

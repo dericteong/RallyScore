@@ -1,30 +1,42 @@
-# Portable Courtside Pickleball Scoreboard
+# RallyScore
 
-Single-phone Android scoreboard for live pickleball games, optimized for courtside readability and fast rally entry.
+Wear. Play. Score.
+
+Flexible Android/Wear OS scoreboard ecosystem for live pickleball games. RallyScore works with different combinations of devices: Watch Only, Phone Only, Watch + Phone, and Watch + Phone + shared display. Additional devices enhance the experience but are not required.
 
 ## Current Product
 
-The MVP is an Android app built with Kotlin, Jetpack Compose, and MVVM. It supports:
+The current MVP foundation is built with Kotlin, Jetpack Compose, and MVVM. It supports:
 
-- Landscape-first phone scoreboard UI.
+- Landscape-first phone scoreboard UI for Phone Only scoring and display output.
+- Wear OS scoring prototype using the shared scoring engine.
 - Player/team name setup before a game.
 - Standard doubles side-out scoring rules.
 - Game start at `0 - 0 - 2`.
-- Rally entry by tapping the score for the team that won the rally.
+- Rally entry by tapping the team that won the rally.
 - Automatic serving team, server number, and side-out transitions.
 - Unlimited undo within the current match.
 - End game confirmation that returns to setup.
 - Spoken score calls using Android Text-to-Speech.
 - Offline operation.
 - Keep-screen-awake behavior.
-- Wear OS companion app prototype using the shared scoring engine.
+
+The connected product direction is watch-controlled and phone-owned: when a phone is present, the phone is the source of truth and the watch acts as a remote control. Phone Only is a first-class experience. Watch Only remains valid for casual play, demo mode, and backup mode.
+
+Supported modes:
+
+- Mode 0: Watch Only, with watch-owned setup, scoring, display, undo, and voice.
+- Mode 1: Phone Only, with phone-owned setup, scoring, display, undo, and voice.
+- Mode 2: Watch + Phone, with watch commands and phone-owned scoring/state/voice/display.
+- Mode 3: Watch + Phone + Android Tablet, with tablet as shared display.
+- Mode 4: Watch + Phone + Portable Monitor, with monitor as mirrored shared display.
 
 Timed play is the current default assumption, so scores continue beyond 11. Formal match completion can be added later as a configurable mode.
 
 ## Project Structure
 
-- `app/` - Phone Android app, Compose UI, ViewModel, TTS, launcher activity.
-- `wear/` - Standalone Wear OS app prototype.
+- `app/` - Phone Android app, source of truth when present, scoring hub/display source, first-class phone scoring UI, ViewModel, TTS, launcher activity.
+- `wear/` - Wear OS app, Watch Only scorer, and connected remote controller.
 - `shared/` - Pure Kotlin scoring domain and unit tests.
 - `docs/` - Source-of-truth project documentation.
 

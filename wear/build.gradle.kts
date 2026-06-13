@@ -9,7 +9,7 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.courtside.pickleball.wear"
+        applicationId = "com.courtside.pickleball"
         minSdk = 30
         targetSdk = 35
         versionCode = 1
@@ -50,6 +50,7 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
+    implementation("com.google.android.gms:play-services-wearable:19.0.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

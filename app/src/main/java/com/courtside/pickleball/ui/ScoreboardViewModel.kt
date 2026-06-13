@@ -3,53 +3,40 @@ package com.courtside.pickleball.ui
 import androidx.lifecycle.ViewModel
 import com.courtside.pickleball.domain.GameSettings
 import com.courtside.pickleball.domain.GameState
-import com.courtside.pickleball.domain.PickleballScoringEngine
 import com.courtside.pickleball.domain.Team
-import kotlinx.coroutines.flow.MutableStateFlow
+import com.courtside.pickleball.sync.RallyScorePhoneHub
+import com.courtside.pickleball.sync.ScoreboardStore
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 
 class ScoreboardViewModel(
-    private val scoringEngine: PickleballScoringEngine = PickleballScoringEngine()
+    private val store: ScoreboardStore = RallyScorePhoneHub.store
 ) : ViewModel() {
-    private val history = mutableListOf<GameState>()
-    private val _state = MutableStateFlow(GameState())
-
-    val state: StateFlow<GameState> = _state.asStateFlow()
+    val state: StateFlow<GameState> = store.state
+    val matchActive: StateFlow<Boolean> = store.matchActive
+    val watchConnected: StateFlow<Boolean> = RallyScorePhoneHub.watchConnected
 
     fun startMatch(teamAName: String, teamBName: String, startingTeam: Team) {
-        history.clear()
-        _state.value = GameState(
-            servingTeam = startingTeam,
-            settings = GameSettings(
-                teamAName = teamAName.trim().ifEmpty { "Team A" },
-                teamBName = teamBName.trim().ifEmpty { "Team B" }
-            )
-        )
+        store.startMatch(teamAName, teamBName, startingTeam)
     }
 
     fun recordRallyWinner(team: Team): GameState {
-        val current = _state.value
-        val next = scoringEngine.recordRallyWinner(current, team)
-        if (next == current) return current
-
-        history += current
-        _state.value = next
-        return next
+        return store.recordRallyWinner(team)
     }
 
     fun undo() {
-        val previous = history.removeLastOrNull() ?: return
-        _state.value = previous
+        store.undo()
     }
 
     fun reset(
-        settings: GameSettings = _state.value.settings,
+        settings: GameSettings = state.value.settings,
         startingTeam: Team = Team.A
     ) {
-        history.clear()
-        _state.value = GameState(settings = settings, servingTeam = startingTeam)
+        store.reset(settings, startingTeam)
     }
 
-    fun canUndo(): Boolean = history.isNotEmpty()
+    fun endMatch() {
+        store.endMatch()
+    }
+
+    fun canUndo(): Boolean = store.canUndo()
 }
