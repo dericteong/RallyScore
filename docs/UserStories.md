@@ -44,6 +44,15 @@
 - As a player without a connected watch, I want to score directly on the phone as a first-class experience.
 - As a volunteer or referee, I want phone controls to remain usable for courtside scoring when needed.
 
+## Tablet Only
+
+- As a player, I want to set up a match directly on a tablet so I can use RallyScore without a phone or watch.
+- As a social player, I want a tablet placed courtside so any player can tap the rally winner between points.
+- As a player, I want tablet scoring controls to be large and readable outdoors.
+- As a player, I want tablet Undo and correction tools so mistakes can be fixed without restarting the match.
+- As a player, I want tablet voice announcements so everyone can hear the confirmed score.
+- As a player, I want Tablet Only mode to use the same scoring rules as Phone Only mode.
+
 ## Corrections
 
 - As a player, I want undo to restore scores, serving team, server number, and side outs together.
@@ -61,3 +70,10 @@
 - As a player, I want to show the scoreboard on a portable monitor, large screen, or Android tablet so everyone on court can see the score clearly.
 - As an organizer, I want the shared display to avoid accidental touch controls when it is only being used as the scoreboard.
 - As a player, I want the shared display to show only team scores, serving team, and server number during a match.
+- As a player, I want the tablet to follow the phone-owned score automatically so I can keep scoring from the watch without touching the tablet.
+
+## Future Phone + Tablet Sync
+
+- As a player, I want the phone and tablet to share the same match so scoring from either device updates the other.
+- As a player wearing a watch, I want watch input to update the phone and tablet without creating conflicting match states.
+- As a player, I want the app to prevent two unsynchronized devices from independently scoring the same live match.

@@ -64,20 +64,26 @@ Next:
 - Add pairing/reconnect states.
 - Implement connected voice timing: confirmed watch announcement immediately, phone repeat approximately two seconds later.
 
-## Phase 3 - Tablet Display Mode
+## Phase 3 - Tablet Standalone Controller
 
 Status: In progress.
 
 Goals:
 
-- Add a passive tablet-sized scoreboard display layout inside the Android app.
-- Add initial local-network phone-to-tablet display snapshot sync.
-- Harden discovery and delivery across real Wi-Fi/hotspot environments where inbound phone-to-tablet traffic may be blocked.
+- Add a first-class Tablet Only controller mode inside the Android app.
+- Allow match setup on tablet.
+- Allow rally-winner scoring on tablet.
+- Allow Undo on tablet.
+- Support correction mode on tablet when available in the shared phone/tablet UI.
 - Show team scores, serving team, server number, player names, and CALL clearly.
 - Make typography readable by all four players.
-- Do not show scoring, undo, reset, or end controls on tablet display.
+- Keep tablet screen awake.
+- Use the shared scoring engine; do not duplicate scoring rules in tablet UI.
+- Keep exactly one active source of truth per match.
 - Keep phone and watch flows unchanged.
-- Avoid cloud, accounts, and complex pairing in this phase.
+- Avoid cloud, accounts, and complex phone-tablet sync in this phase.
+
+Existing passive tablet display sync may remain as a prototype/fallback, but it is no longer the main Phase 3 direction.
 
 ## Phase 4 - Portable Monitor Support
 
@@ -90,26 +96,30 @@ Goals:
 - Keep the phone awake while driving the display.
 - Avoid accidental touch/control surfaces on the display.
 
-## Phase 5 - Hardened Android Tablet Display
+## Phase 5 - Phone + Tablet Synced Controller
 
 Status: Not started.
 
 Goals:
 
-- Add explicit pairing/discovery if UDP broadcast is insufficient.
-- Harden tablet reconnect behavior across Wi-Fi/hotspot environments.
-- Keep tablet display synchronized with phone match state across real-world venues.
+- Add explicit phone-tablet pairing/discovery.
+- Share one canonical match state between phone and tablet.
+- Allow either phone or tablet to send rally, undo, and correction intent.
+- Ensure score updates from either device update all devices.
+- Add conflict handling when phone and tablet send commands at nearly the same time.
+- Preserve Watch + Phone flow and allow Watch + Phone + Tablet synced mode.
+- Harden reconnect behavior across Wi-Fi/hotspot environments.
 
 ## Priority Order
 
 1. Phone remains stable source of truth.
 2. Watch controls phone score.
 3. Phone-only experience is excellent.
-4. Large display mode optimized for mirroring.
+4. Tablet-only controller experience is excellent.
 5. Phone voice announcements.
-6. Tablet support.
+6. Large display mode optimized for mirroring.
 7. Portable monitor support.
-8. Wireless tablet mode.
+8. Phone-tablet synced mode.
 9. Bluetooth speaker support.
 10. Tournament features.
 

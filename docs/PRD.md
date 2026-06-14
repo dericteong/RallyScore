@@ -10,7 +10,7 @@ Tagline: Wear. Play. Score.
 
 Pickleball games often need a clear, portable scoreboard that players can update without leaving the court. Existing manual scoreboards require physical handling, and generic scoring apps often require the operator to understand side outs, server number changes, and score-call order.
 
-RallyScore is a flexible pickleball scoring ecosystem. It should work with different combinations of devices, and additional devices should enhance the experience rather than being mandatory. The phone is the source of truth whenever a phone is present. Watch Only remains a valid casual, demo, and backup mode.
+RallyScore is a flexible pickleball scoring ecosystem. It should work with different combinations of devices, and additional devices should enhance the experience rather than being mandatory. There must be only one active source of truth per match. Phone Only, Tablet Only, and Watch Only may each own standalone match state when used alone. When a watch is connected, the phone remains the primary hub. Future Phone + Tablet synced modes must share one canonical match state rather than independently scoring separate copies of the same match.
 
 Canonical connected system flow:
 
@@ -18,8 +18,8 @@ Canonical connected system flow:
 Wear OS watch
     ↓
 Android phone scoring hub
-    ↓
-Portable monitor, Android tablet, or phone display
+    ↔
+Android tablet controller/display
     ↓
 Large shared scoreboard
 ```
@@ -28,8 +28,9 @@ Large shared scoreboard
 
 - Players who want to score from a Wear OS watch while actively playing.
 - Players who want a first-class Phone Only scorer and scoreboard.
+- Players who want a first-class Tablet Only scorer and large courtside controller.
 - Other players on court who need a shared, readable scoreboard.
-- Coaches, organizers, or clubs using a phone connected to a portable monitor, large screen, or Android tablet display.
+- Coaches, organizers, or clubs using a phone, tablet, portable monitor, or large screen display.
 - A player, volunteer, or referee scoring directly from the phone.
 
 ## Supported Modes
@@ -52,14 +53,30 @@ Large shared scoreboard
 - Watch acts as a remote control with ME WON, OPP WON, and Undo.
 - Phone owns scoring rules, side outs, server transitions, undo history, voice announcements, and display output.
 
-### Mode 3 - Watch + Phone + Android Tablet
+### Mode 3 - Tablet Only
+
+- Android tablet is the source of truth.
+- Supports match setup, team names, first server selection, score display, ME WON, OPP WON, Undo, correction mode when available, and voice announcements.
+- Uses the same shared scoring engine as the phone.
+- Purpose: social play where a tablet is placed courtside and any player can tap scoring controls.
+
+### Mode 4 - Phone + Android Tablet Synced
+
+- Phone and tablet share one canonical match state.
+- Either phone or tablet may update the score after synchronization is established.
+- Score updates from either device must update the other device.
+- Conflict handling is required when both devices send changes at nearly the same time.
+- This is future work after Tablet Only is stable.
+
+### Mode 5 - Watch + Phone + Android Tablet Synced
 
 - Phone remains the source of truth.
-- Tablet acts as a shared display.
-- Current phase adds a passive tablet-sized display layout inside the Android app plus initial local-network score snapshot sync. Simple mirrored display remains acceptable.
-- Initial tablet sync is display-only and may require network hardening for venues or Wi-Fi configurations that block phone-to-tablet delivery.
+- Watch acts as remote control through the phone.
+- Tablet may act as a synced controller/display once phone-tablet sync exists.
+- Score updates from watch, phone, or tablet must resolve through one canonical match state.
+- This is future work after Tablet Only and Phone + Tablet sync are stable.
 
-### Mode 4 - Watch + Phone + Portable Monitor
+### Mode 6 - Watch + Phone + Portable Monitor
 
 - Phone remains the source of truth.
 - Portable monitor acts as a shared display.
@@ -70,20 +87,21 @@ Large shared scoreboard
 1. Phone remains stable source of truth.
 2. Watch controls phone score.
 3. Phone-only experience is excellent.
-4. Large display mode optimized for mirroring.
+4. Tablet-only controller experience is excellent.
 5. Phone voice announcements.
-6. Tablet support.
+6. Large display mode optimized for mirroring.
 7. Portable monitor support.
-8. Wireless tablet mode.
+8. Phone-tablet synced mode.
 9. Bluetooth speaker support.
 10. Tournament features.
 
 ## MVP Goals
 
 - Wear OS watch as a first-class rally-input controller in connected mode.
-- Phone Android app as the scoring hub, rules expert, and source of truth whenever present.
+- Phone Android app as the scoring hub, rules expert, and source of truth in Phone Only and Watch + Phone modes.
 - Watch Only scoring as a valid standalone mode.
 - Phone Only scoring as a first-class mode.
+- Tablet Only scoring as a first-class standalone controller mode.
 - Large-screen, portable-monitor, or Android-tablet scoreboard display for all players.
 - Standard doubles pickleball scoring.
 - Setup screen for My Team and Opponent Team player names, with two player fields per team.
@@ -128,7 +146,24 @@ Standalone mode:
 - Continue scoring if the watch, tablet, or monitor disconnects.
 - Provide direct phone scoring as a first-class Phone Only experience.
 
-## Display Responsibilities
+## Tablet Responsibilities
+
+Tablet Only mode:
+
+- Own score calculations using the shared scoring engine.
+- Own server transitions and side outs.
+- Own match setup, match state, undo history, correction mode when available, voice announcements, and display output.
+- Provide large, high-contrast scoring controls and score display.
+- Keep the screen awake.
+
+Future synced mode:
+
+- Share one canonical match state with the phone.
+- Send tablet scoring intent to the sync owner instead of scoring a separate copy.
+- Receive confirmed score state and update its display.
+- Handle conflicts explicitly when phone and tablet act at nearly the same time.
+
+## Display-Only Responsibilities
 
 - Show team scores.
 - Show serving team.
@@ -155,7 +190,7 @@ Standalone mode:
 - Phone Only mode announces immediately with no delay when Phone only mode is selected.
 - Bluetooth speaker routing can rely on Android audio routing for now.
 - Scores continue beyond 11 for timed games.
-- Tablet-sized Android screens render a passive scoreboard layout during live matches, with no scoring controls.
+- Tablet-sized Android screens currently render a passive scoreboard layout when acting as a synced display client. The revised Phase 3 direction is to add Tablet Only controller mode first.
 
 ## Non-Goals For Current MVP
 
@@ -164,7 +199,8 @@ Standalone mode:
 - Tournament bracket management.
 - Cloud-based remote control.
 - Advanced external-display optimization beyond Android's normal screen mirroring.
-- Cloud-based phone-to-tablet display synchronization.
+- Cloud-based phone-to-tablet synchronization.
+- Multi-controller phone-tablet synchronization before Tablet Only mode is stable.
 - Custom voice packs.
 - Dedicated Bluetooth speaker controls.
 - Full match history persistence after app restart.
@@ -173,8 +209,10 @@ Standalone mode:
 
 - A first-time user can understand scoring input within 30 seconds.
 - A player can record a rally winner from the watch with minimal attention away from play.
+- A tablet-only user can set up and score a match on a courtside tablet without a phone or watch.
 - The shared scoreboard is readable from normal player distance on a phone-connected display or tablet.
 - The operator does not manually manage side outs or server number.
-- The display device requires no user interaction during a match.
+- Display-only surfaces require no user interaction during a match.
+- Controller surfaces expose only clear scoring and correction controls.
 - Undo reliably restores the previous full rally state.
 - The app can run offline and keep the display awake.

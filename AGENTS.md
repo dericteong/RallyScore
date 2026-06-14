@@ -4,7 +4,7 @@ This file is the working contract for AI/code agents contributing to RallyScore.
 
 ## Prime Directive
 
-Protect the live player-controlled scorekeeping experience across RallyScore's supported device combinations. RallyScore must work correctly as Watch Only, Phone Only, Watch + Phone, and Watch + Phone + shared display. Additional devices enhance the experience but are not mandatory. Changes must prioritize scoring correctness, low cognitive load, glanceability, tap reliability during play, outdoor readability, and reliable synchronized state whenever multiple devices are present.
+Protect the live player-controlled scorekeeping experience across RallyScore's supported device combinations. RallyScore must work correctly as Watch Only, Phone Only, Tablet Only, Watch + Phone, Phone + Tablet synced, and Watch + Phone + Tablet synced. Additional devices enhance the experience but are not mandatory. Changes must prioritize scoring correctness, low cognitive load, glanceability, tap reliability during play, outdoor readability, and reliable synchronized state whenever multiple devices are present.
 
 ## Source Of Truth
 
@@ -29,7 +29,7 @@ If implementation and docs disagree, inspect the current code, fix the docs or c
 - Shared scoring engine: `shared/`
 - Language: Kotlin
 - UI: Jetpack Compose
-- Pattern: MVVM on phone, standalone state on Wear for Watch Only mode, Wear Data Layer sync for connected Watch + Phone mode
+- Pattern: MVVM on phone/tablet app, standalone state on Wear for Watch Only mode, Wear Data Layer sync for connected Watch + Phone mode
 - Tests: JUnit unit tests for shared scoring and phone ViewModel
 
 ## Development Rules
@@ -39,13 +39,18 @@ If implementation and docs disagree, inspect the current code, fix the docs or c
 - Keep Android UI logic out of the pure Kotlin scoring engine.
 - Prefer explicit rally-winner input over manual score/server controls.
 - Treat Phone Only as a first-class experience.
+- Treat Tablet Only as a first-class standalone controller experience.
 - Treat Watch Only as a valid casual/demo/backup mode where the watch may be source of truth.
 - Treat Watch + Phone as the canonical connected architecture: watch remote control, phone source of truth.
-- Treat the phone as the source of truth whenever a phone is present.
+- Maintain exactly one active source of truth per match.
+- Treat the phone as the primary hub whenever a watch is used.
+- In Tablet Only mode, the tablet may own match state and execute scoring through the shared engine.
+- In future Phone + Tablet synced modes, phone and tablet must share one canonical match state; do not let both devices independently score separate copies of the same match.
 - Keep watch in-match controls extremely simple: Team A won rally, Team B won rally, Undo.
 - Do not put scoring rules, server transitions, side-out logic, or authoritative match state in connected watch mode.
 - Preserve existing standalone watch scoring unless intentionally changing Watch Only mode.
-- Keep external/shared display mode passive during live play; do not show controls there.
+- Keep pure external/shared display surfaces passive during live play; do not show controls on display-only surfaces.
+- Tablet controller screens may show setup, rally scoring, undo, correction, and voice controls when the tablet is the active controller/source of truth.
 - Do not reintroduce automatic focus jumps between setup text fields without testing on a real Samsung phone; this previously caused a Compose focus crash.
 - Preserve landscape readability on phone.
 - Keep score text and tap targets large.

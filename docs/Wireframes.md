@@ -6,8 +6,11 @@ These are text wireframes for the current design direction. They are not pixel-p
 
 - Watch Only: Wear OS setup and scoring screen.
 - Phone Only: phone setup and scoring screen.
+- Tablet Only: tablet setup and large scoring-controller screen.
 - Watch + Phone: phone setup/source of truth, watch remote control, phone display.
-- Watch + Phone + Tablet or Portable Monitor: phone source of truth, shared display through mirroring or passive tablet layout for MVP.
+- Phone + Tablet synced: future shared canonical match state across phone and tablet.
+- Watch + Phone + Tablet synced: future watch remote control with phone/tablet sharing one canonical match state.
+- Watch + Phone + Portable Monitor: phone source of truth, shared display through mirroring.
 
 ## Phone Setup Screen
 
@@ -137,9 +140,70 @@ Display behavior:
 - Prioritizes readability for all four players.
 - MVP shared display may use Android display mirroring.
 
-## Tablet Display Mode
+## Tablet Controller Mode
 
-Tablet-sized Android screens use a passive display-only live match layout. The tablet display reads the current app-owned match state and does not show scoring controls.
+Tablet-sized Android screens should support standalone setup and scoring. Tablet Only owns its own match state and uses the shared scoring engine, matching the Phone Only rules and behavior.
+
+Tablet setup:
+
+```text
+---------------------------------------------------------------
+| SET UP GAME                                                  |
+|                                                             |
+| My Team                     Opponent Team                    |
+| [ P1 ][ P2 ]                [ P3 ][ P4 ]                     |
+|                                                             |
+| Who serves first?       [ ME ] [ OPP ]                       |
+|                                                             |
+|                     [ START 0 - 0 - 2 ]                      |
+---------------------------------------------------------------
+```
+
+Tablet score controller:
+
+```text
+---------------------------------------------------------------
+| P1 & P2                         | P3 & P4                    |
+|                                 |                            |
+|      08                         |      06                    |
+|                                 |                            |
+| SERVING - SERVER 2              | RECEIVING                  |
+---------------------------------------------------------------
+| CALL: 8 - 6 - 2                 | UNDO | CORRECT | END       |
+---------------------------------------------------------------
+|              [ ME WON ]         [ OPP WON ]                  |
+---------------------------------------------------------------
+```
+
+Tablet controller behavior:
+
+- Shows setup, score, serving side, server number, player names, and CALL.
+- Provides large ME WON and OPP WON scoring controls.
+- Provides Undo.
+- Provides correction mode when available.
+- Provides voice announcements when enabled.
+- Uses Team A blue and Team B green.
+- Uses high contrast and landscape-first spacing.
+- Keeps the screen awake through the existing app activity behavior.
+- Uses the shared scoring engine; UI must not duplicate scoring rules.
+- Owns match state only in Tablet Only mode.
+- Must not independently score a phone-owned synced match.
+
+## Tablet Display Client Prototype
+
+Passive tablet display-client mode can remain as a prototype/fallback. In tablet-client mode, the tablet reads phone-owned display snapshots and does not show setup or scoring controls.
+
+Waiting for phone:
+
+```text
+---------------------------------------------------------------
+|                                                             |
+|                         RALLYSCORE                          |
+|                      WAITING FOR PHONE                      |
+|                 START THE MATCH ON THE PHONE                |
+|                                                             |
+---------------------------------------------------------------
+```
 
 ```text
 ---------------------------------------------------------------
@@ -157,7 +221,7 @@ Tablet-sized Android screens use a passive display-only live match layout. The t
 ---------------------------------------------------------------
 ```
 
-Tablet display behavior:
+Tablet display-client behavior:
 
 - Shows team scores with very large numbers.
 - Shows serving side and server number.
@@ -167,6 +231,6 @@ Tablet display behavior:
 - Uses high contrast and landscape-first spacing.
 - Keeps the screen awake through the existing app activity behavior.
 - Does not show Team A Won, Team B Won, Undo, End, Reset, setup, or other live-match controls.
-- Does not contain scoring logic or independent match authority.
-- Initial wireless sync uses local-network display snapshots from the phone source of truth.
+- Does not contain scoring logic or independent match authority while in display-client mode.
+- Initial wireless sync uses local-network WebSocket display snapshots from the phone source of truth.
 - If wireless snapshots stop, the tablet drops stale remote display state after a short timeout.

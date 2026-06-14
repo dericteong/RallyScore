@@ -151,25 +151,55 @@ Initial implementation exists. Required before the connected Watch + Phone produ
 - Mirrored normal score screen does not show large Team A Won or Team B Won buttons.
 - Tablet or portable monitor does not own independent scoring logic.
 
-## Tablet Display Manual Test
+## Tablet Only Manual Test
 
 - On a tablet-sized Android device or emulator, app launches in landscape.
-- Setup preserves My Team and Opponent Team name entry.
-- Starting a match opens the passive tablet display layout.
-- Tablet display shows both player-name groups.
-- Tablet display shows very large Team A and Team B scores.
-- Tablet display shows serving side and server number.
-- Tablet display shows CALL score.
-- Tablet CALL band is large enough to read from several metres away.
-- Tablet display has no Team A Won, Team B Won, Undo, End, Reset, or scoring controls.
-- Tablet display screen stays awake during use.
+- Tablet supports My Team and Opponent Team setup.
+- Tablet player fields default to P1, P2, P3, and P4.
+- Tablet allows first-server selection.
+- Tablet can start a match at `0 - 0 - 2`.
+- Tablet score screen shows both player-name groups.
+- Tablet score screen shows very large Team A and Team B scores.
+- Tablet score screen shows serving side and server number.
+- Tablet score screen shows CALL score.
+- Tablet scoring controls are large, readable, and easy to tap.
+- Tapping ME WON or OPP WON records the rally winner through the shared scoring engine.
+- Undo restores the previous rally.
+- Correction mode is available if already implemented for the shared phone/tablet UI.
+- Tablet voice announcement setting is visible and usable.
+- Tablet announces the confirmed score when voice is enabled.
+- Tablet screen stays awake during use.
+- Tablet Only mode works without a phone or watch.
 - Existing phone-sized score screen remains unchanged on phones.
-- When phone and tablet are on the same local network, tablet discovery logs show the tablet display endpoint.
-- Starting a phone match publishes phone-owned tablet display snapshots.
-- If the network allows phone-to-tablet delivery, the tablet switches from setup to passive scoreboard display.
-- If the tablet remains on setup, collect logs for blocked UDP/TCP delivery and verify whether the network has client isolation or inbound-device blocking.
+- Tablet UI must not duplicate scoring rules outside the shared engine.
+
+## Tablet Display Client / Sync Prototype Manual Test
+
+- Display-client mode remains passive if explicitly used.
+- Before receiving a phone match, tablet display-client mode shows a passive waiting-for-phone screen.
+- Tablet display-client mode does not expose setup fields or scoring controls.
+- Starting a match on the phone opens the passive tablet display layout after sync connects.
+- Tablet display shows player names, scores, serving side, server number, and CALL.
+- When phone and tablet are on the same local network or the tablet is connected to the phone hotspot, tablet discovery/WebSocket logs show a phone display endpoint.
+- If phone-to-tablet delivery is blocked, tablet-side same-subnet discovery attempts to find the phone WebSocket by initiating the connection from the tablet.
+- Starting a phone match publishes phone-owned tablet display snapshots over the local WebSocket.
+- If the network allows local-device delivery, the tablet switches from waiting-for-phone to passive scoreboard display.
+- If the tablet remains on the waiting screen, collect logs for blocked local WebSocket/discovery delivery and verify whether the network has client isolation or inbound-device blocking.
 - Watch commands update the phone and then publish updated tablet display snapshots.
 - Stopping phone broadcasts clears stale tablet display state after a short timeout.
+
+## Future Phone + Tablet Sync Manual Test
+
+Not required until synced tablet controller mode is implemented.
+
+- Phone and tablet join the same match intentionally.
+- Only one canonical match state exists.
+- Rally input from phone updates tablet.
+- Rally input from tablet updates phone.
+- Watch input updates phone and tablet.
+- Undo from phone or tablet restores the same canonical previous state.
+- Simultaneous phone/tablet commands are resolved deterministically.
+- Devices resync after temporary disconnect.
 
 ## Crash Checks
 

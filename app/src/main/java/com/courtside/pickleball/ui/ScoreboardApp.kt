@@ -224,6 +224,8 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
         ) {
             if (useTabletDisplayLayout && activeRemoteTabletState != null) {
                 TabletDisplayScreen(state = activeRemoteTabletState)
+            } else if (useTabletDisplayLayout && !matchStarted) {
+                TabletWaitingForPhoneScreen()
             } else if (matchStarted) {
                 if (useTabletDisplayLayout) {
                     TabletDisplayScreen(state = state.toTabletDisplayState(matchActive = true))
@@ -644,6 +646,50 @@ private fun ScorePreviewCard(startingTeam: Team?, compact: Boolean = false) {
             textAlign = TextAlign.Center,
             maxLines = 1
         )
+    }
+}
+
+@Composable
+private fun TabletWaitingForPhoneScreen() {
+    Surface(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Ink),
+        color = Ink
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .safeDrawingPadding()
+                .padding(horizontal = 48.dp, vertical = 40.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = "RALLYSCORE",
+                color = Color.White,
+                fontSize = 52.sp,
+                fontWeight = FontWeight.Black,
+                textAlign = TextAlign.Center,
+                maxLines = 1
+            )
+            Text(
+                text = "WAITING FOR PHONE",
+                color = ConnectedAmber,
+                fontSize = 34.sp,
+                fontWeight = FontWeight.Black,
+                textAlign = TextAlign.Center,
+                maxLines = 1
+            )
+            Text(
+                text = "START THE MATCH ON THE PHONE",
+                color = Color.White,
+                fontSize = 26.sp,
+                fontWeight = FontWeight.Black,
+                textAlign = TextAlign.Center,
+                maxLines = 1
+            )
+        }
     }
 }
 

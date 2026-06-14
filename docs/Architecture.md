@@ -2,15 +2,17 @@
 
 ## Summary
 
-RallyScore is a flexible scoring ecosystem that supports multiple device combinations. Additional devices enhance the experience but are not required. The phone is the source of truth whenever a phone is present. Watch Only mode remains valid for casual play, demo mode, and backup mode.
+RallyScore is a flexible scoring ecosystem that supports multiple device combinations. Additional devices enhance the experience but are not required. Exactly one active source of truth must exist per match. Phone Only, Tablet Only, and Watch Only may each own standalone match state. When a watch is used in connected mode, the phone remains the primary hub. Future Phone + Tablet synced modes must share one canonical match state.
 
 Supported modes:
 
 - Mode 0: Watch Only.
 - Mode 1: Phone Only.
 - Mode 2: Watch + Phone.
-- Mode 3: Watch + Phone + Android Tablet.
-- Mode 4: Watch + Phone + Portable Monitor.
+- Mode 3: Tablet Only.
+- Mode 4: Phone + Tablet synced.
+- Mode 5: Watch + Phone + Android Tablet synced.
+- Mode 6: Watch + Phone + Portable Monitor.
 
 Canonical connected architecture:
 
@@ -26,14 +28,15 @@ Canonical connected architecture:
     | scoring hub    |        | scoring engine |
     +-------+--------+        +----------------+
             |
-            v
+            v / ^
     +-------+--------+
-    | passive display|
-    | monitor/tablet |
+    | Android tablet |
+    | controller or  |
+    | display        |
     +----------------+
 ```
 
-Phone Only is a first-class experience. Watch Only may own standalone match state. In Watch + Phone mode, the watch becomes a remote control and the phone owns synchronized match state, scoring decisions, undo history, voice timing, and display output. The scoring engine is independent of Android so rules can be reused and unit-tested.
+Phone Only and Tablet Only are first-class experiences. Watch Only may own standalone match state. In Watch + Phone mode, the watch becomes a remote control and the phone owns synchronized match state, scoring decisions, undo history, voice timing, and display output. In future Phone + Tablet synced modes, phone and tablet must share one canonical match state and explicit conflict handling. The scoring engine is independent of Android so rules can be reused and unit-tested.
 
 ## Phone App
 
@@ -69,16 +72,42 @@ Phone Only is a first-class experience. Watch Only may own standalone match stat
 - Handles Text-to-Speech score calls from confirmed phone-owned state updates.
 - Uses fixed `fontScale = 1f` for scoreboard layout stability.
 - Provides direct-touch scoring for Phone Only and connected phone control scenarios.
+- Provides direct-touch scoring for Tablet Only on tablet-sized screens.
 - Provides the score screen that can be mirrored or shown on a larger Android display.
-- On tablet-sized Android screens, renders a passive display-only match screen using the same phone/app-owned `GameState`.
+- On tablet-sized Android screens, should render Tablet Only setup/scoring when used standalone.
+- May render a passive display-only match screen from a remote phone-owned tablet snapshot only when explicitly in display-client mode.
 
-## Display Surface
+## Tablet App Mode
 
-The shared display surface can be the normal phone score screen mirrored during live play, an adaptive passive tablet display layout when the Android app runs on a tablet-sized screen, or the initial local-network tablet sync path.
+Tablet Only is the revised Phase 3 priority.
 
-Initial wireless tablet sync is display-only and local-network only. Tablet-sized Android screens advertise themselves with a UDP display hello. The phone publishes display-ready score snapshots using UDP broadcast/unicast and a TCP fallback to discovered tablet display endpoints. Snapshots contain display-ready match state only: team names, scores, serving team, server number, score call, active flag, and timestamp. The tablet renders the snapshot passively and does not run scoring rules.
+Responsibilities:
 
-This sync path is an early Phase 3 foundation, not the final hardened transport. Real Wi-Fi networks may block phone-to-tablet inbound UDP/TCP even when tablet-to-phone discovery succeeds. Hardened pairing, hotspot behavior, and reconnection strategy remain Phase 3/5 work.
+- Show setup for My Team and Opponent Team.
+- Select first server.
+- Show large scores, serving team, server number, player names, and CALL.
+- Record ME WON and OPP WON.
+- Undo previous rally.
+- Support correction mode when available.
+- Announce confirmed tablet-owned score when voice is enabled.
+- Keep screen awake.
+- Use the shared scoring engine.
+
+Non-responsibilities:
+
+- No duplicated scoring rules in tablet UI.
+- No independent scoring of a phone-owned synced match.
+- No phone-tablet bidirectional sync until conflict handling exists.
+
+## Display Surface And Sync Prototype
+
+The shared display surface can still be the normal phone score screen mirrored during live play, a Tablet Only controller screen, or an explicit passive display-client mode.
+
+Initial wireless tablet display sync is display-only and local-network only. The phone hosts a lightweight local WebSocket publisher for display-ready score snapshots. Tablet-sized Android screens can connect to the phone over the same Wi-Fi or phone hotspot path and render the latest confirmed phone-owned snapshot. The tablet can also scan its local subnet for the phone WebSocket so the connection is initiated from the tablet on networks that block inbound phone-to-tablet delivery. UDP discovery and the earlier TCP endpoint path may remain as fallback aids.
+
+Snapshots contain display-ready match state only: team names, scores, serving team, server number, score call, active flag, and timestamp. The tablet renders the snapshot passively and does not run scoring rules.
+
+This display sync path is an early prototype, not the final synced tablet controller transport. Real Wi-Fi networks may block local-device discovery or direct delivery. Hardened pairing, hotspot behavior, bidirectional commands, and conflict handling remain future work.
 
 Responsibilities:
 
@@ -90,10 +119,11 @@ Responsibilities:
 - Remain readable by all four players.
 - Keep screen awake.
 
-Non-responsibilities:
+Display-only non-responsibilities:
 
 - No separate tablet scoring logic.
 - No tablet scoring controls.
+- No tablet setup flow during display-client mode.
 - No scoring calculations.
 - No cloud relay.
 

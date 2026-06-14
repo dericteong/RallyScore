@@ -4,11 +4,11 @@
 
 The project is a Kotlin multi-module Gradle Android project.
 
-- `app`: phone Android application, scoring hub, rules owner, first-class Phone Only scorer, and display source.
+- `app`: Android phone/tablet application, scoring hub, rules owner, first-class Phone Only scorer, first-class Tablet Only scorer, and display source.
 - `wear`: Wear OS application, Watch Only scorer, and connected command controller.
 - `shared`: pure Kotlin scoring domain shared by phone and Wear.
 
-RallyScore supports multiple product modes: Watch Only, Phone Only, Watch + Phone, Watch + Phone + Android Tablet, and Watch + Phone + Portable Monitor. Additional devices enhance the experience but are not required. Whenever a phone is present, the phone owns synchronized match state and all scoring decisions. Watch Only mode may keep standalone watch-owned state for casual play, demo mode, and backup mode. The phone app uses Jetpack Compose and a ViewModel with `StateFlow`. The shared module owns scoring rules so they can be tested without Android.
+RallyScore supports multiple product modes: Watch Only, Phone Only, Tablet Only, Watch + Phone, Phone + Tablet synced, Watch + Phone + Android Tablet synced, and Watch + Phone + Portable Monitor. Additional devices enhance the experience but are not required. Exactly one active source of truth must exist per match. Phone Only, Tablet Only, and Watch Only may each own standalone state when used alone. When a watch is connected, the phone remains the primary hub. Future phone-tablet synced modes must share one canonical match state. The Android app uses Jetpack Compose and a ViewModel with `StateFlow`. The shared module owns scoring rules so they can be tested without Android.
 
 ## Technology Stack
 
@@ -55,7 +55,7 @@ Contains:
 Responsibilities:
 
 - Keep screen awake.
-- Preserve landscape orientation for phone display readability.
+- Preserve landscape orientation for phone and tablet display readability.
 - Act as scoring hub, rules executor, and display source.
 - Manage match setup state.
 - Expose game state to Compose.
@@ -67,7 +67,8 @@ Responsibilities:
 - Render large table-style scoreboard and controls.
 - Keep the normal score screen readable enough for mirroring to a tablet or portable monitor.
 - Preserve direct phone scoring as a first-class Phone Only mode.
-- Own communication with the watch and external display surfaces when those layers are implemented.
+- Preserve direct tablet scoring as a first-class Tablet Only mode.
+- Own communication with the watch and external display surfaces.
 
 ### `wear`
 
@@ -86,8 +87,10 @@ Current Wear behavior supports connected remote mode when phone score state is a
 - Mode 0 - Watch Only: watch source of truth.
 - Mode 1 - Phone Only: phone source of truth.
 - Mode 2 - Watch + Phone: phone source of truth, watch remote control.
-- Mode 3 - Watch + Phone + Android Tablet: phone source of truth, tablet display.
-- Mode 4 - Watch + Phone + Portable Monitor: phone source of truth, mirrored monitor display.
+- Mode 3 - Tablet Only: tablet source of truth.
+- Mode 4 - Phone + Tablet synced: one shared canonical source of truth.
+- Mode 5 - Watch + Phone + Android Tablet synced: phone primary hub, one shared canonical source of truth.
+- Mode 6 - Watch + Phone + Portable Monitor: phone source of truth, mirrored monitor display.
 
 ## Data Flow
 
@@ -119,6 +122,34 @@ Phone Only voice flow when Phone only mode is selected:
 
 1. Phone state updates after rally input or undo.
 2. Phone announces the confirmed score immediately.
+
+### Tablet Only Data Flow
+
+1. User reviews or edits My Team and Opponent Team names on the tablet.
+2. User selects starting serving team during setup.
+3. Tablet ViewModel creates the authoritative `GameState`.
+4. User taps ME WON or OPP WON on the tablet.
+5. Tablet state stores the previous state in history.
+6. Tablet asks `PickleballScoringEngine.recordRallyWinner`.
+7. Tablet updates authoritative match state.
+8. Tablet redraws the large scoreboard and controls.
+9. Tablet announces the confirmed score when enabled.
+10. Undo restores the previous tablet-owned state.
+
+Tablet Only mode should reuse the same shared scoring engine and core Android scoring state patterns as Phone Only mode. UI code must not duplicate scoring rules.
+
+### Future Phone + Tablet Synced Data Flow
+
+Phone + Tablet synced mode is future work after Tablet Only mode is stable.
+
+Required principles:
+
+- Phone and tablet share one canonical match state.
+- Either device may send rally, undo, or correction intent once synchronized.
+- The sync owner applies intent through the shared scoring engine.
+- All devices render the confirmed resulting state.
+- Conflict handling is required if phone and tablet send commands at nearly the same time.
+- The app must not allow phone and tablet to independently score separate copies of the same live match without clear standalone-mode separation.
 
 ### Watch Only Data Flow
 
@@ -156,7 +187,7 @@ The shared module owns only command/path/key constants and scoring domain types.
 
 ## Mirrored Display
 
-For MVP, external display support means mirroring the normal phone score screen to an Android tablet or external portable monitor. There is no separate display screen or wireless tablet client in this phase. The mirrored score screen should show:
+External display support can still use the normal phone score screen mirrored to an Android tablet or external portable monitor. The mirrored score screen should show:
 
 - Team scores.
 - Serving team.
@@ -165,6 +196,27 @@ For MVP, external display support means mirroring the normal phone score screen 
 - CALL, Undo, End, and the small watch connection rail from the normal phone score screen.
 
 The phone remains the only source of truth and scoring hub.
+
+## Tablet Standalone Controller
+
+Revised Phase 3 starts with Tablet Only mode. Tablet-sized screens should support setup, score display, rally-winner scoring, undo, correction mode when available, and voice announcements while keeping the screen awake and using large high-contrast layout.
+
+Tablet Only owns its match state and uses the shared scoring engine exactly like Phone Only mode. This is simpler and immediately useful before multi-device sync exists.
+
+## Tablet Display Client And Future Sync
+
+The existing passive tablet display client can remain as a prototype or fallback, but it is no longer the main Phase 3 direction. Passive tablet display mode renders phone-owned display snapshots:
+
+- Team scores.
+- Serving side.
+- Server number.
+- Player names.
+- CALL score.
+- Match-active timestamp.
+
+The phone hosts a lightweight local WebSocket publisher for tablet display snapshots. Tablet clients connect over the same Wi-Fi or a phone-hotspot path and render the latest confirmed phone-owned score state. The tablet also performs conservative same-subnet discovery so it can initiate the connection when the network blocks phone-to-tablet inbound delivery. UDP discovery and the earlier TCP endpoint path may remain as fallback aids while Phase 3 is hardened.
+
+Future synced tablet controller mode should evolve beyond display snapshots into bidirectional command/state sync. Until that exists, Tablet Only and phone-owned display client mode must remain clearly separate so there is never more than one active source of truth for a match.
 
 ## State Management
 
@@ -192,4 +244,6 @@ Current behavior: pressing Enter/Done does not auto-focus the next field.
 - Voice settings implementation may lag the target modes; target MVP modes are Off, Phone only, Watch only, and Watch then Phone.
 - Wear app has an initial phone sync path, but real-device pairing/reconnect behavior still needs hardening.
 - Wear app currently contains prototype scoring logic; target watch control must move scoring authority back to the phone.
-- External display has no wireless tablet-client mode yet.
+- Tablet Only mode is not fully implemented yet.
+- Phone + Tablet synced scoring is future work and needs conflict handling.
+- Tablet display WebSocket sync is an initial prototype and still needs venue/hotspot hardening if retained.

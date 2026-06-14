@@ -36,11 +36,13 @@ Status: In development.
 - Watch haptic feedback for rally input, undo, confirmed connected-mode score updates, and phone-confirmation problems.
 - Passive tablet-sized scoreboard layout for Android tablets.
 - Initial local-network phone-to-tablet display snapshot sync using UDP discovery/snapshots plus TCP endpoint fallback.
+- Initial passive tablet display client over a phone-hosted local WebSocket.
 
 ### Changed
 
-- Product direction changed to a flexible ecosystem: Watch Only, Phone Only, Watch + Phone, and Watch + Phone + shared display.
-- Phone Only is now a first-class experience. The phone remains source of truth whenever present.
+- Product direction changed to a flexible ecosystem: Watch Only, Phone Only, Tablet Only, Watch + Phone, and future synced Phone + Tablet modes.
+- Phone Only and Tablet Only are first-class standalone controller experiences.
+- Phone remains the primary hub when a watch is used; future Phone + Tablet sync must preserve one canonical match state.
 - Timed play is supported by allowing scores to continue beyond 11.
 - Manual score/server controls were replaced by rally-winner input.
 - Phone scoreboard contrast, score text, serving dots, and phone controls were enlarged for outdoor readability and older players.
@@ -56,12 +58,15 @@ Status: In development.
 - External display support is treated as mirroring the existing phone score screen to a tablet or portable monitor.
 - Tablet-sized Android screens now show a display-only live match layout with large scores, player names, serving side, server number, and CALL.
 - Tablet CALL display is enlarged into a high-visibility lower band.
+- Tablet-sized Android screens now show a passive waiting-for-phone screen instead of setup controls when acting as the display client.
 
 ### Known Gaps
 
 - Wear sync is initial and still needs paired real-device hardening.
 - Wear app still contains standalone Watch Only scoring logic when no phone state is available.
-- Wireless tablet sync is an initial local-network prototype and still needs real-venue hardening. Some Wi-Fi paths can allow tablet discovery while blocking phone-to-tablet UDP/TCP delivery.
+- Tablet Only controller mode is the revised Phase 3 direction and is not fully implemented yet.
+- Phone + Tablet synced controller mode is future work and requires conflict handling.
+- Wireless tablet sync is an initial local-network prototype and still needs real-venue hardening. Some Wi-Fi paths can block local WebSocket/discovery delivery between phone and tablet.
 - No persisted match state after app restart.
 - No in-app TTS voice selector.
 - No dedicated Bluetooth speaker mode yet; Android audio routing may handle connected speakers.
