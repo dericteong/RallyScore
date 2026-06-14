@@ -30,7 +30,12 @@ Status: In development.
 - Phone-owned score snapshots include active-match and undo-availability state for connected Wear control.
 - Phone and Wear connection status indicators.
 - Manual `DONE` keyboard-dismiss control on the compact setup screen.
-- Initial MVP voice announcement setting.
+- MVP voice announcement modes: Off, Phone only, Watch only, and Watch then Phone.
+- Short setup player-name defaults for faster development and social-play testing.
+- Player-perspective setup and watch labels: My Team, Opponent Team, ME WON, OPP WON, ME SERVES, and OPP SERVES.
+- Watch haptic feedback for rally input, undo, confirmed connected-mode score updates, and phone-confirmation problems.
+- Passive tablet-sized scoreboard layout for Android tablets.
+- Initial local-network phone-to-tablet display snapshot sync using UDP discovery/snapshots plus TCP endpoint fallback.
 
 ### Changed
 
@@ -42,17 +47,23 @@ Status: In development.
 - Spoken score-call formatting moved into the shared domain module so UI code does not duplicate score-call logic.
 - Phone ViewModel now delegates to a phone-owned score store that can also receive watch commands.
 - Setup field Enter/Done no longer auto-focuses the next field because that caused Compose focus crashes on Samsung devices.
-- Connected-mode score announcements must use confirmed phone-owned state. Target voice behavior is watch first, then phone repeat when Watch then Phone mode is selected.
+- Connected-mode score announcements use confirmed phone-owned state. Watch then Phone mode announces from the watch first, then repeats from the phone approximately two seconds later.
 - Connected Wear now waits for an active phone match before showing remote scoring controls.
+- Connected Wear now disables rally and undo controls while waiting for phone confirmation to reduce accidental double taps.
+- Phone and Wear apps refresh connection state while open to improve reconnection behavior.
+- Wear app now keeps the screen awake while RallyScore is open.
+- Phone and Wear score announcements now use media speech audio attributes with explicit full-volume TTS parameters.
+- External display support is treated as mirroring the existing phone score screen to a tablet or portable monitor.
+- Tablet-sized Android screens now show a display-only live match layout with large scores, player names, serving side, server number, and CALL.
+- Tablet CALL display is enlarged into a high-visibility lower band.
 
 ### Known Gaps
 
 - Wear sync is initial and still needs paired real-device hardening.
 - Wear app still contains standalone Watch Only scoring logic when no phone state is available.
-- No external-display-specific mode yet.
+- Wireless tablet sync is an initial local-network prototype and still needs real-venue hardening. Some Wi-Fi paths can allow tablet discovery while blocking phone-to-tablet UDP/TCP delivery.
 - No persisted match state after app restart.
 - No in-app TTS voice selector.
-- Target voice modes are not fully implemented yet: Off, Phone only, Watch only, and Watch then Phone.
 - No dedicated Bluetooth speaker mode yet; Android audio routing may handle connected speakers.
 - No formal game-complete mode for target-score games yet.
 

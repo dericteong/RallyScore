@@ -1,6 +1,8 @@
 package com.courtside.pickleball.ui
 
 import android.content.Context
+import android.media.AudioAttributes
+import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.speech.tts.Voice
 import android.text.Editable
@@ -52,6 +54,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
@@ -69,9 +72,13 @@ import com.courtside.pickleball.domain.GameState
 import com.courtside.pickleball.domain.GameStatus
 import com.courtside.pickleball.domain.ServerNumber
 import com.courtside.pickleball.domain.Team
+import com.courtside.pickleball.domain.VoiceAnnouncementMode
 import com.courtside.pickleball.domain.displayValue
 import com.courtside.pickleball.domain.spokenScoreCall
+import com.courtside.pickleball.sync.TabletDisplayState
+import com.courtside.pickleball.sync.TabletDisplaySync
 import java.util.Locale
+import kotlinx.coroutines.delay
 
 private val Ink = Color(0xFF050607)
 private val Paper = Color(0xFFFFFFFF)
@@ -91,25 +98,28 @@ private val SetupPlayerInputCompactHeight = 44.dp
 private val ScoreCellWidth = 180.dp
 private val ServeCellWidth = 96.dp
 private val ScoreControlButtonWidth = 92.dp
+private const val WatchThenPhoneDelayMs = 2_000L
+private const val WatchConnectionRefreshIntervalMs = 5_000L
+private const val TabletSmallestWidthDp = 600
 private const val ScoreSpeechRate = 0.9f
-
-private enum class VoiceAnnouncementMode {
-    Off,
-    PhoneSpeaker
-}
 
 @Composable
 fun ScoreboardApp(viewModel: ScoreboardViewModel) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val matchStarted by viewModel.matchActive.collectAsStateWithLifecycle()
     val watchConnected by viewModel.watchConnected.collectAsStateWithLifecycle()
-    var setupTeamAPlayer1 by remember { mutableStateOf("") }
-    var setupTeamAPlayer2 by remember { mutableStateOf("") }
-    var setupTeamBPlayer1 by remember { mutableStateOf("") }
-    var setupTeamBPlayer2 by remember { mutableStateOf("") }
-    var startingTeam by remember { mutableStateOf<Team?>(null) }
+    val voiceAnnouncementMode by viewModel.voiceAnnouncementMode.collectAsStateWithLifecycle()
+    val remoteTabletDisplayState by viewModel.remoteTabletDisplayState.collectAsStateWithLifecycle()
+    val configuration = LocalConfiguration.current
+    val useTabletDisplayLayout = configuration.smallestScreenWidthDp >= TabletSmallestWidthDp
+    val activeRemoteTabletState = remoteTabletDisplayState?.takeIf { it.matchActive }
+    var setupTeamAPlayer1 by remember { mutableStateOf("P1") }
+    var setupTeamAPlayer2 by remember { mutableStateOf("P2") }
+    var setupTeamBPlayer1 by remember { mutableStateOf("P3") }
+    var setupTeamBPlayer2 by remember { mutableStateOf("P4") }
+    var startingTeam by remember { mutableStateOf<Team?>(Team.A) }
     var showEndMatchDialog by remember { mutableStateOf(false) }
-    var voiceAnnouncementMode by remember { mutableStateOf(VoiceAnnouncementMode.PhoneSpeaker) }
+    var voiceModeManuallySelected by remember { mutableStateOf(false) }
     var ttsReady by remember { mutableStateOf(false) }
     var pendingScoreCall by remember { mutableStateOf<String?>(null) }
     var lastObservedMatchState by remember { mutableStateOf<GameState?>(null) }
@@ -125,7 +135,8 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
         tts.useBestAvailableVoice()
         tts.setSpeechRate(ScoreSpeechRate)
         tts.setPitch(1.0f)
-        tts.speak(scoreCall, TextToSpeech.QUEUE_FLUSH, null, "score-${System.nanoTime()}")
+        tts.setAudioAttributes(scoreAudioAttributes())
+        tts.speak(scoreCall, TextToSpeech.QUEUE_FLUSH, scoreSpeechParams(), "score-${System.nanoTime()}")
     }
 
     fun announceScore(gameState: GameState) {
@@ -153,14 +164,26 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
         }
     }
 
+    LaunchedEffect(watchConnected, voiceModeManuallySelected) {
+        if (!voiceModeManuallySelected) {
+            viewModel.setVoiceAnnouncementMode(
+                if (watchConnected) {
+                    VoiceAnnouncementMode.WatchThenPhone
+                } else {
+                    VoiceAnnouncementMode.PhoneOnly
+                }
+            )
+        }
+    }
+
     LaunchedEffect(voiceAnnouncementMode) {
-        if (voiceAnnouncementMode == VoiceAnnouncementMode.Off) {
+        if (!voiceAnnouncementMode.usesPhoneSpeaker()) {
             pendingScoreCall = null
             tts.stop()
         }
     }
 
-    LaunchedEffect(matchStarted, state, voiceAnnouncementMode) {
+    LaunchedEffect(matchStarted, state, voiceAnnouncementMode, watchConnected) {
         if (!matchStarted) {
             lastObservedMatchState = null
             return@LaunchedEffect
@@ -168,15 +191,30 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
 
         val previous = lastObservedMatchState
         lastObservedMatchState = state
-        if (previous != null && state != previous && voiceAnnouncementMode == VoiceAnnouncementMode.PhoneSpeaker) {
+        if (previous != null && state != previous && voiceAnnouncementMode.usesPhoneSpeaker()) {
+            if (voiceAnnouncementMode == VoiceAnnouncementMode.WatchThenPhone && watchConnected) {
+                delay(WatchThenPhoneDelayMs)
+            }
             announceScore(state)
         }
+    }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            viewModel.refreshWatchConnection()
+            delay(WatchConnectionRefreshIntervalMs)
+        }
+    }
+
+    LaunchedEffect(useTabletDisplayLayout) {
+        TabletDisplaySync.setTabletDisplayAvailable(useTabletDisplayLayout)
     }
 
     DisposableEffect(tts) {
         onDispose {
             tts.stop()
             tts.shutdown()
+            TabletDisplaySync.setTabletDisplayAvailable(false)
         }
     }
 
@@ -184,16 +222,22 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
         CompositionLocalProvider(
             LocalDensity provides Density(density.density, fontScale = 1f)
         ) {
-            if (matchStarted) {
-                ScoreboardScreen(
-                    state = state,
-                    canUndo = viewModel.canUndo(),
-                    watchConnected = watchConnected,
-                    onTeamARally = { viewModel.recordRallyWinner(Team.A) },
-                    onTeamBRally = { viewModel.recordRallyWinner(Team.B) },
-                    onUndo = viewModel::undo,
-                    onEndMatchRequested = { showEndMatchDialog = true }
-                )
+            if (useTabletDisplayLayout && activeRemoteTabletState != null) {
+                TabletDisplayScreen(state = activeRemoteTabletState)
+            } else if (matchStarted) {
+                if (useTabletDisplayLayout) {
+                    TabletDisplayScreen(state = state.toTabletDisplayState(matchActive = true))
+                } else {
+                    ScoreboardScreen(
+                        state = state,
+                        canUndo = viewModel.canUndo(),
+                        watchConnected = watchConnected,
+                        onTeamARally = { viewModel.recordRallyWinner(Team.A) },
+                        onTeamBRally = { viewModel.recordRallyWinner(Team.B) },
+                        onUndo = viewModel::undo,
+                        onEndMatchRequested = { showEndMatchDialog = true }
+                    )
+                }
             } else {
                 MatchSetupScreen(
                     teamAPlayer1 = setupTeamAPlayer1,
@@ -208,7 +252,10 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
                     onStartingTeamChange = { startingTeam = it },
                     watchConnected = watchConnected,
                     voiceAnnouncementMode = voiceAnnouncementMode,
-                    onVoiceAnnouncementModeChange = { voiceAnnouncementMode = it },
+                    onVoiceAnnouncementModeChange = {
+                        voiceModeManuallySelected = true
+                        viewModel.setVoiceAnnouncementMode(it)
+                    },
                     onStart = {
                         val server = startingTeam ?: Team.A
                         viewModel.startMatch(
@@ -310,13 +357,23 @@ private fun MatchSetupScreen(
                     ),
                 verticalArrangement = Arrangement.spacedBy(columnSpacing)
             ) {
-                Text(
-                    text = "SET UP GAME",
-                    color = Ink,
-                    fontSize = if (keyboardVisible) 20.sp else 24.sp,
-                    fontWeight = FontWeight.Black,
-                    maxLines = 1
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "SET UP GAME",
+                        color = Ink,
+                        fontSize = if (keyboardVisible) 20.sp else 24.sp,
+                        fontWeight = FontWeight.Black,
+                        maxLines = 1
+                    )
+                    ConnectionStatusBadge(
+                        connected = watchConnected,
+                        compact = true
+                    )
+                }
                 if (!keyboardVisible) {
                     Text(
                         text = "Enter names, then tap who serves first.",
@@ -325,10 +382,9 @@ private fun MatchSetupScreen(
                         fontWeight = FontWeight.Bold,
                         maxLines = 1
                     )
-                    ConnectionStatusBadge(connected = watchConnected)
                 }
                 SetupTeamNameFields(
-                    label = "Team A players",
+                    label = "My Team",
                     player1 = teamAPlayer1,
                     player2 = teamAPlayer2,
                     color = TeamABlue,
@@ -340,7 +396,7 @@ private fun MatchSetupScreen(
                     onSelect = { onStartingTeamChange(Team.A) }
                 )
                 SetupTeamNameFields(
-                    label = "Team B players",
+                    label = "Opponent Team",
                     player1 = teamBPlayer1,
                     player2 = teamBPlayer2,
                     color = TeamBGreen,
@@ -356,7 +412,7 @@ private fun MatchSetupScreen(
             Column(
                 modifier = Modifier.weight(0.85f),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(if (keyboardVisible) 8.dp else 12.dp)
+                verticalArrangement = Arrangement.spacedBy(if (keyboardVisible) 8.dp else 8.dp)
             ) {
                 ScorePreviewCard(startingTeam, compact = keyboardVisible)
                 if (!keyboardVisible) {
@@ -387,7 +443,7 @@ private fun MatchSetupScreen(
                     Button(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(74.dp),
+                            .height(62.dp),
                         onClick = onStart,
                         enabled = canStart,
                         shape = RoundedCornerShape(8.dp),
@@ -556,34 +612,193 @@ private fun ScorePreviewCard(startingTeam: Team?, compact: Boolean = false) {
         modifier = Modifier
             .fillMaxWidth()
             .background(Ink, RoundedCornerShape(8.dp))
-            .padding(horizontal = 18.dp, vertical = if (compact) 12.dp else 18.dp),
+            .padding(horizontal = 16.dp, vertical = if (compact) 12.dp else 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 10.dp)
+        verticalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 6.dp)
     ) {
         Text(
             text = "FIRST SCORE CALL",
             color = Color.White,
-            fontSize = if (compact) 13.sp else 15.sp,
+            fontSize = if (compact) 13.sp else 13.sp,
             fontWeight = FontWeight.Black,
             maxLines = 1
         )
         Text(
             text = "0 - 0 - 2",
             color = ServerAccent,
-            fontSize = if (compact) 34.sp else 44.sp,
+            fontSize = if (compact) 34.sp else 38.sp,
             fontWeight = FontWeight.Black,
             textAlign = TextAlign.Center,
-            lineHeight = if (compact) 38.sp else 48.sp,
+            lineHeight = if (compact) 38.sp else 42.sp,
             maxLines = 1
         )
         Text(
             text = when (startingTeam) {
-                Team.A -> "TEAM A SERVES FIRST"
-                Team.B -> "TEAM B SERVES FIRST"
-                null -> "TAP A TEAM NAME"
+                Team.A -> "ME SERVES FIRST"
+                Team.B -> "OPP SERVES FIRST"
+                null -> "TAP A TEAM"
             },
             color = Color.White,
-            fontSize = if (compact) 13.sp else 15.sp,
+            fontSize = if (compact) 13.sp else 13.sp,
+            fontWeight = FontWeight.Black,
+            textAlign = TextAlign.Center,
+            maxLines = 1
+        )
+    }
+}
+
+@Composable
+private fun TabletDisplayScreen(
+    state: TabletDisplayState
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Paper),
+        color = Paper
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .safeDrawingPadding()
+                .padding(horizontal = 34.dp, vertical = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(24.dp)
+            ) {
+                TabletTeamScorePanel(
+                    modifier = Modifier.weight(1f),
+                    name = state.teamAName,
+                    score = state.teamAScore,
+                    color = TeamABlue,
+                    isServing = state.servingTeam == Team.A,
+                    serverNumber = state.serverNumber
+                )
+                TabletTeamScorePanel(
+                    modifier = Modifier.weight(1f),
+                    name = state.teamBName,
+                    score = state.teamBScore,
+                    color = TeamBGreen,
+                    isServing = state.servingTeam == Team.B,
+                    serverNumber = state.serverNumber
+                )
+            }
+            TabletDisplayCallBar(state = state)
+        }
+    }
+}
+
+@Composable
+private fun TabletTeamScorePanel(
+    modifier: Modifier,
+    name: String,
+    score: Int,
+    color: Color,
+    isServing: Boolean,
+    serverNumber: Int
+) {
+    Column(
+        modifier = modifier
+            .fillMaxHeight()
+            .clip(RoundedCornerShape(10.dp))
+            .background(color)
+            .padding(horizontal = 24.dp, vertical = 22.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = name.uppercase(),
+            color = Color.White,
+            fontSize = 42.sp,
+            fontWeight = FontWeight.Black,
+            lineHeight = 46.sp,
+            textAlign = TextAlign.Center,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+        Text(
+            text = score.toString(),
+            color = Color.White,
+            fontSize = 172.sp,
+            fontWeight = FontWeight.Black,
+            lineHeight = 176.sp,
+            textAlign = TextAlign.Center,
+            maxLines = 1
+        )
+        TabletServingIndicator(
+            color = color,
+            isServing = isServing,
+            serverNumber = serverNumber
+        )
+    }
+}
+
+@Composable
+private fun TabletServingIndicator(
+    color: Color,
+    isServing: Boolean,
+    serverNumber: Int
+) {
+    val background = if (isServing) Color.White else Color.White.copy(alpha = 0.22f)
+    val textColor = if (isServing) color else Color.White
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(66.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(background),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = if (isServing) "SERVING  •  SERVER $serverNumber" else "RECEIVING",
+            color = textColor,
+            fontSize = 28.sp,
+            fontWeight = FontWeight.Black,
+            textAlign = TextAlign.Center,
+            maxLines = 1
+        )
+    }
+}
+
+@Composable
+private fun TabletDisplayCallBar(
+    state: TabletDisplayState
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .fillMaxHeight(0.5f)
+            .clip(RoundedCornerShape(10.dp))
+            .background(Ink)
+            .padding(horizontal = 32.dp, vertical = 18.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(
+            text = "CALL",
+            color = Color.White,
+            fontSize = 28.sp,
+            fontWeight = FontWeight.Black,
+            lineHeight = 30.sp,
+            maxLines = 1
+        )
+        Text(
+            text = state.scoreCall,
+            color = Color.White,
+            fontSize = 92.sp,
+            fontWeight = FontWeight.Black,
+            lineHeight = 96.sp,
+            textAlign = TextAlign.Center,
+            maxLines = 1
+        )
+        Text(
+            text = "${state.servingName().uppercase()} SERVES  •  SERVER ${state.serverNumber}",
+            color = Color.White,
+            fontSize = 32.sp,
             fontWeight = FontWeight.Black,
             textAlign = TextAlign.Center,
             maxLines = 1
@@ -786,7 +1001,8 @@ private fun TableDivider() {
 @Composable
 private fun ConnectionStatusBadge(
     connected: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    compact: Boolean = false
 ) {
     val background = if (connected) ConnectedAmber else ProblemRed
     val text = if (connected) "WATCH CONNECTED" else "WATCH OFFLINE"
@@ -794,17 +1010,23 @@ private fun ConnectionStatusBadge(
 
     Box(
         modifier = modifier
-            .height(32.dp)
+            .then(
+                if (compact) {
+                    Modifier.size(32.dp)
+                } else {
+                    Modifier.height(32.dp)
+                }
+            )
             .background(background, RoundedCornerShape(8.dp))
-            .padding(horizontal = 10.dp, vertical = 3.dp),
+            .padding(horizontal = if (compact) 0.dp else 10.dp, vertical = 3.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
-            text = text,
+            text = if (compact) "⌚" else text,
             color = textColor,
-            fontSize = 11.sp,
+            fontSize = if (compact) 17.sp else 11.sp,
             fontWeight = FontWeight.Black,
-            lineHeight = 12.sp,
+            lineHeight = if (compact) 18.sp else 12.sp,
             textAlign = TextAlign.Center,
             maxLines = 1
         )
@@ -817,18 +1039,18 @@ private fun VoiceAnnouncementControls(
     onModeChange: (VoiceAnnouncementMode) -> Unit
 ) {
     Column(
-        verticalArrangement = Arrangement.spacedBy(5.dp)
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Text(
             text = "VOICE ANNOUNCEMENTS",
             color = Ink,
-            fontSize = 12.sp,
+            fontSize = 10.sp,
             fontWeight = FontWeight.Black,
             maxLines = 1
         )
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             VoiceModeButton(
@@ -838,10 +1060,28 @@ private fun VoiceAnnouncementControls(
                 onClick = { onModeChange(VoiceAnnouncementMode.Off) }
             )
             VoiceModeButton(
-                modifier = Modifier.weight(1.45f),
-                label = "PHONE SPEAKER",
-                selected = selectedMode == VoiceAnnouncementMode.PhoneSpeaker,
-                onClick = { onModeChange(VoiceAnnouncementMode.PhoneSpeaker) }
+                modifier = Modifier.weight(1f),
+                label = "PHONE",
+                selected = selectedMode == VoiceAnnouncementMode.PhoneOnly,
+                onClick = { onModeChange(VoiceAnnouncementMode.PhoneOnly) }
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            VoiceModeButton(
+                modifier = Modifier.weight(1f),
+                label = "WATCH",
+                selected = selectedMode == VoiceAnnouncementMode.WatchOnly,
+                onClick = { onModeChange(VoiceAnnouncementMode.WatchOnly) }
+            )
+            VoiceModeButton(
+                modifier = Modifier.weight(1f),
+                label = "WATCH + PHONE",
+                selected = selectedMode == VoiceAnnouncementMode.WatchThenPhone,
+                onClick = { onModeChange(VoiceAnnouncementMode.WatchThenPhone) }
             )
         }
     }
@@ -857,7 +1097,7 @@ private fun VoiceModeButton(
     val shape = RoundedCornerShape(8.dp)
     if (selected) {
         Button(
-            modifier = modifier.height(40.dp),
+            modifier = modifier.height(32.dp),
             onClick = onClick,
             shape = shape,
             colors = ButtonDefaults.buttonColors(containerColor = Ink),
@@ -865,7 +1105,7 @@ private fun VoiceModeButton(
         ) {
             Text(
                 text = label,
-                fontSize = 13.sp,
+                fontSize = 11.sp,
                 fontWeight = FontWeight.Black,
                 textAlign = TextAlign.Center,
                 maxLines = 1
@@ -873,7 +1113,7 @@ private fun VoiceModeButton(
         }
     } else {
         OutlinedButton(
-            modifier = modifier.height(40.dp),
+            modifier = modifier.height(32.dp),
             onClick = onClick,
             shape = shape,
             contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
@@ -881,7 +1121,7 @@ private fun VoiceModeButton(
             Text(
                 text = label,
                 color = Ink,
-                fontSize = 13.sp,
+                fontSize = 11.sp,
                 fontWeight = FontWeight.Black,
                 textAlign = TextAlign.Center,
                 maxLines = 1
@@ -1042,6 +1282,27 @@ private fun GameState.callBarText(status: GameStatus) = buildAnnotatedString {
     pop()
 }
 
+private fun GameState.servingSummary(): String {
+    val servingSide = when (servingTeam) {
+        Team.A -> settings.teamAName
+        Team.B -> settings.teamBName
+    }
+    return "${servingSide.uppercase()} SERVES"
+}
+
+private fun GameState.toTabletDisplayState(matchActive: Boolean): TabletDisplayState =
+    TabletDisplayState(
+        teamAName = settings.teamAName,
+        teamBName = settings.teamBName,
+        teamAScore = teamAScore,
+        teamBScore = teamBScore,
+        servingTeam = servingTeam,
+        serverNumber = serverNumber.displayValue,
+        scoreCall = scoreCall,
+        matchActive = matchActive,
+        updatedAt = System.currentTimeMillis()
+    )
+
 private fun normalizePlayerNamesInput(rawValue: String): String =
     rawValue
         .replace('\n', ' ')
@@ -1050,8 +1311,8 @@ private fun normalizePlayerNamesInput(rawValue: String): String =
 
 private fun formatTeamName(player1: String, player2: String, team: Team): String {
     val fallback = when (team) {
-        Team.A -> "TEAM A"
-        Team.B -> "TEAM B"
+        Team.A -> "ME"
+        Team.B -> "OPPONENT"
     }
     val first = player1.trim()
     val second = player2.trim()
@@ -1062,6 +1323,20 @@ private fun formatTeamName(player1: String, player2: String, team: Team): String
         else -> fallback
     }
 }
+
+private fun VoiceAnnouncementMode.usesPhoneSpeaker(): Boolean =
+    this == VoiceAnnouncementMode.PhoneOnly || this == VoiceAnnouncementMode.WatchThenPhone
+
+private fun scoreAudioAttributes(): AudioAttributes =
+    AudioAttributes.Builder()
+        .setUsage(AudioAttributes.USAGE_MEDIA)
+        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+        .build()
+
+private fun scoreSpeechParams(): Bundle =
+    Bundle().apply {
+        putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, 1.0f)
+    }
 
 private fun TextToSpeech.useBestAvailableVoice() {
     val bestEnglishVoice = voices

@@ -18,7 +18,25 @@ object WearSyncContract {
     const val KEY_UPDATED_AT = "updated_at"
     const val KEY_MATCH_ACTIVE = "match_active"
     const val KEY_CAN_UNDO = "can_undo"
+    const val KEY_VOICE_MODE = "voice_mode"
 
     const val TEAM_A = "A"
     const val TEAM_B = "B"
+
+    const val VOICE_OFF = "off"
+    const val VOICE_PHONE_ONLY = "phone_only"
+    const val VOICE_WATCH_ONLY = "watch_only"
+    const val VOICE_WATCH_THEN_PHONE = "watch_then_phone"
+}
+
+enum class VoiceAnnouncementMode(val wireValue: String) {
+    Off(WearSyncContract.VOICE_OFF),
+    PhoneOnly(WearSyncContract.VOICE_PHONE_ONLY),
+    WatchOnly(WearSyncContract.VOICE_WATCH_ONLY),
+    WatchThenPhone(WearSyncContract.VOICE_WATCH_THEN_PHONE);
+
+    companion object {
+        fun fromWireValue(value: String?): VoiceAnnouncementMode =
+            values().firstOrNull { it.wireValue == value } ?: WatchThenPhone
+    }
 }

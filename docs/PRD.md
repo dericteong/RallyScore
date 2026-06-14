@@ -37,26 +37,27 @@ Large shared scoreboard
 ### Mode 0 - Watch Only
 
 - Wear OS watch is the source of truth.
-- Supports match setup, first server selection, A WON, B WON, Undo, score display, and voice announcements.
+- Supports match setup, first server selection, ME WON, OPP WON, Undo, score display, and voice announcements.
 - Purpose: casual play, minimal setup, demo mode, and backup mode.
 
 ### Mode 1 - Phone Only
 
 - Android phone is the source of truth.
-- Supports match setup, team names, first server selection, score display, A WON, B WON, Undo, and voice announcements.
+- Supports match setup, team names, first server selection, score display, ME WON, OPP WON, Undo, and voice announcements.
 - This is a first-class experience.
 
 ### Mode 2 - Watch + Phone
 
 - Phone is the source of truth.
-- Watch acts as a remote control with A WON, B WON, and Undo.
+- Watch acts as a remote control with ME WON, OPP WON, and Undo.
 - Phone owns scoring rules, side outs, server transitions, undo history, voice announcements, and display output.
 
 ### Mode 3 - Watch + Phone + Android Tablet
 
 - Phone remains the source of truth.
 - Tablet acts as a shared display.
-- For MVP, simple mirrored display is acceptable. Future wireless tablet client support may be added.
+- Current phase adds a passive tablet-sized display layout inside the Android app plus initial local-network score snapshot sync. Simple mirrored display remains acceptable.
+- Initial tablet sync is display-only and may require network hardening for venues or Wi-Fi configurations that block phone-to-tablet delivery.
 
 ### Mode 4 - Watch + Phone + Portable Monitor
 
@@ -85,7 +86,8 @@ Large shared scoreboard
 - Phone Only scoring as a first-class mode.
 - Large-screen, portable-monitor, or Android-tablet scoreboard display for all players.
 - Standard doubles pickleball scoring.
-- Setup screen for Team A and Team B player names, with two player fields per team.
+- Setup screen for My Team and Opponent Team player names, with two player fields per team.
+- Short development/social-play defaults pre-populate setup fields so a user can start immediately.
 - Select which team serves first before starting.
 - Start score call is `0 - 0 - 2`.
 - User records rally winner only.
@@ -102,8 +104,8 @@ Large shared scoreboard
 Connected mode:
 
 - Provide only extremely simple in-match controls:
-  - Team A won rally.
-  - Team B won rally.
+  - My Team won rally.
+  - Opponent won rally.
   - Undo.
 - Send user intent to the phone.
 - Avoid local scoring rules, server transitions, side-out handling, and match-state ownership.
@@ -137,9 +139,10 @@ Standalone mode:
 ## Current Behavior
 
 - The phone app currently uses a table-style score screen and can be used directly as a first-class Phone Only scoring mode.
+- Setup defaults are P1, P2, P3, and P4, with My Team selected to serve first by default.
 - The Wear app currently supports standalone prototype scoring with watch-side score calls. This is a temporary implementation mismatch with the target architecture; future watch work should evolve it into a command-only controller.
-- Watch-to-phone synchronization is not implemented yet.
-- Team A is blue; Team B is green.
+- Watch-to-phone synchronization is implemented in initial form and continues to be hardened.
+- My Team / Team A is blue; Opponent Team / Team B is green.
 - Each team row displays both player names joined with `&`.
 - Serving dots show current server count on the serving team row:
   - One dot means Server 1.
@@ -152,6 +155,7 @@ Standalone mode:
 - Phone Only mode announces immediately with no delay when Phone only mode is selected.
 - Bluetooth speaker routing can rely on Android audio routing for now.
 - Scores continue beyond 11 for timed games.
+- Tablet-sized Android screens render a passive scoreboard layout during live matches, with no scoring controls.
 
 ## Non-Goals For Current MVP
 
@@ -160,6 +164,7 @@ Standalone mode:
 - Tournament bracket management.
 - Cloud-based remote control.
 - Advanced external-display optimization beyond Android's normal screen mirroring.
+- Cloud-based phone-to-tablet display synchronization.
 - Custom voice packs.
 - Dedicated Bluetooth speaker controls.
 - Full match history persistence after app restart.

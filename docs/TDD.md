@@ -65,6 +65,7 @@ Responsibilities:
 - Provide Text-to-Speech score calls from the phone after authoritative state changes.
 - Support target MVP voice modes: Off, Phone only, Watch only, and Watch then Phone.
 - Render large table-style scoreboard and controls.
+- Keep the normal score screen readable enough for mirroring to a tablet or portable monitor.
 - Preserve direct phone scoring as a first-class Phone Only mode.
 - Own communication with the watch and external display surfaces when those layers are implemented.
 
@@ -78,7 +79,7 @@ Contains:
 - `WearDataLayerListenerService`
 - Text-to-Speech score calls for standalone Watch Only mode.
 
-Current Wear behavior supports connected remote mode when phone score state is available and standalone Watch Only mode when phone state is unavailable. Connected Wear behavior is command-only: Team A won rally, Team B won rally, and Undo. The watch should not contain pickleball scoring logic, server-transition logic, side-out logic, or authoritative match state in connected mode.
+Current Wear behavior supports connected remote mode when phone score state is available and standalone Watch Only mode when phone state is unavailable. Connected Wear behavior is command-only: My Team won rally, Opponent won rally, and Undo. Connected-mode controls are temporarily disabled while awaiting phone confirmation to reduce accidental double taps during play. The watch should not contain pickleball scoring logic, server-transition logic, side-out logic, or authoritative match state in connected mode.
 
 ## Supported Product Modes
 
@@ -92,10 +93,10 @@ Current Wear behavior supports connected remote mode when phone score state is a
 
 ### Phone Present Data Flow
 
-1. User sets Team A and Team B names on the phone.
+1. User reviews or edits My Team and Opponent Team names on the phone.
 2. User selects starting serving team during setup.
 3. Phone ViewModel creates the authoritative `GameState`.
-4. Primary flow: active player taps A WON or B WON on the watch.
+4. Primary flow: active player taps ME WON or OPP WON on the watch.
 5. Watch sends a `MessageClient` command event to the phone.
 6. Fallback flow: user taps Team A or Team B score directly on the phone.
 7. Phone ViewModel stores the previous state in history.
@@ -106,7 +107,7 @@ Current Wear behavior supports connected remote mode when phone score state is a
 12. Voice announcements use only confirmed phone-owned state.
 13. Watch receives the phone-owned score state and updates its connected display.
 
-The phone-to-watch score snapshot includes whether a phone-owned match is active and whether Undo is available. Connected watch controls are enabled only when the phone has an active match.
+The phone-to-watch score snapshot includes whether a phone-owned match is active and whether Undo is available. Connected watch controls are enabled only when the phone has an active match and no prior command is awaiting phone confirmation. Phone and watch clients periodically refresh peer connection state while open to recover from stale connection indicators.
 
 Connected Watch + Phone voice flow when Watch then Phone mode is selected:
 
@@ -122,7 +123,7 @@ Phone Only voice flow when Phone only mode is selected:
 ### Watch Only Data Flow
 
 1. User chooses first server on the watch.
-2. User taps A WON or B WON on the watch.
+2. User taps ME WON or OPP WON on the watch.
 3. Watch-local state stores previous state in history.
 4. Watch asks `PickleballScoringEngine.recordRallyWinner`.
 5. Watch Compose redraws and announces the score locally.
@@ -153,15 +154,17 @@ Current implementation uses:
 
 The shared module owns only command/path/key constants and scoring domain types. Android Data Layer code remains in `app` and `wear`.
 
-## Display Mode
+## Mirrored Display
 
-Display mode is passive during a match. For MVP, simple display mirroring is acceptable. It should show:
+For MVP, external display support means mirroring the normal phone score screen to an Android tablet or external portable monitor. There is no separate display screen or wireless tablet client in this phase. The mirrored score screen should show:
 
 - Team scores.
 - Serving team.
 - Server number.
+- Player names.
+- CALL, Undo, End, and the small watch connection rail from the normal phone score screen.
 
-No scoring, undo, setup, reset, or end controls should appear on the external display surface during live play.
+The phone remains the only source of truth and scoring hub.
 
 ## State Management
 
@@ -189,4 +192,4 @@ Current behavior: pressing Enter/Done does not auto-focus the next field.
 - Voice settings implementation may lag the target modes; target MVP modes are Off, Phone only, Watch only, and Watch then Phone.
 - Wear app has an initial phone sync path, but real-device pairing/reconnect behavior still needs hardening.
 - Wear app currently contains prototype scoring logic; target watch control must move scoring authority back to the phone.
-- External display has no dedicated presentation mode.
+- External display has no wireless tablet-client mode yet.

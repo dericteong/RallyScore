@@ -158,4 +158,19 @@ class PickleballScoringEngineTest {
 
         assertEquals(complete, next)
     }
+
+    @Test
+    fun voiceAnnouncementModeRoundTripsThroughWireValues() {
+        VoiceAnnouncementMode.values().forEach { mode ->
+            assertEquals(mode, VoiceAnnouncementMode.fromWireValue(mode.wireValue))
+        }
+    }
+
+    @Test
+    fun unknownVoiceAnnouncementModeDefaultsToWatchThenPhone() {
+        assertEquals(
+            VoiceAnnouncementMode.WatchThenPhone,
+            VoiceAnnouncementMode.fromWireValue("future-mode")
+        )
+    }
 }

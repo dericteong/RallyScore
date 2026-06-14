@@ -1,8 +1,16 @@
 package com.courtside.pickleball.wear
 
+import android.content.Context
+import android.util.Log
 import android.speech.tts.TextToSpeech
 import android.speech.tts.Voice
+import android.media.AudioAttributes
+import android.os.Build
+import android.os.Bundle
 import android.os.SystemClock
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -49,6 +57,7 @@ import com.courtside.pickleball.domain.GameState
 import com.courtside.pickleball.domain.GameStatus
 import com.courtside.pickleball.domain.PickleballScoringEngine
 import com.courtside.pickleball.domain.Team
+import com.courtside.pickleball.domain.VoiceAnnouncementMode
 import com.courtside.pickleball.domain.WearSyncContract
 import com.courtside.pickleball.domain.displayValue
 import com.courtside.pickleball.domain.spokenScoreCall
@@ -63,9 +72,11 @@ private val ConnectedAmber = Color(0xFFFFC107)
 private val ProblemRed = Color(0xFFB00020)
 private val InactiveGray = Color(0xFF6C737D)
 private val TableLine = Color(0xFF242A31)
+private const val TAG = "WearScoreboardApp"
 private const val WatchActionDebounceMs = 700L
 private const val PhoneConfirmationTimeoutMs = 2_200L
 private const val FeedbackVisibleMs = 900L
+private const val PhoneRefreshIntervalMs = 5_000L
 private const val ScoreSpeechRate = 0.9f
 
 private enum class WatchCommandFeedback {
@@ -88,6 +99,7 @@ fun WearScoreboardApp() {
     var commandSentAt by remember { mutableStateOf(0L) }
     var baselinePhoneUpdateAt by remember { mutableStateOf<Long?>(null) }
     var watchCommandFeedback by remember { mutableStateOf<WatchCommandFeedback?>(null) }
+    var lastConnectedScoreSignature by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
     val haptics = LocalHapticFeedback.current
     val tts = remember(context) {
@@ -100,6 +112,7 @@ fun WearScoreboardApp() {
         val now = SystemClock.elapsedRealtime()
         if (now - lastWatchActionAt < WatchActionDebounceMs) return
         lastWatchActionAt = now
+        context.vibrateWatchAction()
         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
         action()
     }
@@ -116,11 +129,26 @@ fun WearScoreboardApp() {
         tts.useBestAvailableVoice()
         tts.setSpeechRate(ScoreSpeechRate)
         tts.setPitch(1.0f)
-        tts.speak(scoreCall, TextToSpeech.QUEUE_FLUSH, null, "wear-score-${System.nanoTime()}")
+        tts.setAudioAttributes(scoreAudioAttributes())
+        tts.speak(scoreCall, TextToSpeech.QUEUE_FLUSH, scoreSpeechParams(), "wear-score-${System.nanoTime()}")
     }
 
     fun announceScore(gameState: GameState) {
         val scoreCall = gameState.spokenScoreCall()
+        if (ttsReady) {
+            speakScoreCall(scoreCall)
+        } else {
+            pendingScoreCall = scoreCall
+        }
+    }
+
+    fun announceConfirmedPhoneScore(scoreState: PhoneScoreState) {
+        if (!scoreState.voiceAnnouncementMode.usesWatchSpeaker()) {
+            pendingScoreCall = null
+            return
+        }
+
+        val scoreCall = scoreState.spokenScoreCall.ifBlank { scoreState.scoreCall }
         if (ttsReady) {
             speakScoreCall(scoreCall)
         } else {
@@ -160,11 +188,28 @@ fun WearScoreboardApp() {
         if (awaitingPhoneConfirmation && (baseline == null || updatedAt > baseline)) {
             awaitingPhoneConfirmation = false
             watchCommandFeedback = WatchCommandFeedback.Confirmed
+            context.vibrateWatchConfirmed()
             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
             delay(FeedbackVisibleMs)
             if (!awaitingPhoneConfirmation && watchCommandFeedback == WatchCommandFeedback.Confirmed) {
                 watchCommandFeedback = null
             }
+        }
+    }
+
+    LaunchedEffect(phoneConnected, phoneScoreState?.updatedAt) {
+        val scoreState = phoneScoreState
+        if (!phoneConnected || scoreState?.matchActive != true) {
+            lastConnectedScoreSignature = null
+            return@LaunchedEffect
+        }
+
+        val signature = scoreState.scoreSignature()
+        val previousSignature = lastConnectedScoreSignature
+        lastConnectedScoreSignature = signature
+
+        if (previousSignature != null && signature != previousSignature) {
+            announceConfirmedPhoneScore(scoreState)
         }
     }
 
@@ -175,6 +220,7 @@ fun WearScoreboardApp() {
         if (awaitingPhoneConfirmation && commandSentAt == pendingCommandSentAt) {
             awaitingPhoneConfirmation = false
             watchCommandFeedback = WatchCommandFeedback.Problem
+            context.vibrateWatchProblem()
             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
             delay(FeedbackVisibleMs)
             if (!awaitingPhoneConfirmation && watchCommandFeedback == WatchCommandFeedback.Problem) {
@@ -190,6 +236,13 @@ fun WearScoreboardApp() {
         }
     }
 
+    LaunchedEffect(Unit) {
+        while (true) {
+            WearPhoneSync.refreshPhoneState()
+            delay(PhoneRefreshIntervalMs)
+        }
+    }
+
     MaterialTheme {
         Surface(
             modifier = Modifier.fillMaxSize(),
@@ -201,6 +254,7 @@ fun WearScoreboardApp() {
                 WearConnectedScoreboardScreen(
                     state = connectedScoreState,
                     feedback = watchCommandFeedback,
+                    actionsEnabled = !awaitingPhoneConfirmation,
                     onTeamAWon = {
                         runWatchAction {
                             sendPhoneCommand(WearSyncContract.COMMAND_A_WON_RALLY)
@@ -296,13 +350,13 @@ private fun WearServeSetupScreen(
         )
         ServeChoiceButton(
             modifier = Modifier.fillMaxWidth(0.76f),
-            label = "A SERVES",
+            label = "ME SERVES",
             color = TeamBlue,
             onClick = onTeamAStarts
         )
         ServeChoiceButton(
             modifier = Modifier.fillMaxWidth(0.76f),
-            label = "B SERVES",
+            label = "OPP SERVES",
             color = TeamGreen,
             onClick = onTeamBStarts
         )
@@ -313,6 +367,7 @@ private fun WearServeSetupScreen(
 private fun WearConnectedScoreboardScreen(
     state: PhoneScoreState,
     feedback: WatchCommandFeedback?,
+    actionsEnabled: Boolean,
     onTeamAWon: () -> Unit,
     onTeamBWon: () -> Unit,
     onUndo: () -> Unit
@@ -334,16 +389,16 @@ private fun WearConnectedScoreboardScreen(
         ) {
             RallyButton(
                 modifier = Modifier.weight(1f),
-                label = "A\nWON",
+                label = "ME\nWON",
                 color = TeamBlue,
-                enabled = true,
+                enabled = actionsEnabled,
                 onClick = onTeamAWon
             )
             RallyButton(
                 modifier = Modifier.weight(1f),
-                label = "B\nWON",
+                label = "OPP\nWON",
                 color = TeamGreen,
-                enabled = true,
+                enabled = actionsEnabled,
                 onClick = onTeamBWon
             )
         }
@@ -353,7 +408,7 @@ private fun WearConnectedScoreboardScreen(
                 .fillMaxWidth(0.46f)
                 .height(30.dp),
             onClick = onUndo,
-            enabled = state.canUndo,
+            enabled = state.canUndo && actionsEnabled,
             shape = RoundedCornerShape(8.dp),
             contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
         ) {
@@ -433,14 +488,14 @@ private fun WearScoreboardScreen(
         ) {
             RallyButton(
                 modifier = Modifier.weight(1f),
-                label = "A\nWON",
+                label = "ME\nWON",
                 color = TeamBlue,
                 enabled = !gameOver,
                 onClick = onTeamAWon
             )
             RallyButton(
                 modifier = Modifier.weight(1f),
-                label = "B\nWON",
+                label = "OPP\nWON",
                 color = TeamGreen,
                 enabled = !gameOver,
                 onClick = onTeamBWon
@@ -741,6 +796,58 @@ private fun PhoneScoreState.teamColor(team: Team): Color =
     when (team) {
         Team.A -> TeamBlue
         Team.B -> TeamGreen
+    }
+
+private fun PhoneScoreState.scoreSignature(): String =
+    "$teamAScore|$teamBScore|$servingTeam|$serverNumber|$scoreCall"
+
+private fun VoiceAnnouncementMode.usesWatchSpeaker(): Boolean =
+    this == VoiceAnnouncementMode.WatchOnly || this == VoiceAnnouncementMode.WatchThenPhone
+
+private fun Context.vibrateWatchAction() {
+    vibratePattern(longArrayOf(0, 35), intArrayOf(0, 160))
+}
+
+private fun Context.vibrateWatchConfirmed() {
+    vibratePattern(longArrayOf(0, 28, 55, 28), intArrayOf(0, 120, 0, 120))
+}
+
+private fun Context.vibrateWatchProblem() {
+    vibratePattern(longArrayOf(0, 130), intArrayOf(0, 220))
+}
+
+@Suppress("DEPRECATION")
+private fun Context.vibratePattern(timings: LongArray, amplitudes: IntArray) {
+    try {
+        val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            getSystemService(VibratorManager::class.java)?.defaultVibrator
+        } else {
+            getSystemService(Vibrator::class.java)
+        } ?: return
+
+        if (!vibrator.hasVibrator()) return
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            vibrator.vibrate(VibrationEffect.createWaveform(timings, amplitudes, -1))
+        } else {
+            vibrator.vibrate(timings, -1)
+        }
+    } catch (error: SecurityException) {
+        Log.w(TAG, "Skipping watch vibration because permission is unavailable", error)
+    } catch (error: RuntimeException) {
+        Log.w(TAG, "Skipping watch vibration after vibrator service error", error)
+    }
+}
+
+private fun scoreAudioAttributes(): AudioAttributes =
+    AudioAttributes.Builder()
+        .setUsage(AudioAttributes.USAGE_MEDIA)
+        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+        .build()
+
+private fun scoreSpeechParams(): Bundle =
+    Bundle().apply {
+        putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, 1.0f)
     }
 
 private fun GameState.callText(): String =

@@ -69,11 +69,16 @@ Phone Only is a first-class experience. Watch Only may own standalone match stat
 - Handles Text-to-Speech score calls from confirmed phone-owned state updates.
 - Uses fixed `fontScale = 1f` for scoreboard layout stability.
 - Provides direct-touch scoring for Phone Only and connected phone control scenarios.
-- Provides the display surface that can be mirrored or shown on a larger Android display.
+- Provides the score screen that can be mirrored or shown on a larger Android display.
+- On tablet-sized Android screens, renders a passive display-only match screen using the same phone/app-owned `GameState`.
 
 ## Display Surface
 
-The shared display surface is passive during live play. For MVP, simple Android display mirroring to a tablet or portable monitor is acceptable.
+The shared display surface can be the normal phone score screen mirrored during live play, an adaptive passive tablet display layout when the Android app runs on a tablet-sized screen, or the initial local-network tablet sync path.
+
+Initial wireless tablet sync is display-only and local-network only. Tablet-sized Android screens advertise themselves with a UDP display hello. The phone publishes display-ready score snapshots using UDP broadcast/unicast and a TCP fallback to discovered tablet display endpoints. Snapshots contain display-ready match state only: team names, scores, serving team, server number, score call, active flag, and timestamp. The tablet renders the snapshot passively and does not run scoring rules.
+
+This sync path is an early Phase 3 foundation, not the final hardened transport. Real Wi-Fi networks may block phone-to-tablet inbound UDP/TCP even when tablet-to-phone discovery succeeds. Hardened pairing, hotspot behavior, and reconnection strategy remain Phase 3/5 work.
 
 Responsibilities:
 
@@ -81,14 +86,16 @@ Responsibilities:
 - Show Team B score.
 - Show serving team.
 - Show server number.
+- Show player names.
 - Remain readable by all four players.
+- Keep screen awake.
 
 Non-responsibilities:
 
-- No rally input controls.
-- No undo control.
-- No setup, reset, or end controls during live play.
+- No separate tablet scoring logic.
+- No tablet scoring controls.
 - No scoring calculations.
+- No cloud relay.
 
 ## Shared Domain
 
@@ -112,14 +119,14 @@ Current behavior:
 
 - Uses the shared scoring engine.
 - Keeps local state in Compose.
-- Provides A WON, B WON, UNDO, and RESET controls.
+- Provides ME WON, OPP WON, UNDO, and RESET controls.
 - Speaks score calls locally in standalone mode.
 - When phone state is available, switches to connected remote-control mode.
 
 Standalone Watch Only behavior:
 
 - Watch may be the source of truth.
-- Supports match setup, first server selection, A WON, B WON, Undo, score display, and voice announcements.
+- Supports match setup, first server selection, ME WON, OPP WON, Undo, score display, and voice announcements.
 - Existing standalone behavior should be preserved unless intentionally changing Watch Only mode.
 
 Connected Watch + Phone behavior:
@@ -134,8 +141,8 @@ Connected Watch + Phone behavior:
 Remote-control behavior uses Wear OS Data Layer:
 
 - `MessageClient` for watch-to-phone commands:
-  - Team A won rally.
-  - Team B won rally.
+  - My Team won rally.
+  - Opponent won rally.
   - Undo.
 - `DataClient` for phone-to-watch score state snapshots.
 - Phone score snapshots include active-match and undo-availability flags.
@@ -156,7 +163,7 @@ Phone Only mode defaults to Phone only and announces immediately after confirmed
 
 Connected Watch + Phone mode defaults to Watch then Phone:
 
-1. Watch sends A WON, B WON, or Undo to phone.
+1. Watch sends ME WON, OPP WON, or Undo to phone.
 2. Phone updates score as source of truth.
 3. Phone publishes confirmed score state.
 4. Watch receives confirmed score state and announces immediately.

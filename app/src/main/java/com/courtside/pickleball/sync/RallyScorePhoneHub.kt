@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.courtside.pickleball.domain.GameState
 import com.courtside.pickleball.domain.Team
+import com.courtside.pickleball.domain.VoiceAnnouncementMode
 import com.courtside.pickleball.domain.WearSyncContract
 import com.courtside.pickleball.domain.displayValue
 import com.courtside.pickleball.domain.spokenScoreCall
@@ -24,7 +25,9 @@ object RallyScorePhoneHub {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val _watchConnected = MutableStateFlow(false)
+    private val _voiceAnnouncementMode = MutableStateFlow(VoiceAnnouncementMode.PhoneOnly)
     val watchConnected: StateFlow<Boolean> = _watchConnected.asStateFlow()
+    val voiceAnnouncementMode: StateFlow<VoiceAnnouncementMode> = _voiceAnnouncementMode.asStateFlow()
 
     private var appContext: Context? = null
     private var initialized = false
@@ -34,7 +37,13 @@ object RallyScorePhoneHub {
         initialized = true
         appContext = context.applicationContext
 
+        TabletDisplaySync.initialize(context.applicationContext)
         refreshConnectedNodes()
+        TabletDisplaySync.startListener()
+        TabletDisplaySync.startBroadcaster(
+            stateProvider = { store.state.value },
+            matchActiveProvider = { store.matchActive.value }
+        )
         publishScoreState(store.state.value)
 
         scope.launch {
@@ -47,6 +56,15 @@ object RallyScorePhoneHub {
                 publishScoreState(store.state.value)
             }
         }
+        scope.launch {
+            _voiceAnnouncementMode.collect {
+                publishScoreState(store.state.value)
+            }
+        }
+    }
+
+    fun setVoiceAnnouncementMode(mode: VoiceAnnouncementMode) {
+        _voiceAnnouncementMode.value = mode
     }
 
     fun refreshConnectedNodes() {
@@ -105,6 +123,7 @@ object RallyScorePhoneHub {
             dataMap.putLong(WearSyncContract.KEY_UPDATED_AT, System.currentTimeMillis())
             dataMap.putBoolean(WearSyncContract.KEY_MATCH_ACTIVE, store.matchActive.value)
             dataMap.putBoolean(WearSyncContract.KEY_CAN_UNDO, store.canUndo())
+            dataMap.putString(WearSyncContract.KEY_VOICE_MODE, _voiceAnnouncementMode.value.wireValue)
         }.asPutDataRequest().setUrgent()
 
         Wearable.getDataClient(context).putDataItem(request)

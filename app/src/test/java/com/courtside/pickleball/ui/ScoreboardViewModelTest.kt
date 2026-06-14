@@ -4,6 +4,7 @@ import com.courtside.pickleball.domain.GameSettings
 import com.courtside.pickleball.domain.GameState
 import com.courtside.pickleball.domain.ServerNumber
 import com.courtside.pickleball.domain.Team
+import com.courtside.pickleball.domain.VoiceAnnouncementMode
 import com.courtside.pickleball.sync.ScoreboardStore
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -160,6 +161,16 @@ class ScoreboardViewModelTest {
 
         assertEquals(2, viewModel.state.value.teamAScore)
         assertTrue(viewModel.canUndo())
+    }
+
+    @Test
+    fun voiceAnnouncementModeCanBeUpdated() {
+        val viewModel = newViewModel()
+
+        viewModel.setVoiceAnnouncementMode(VoiceAnnouncementMode.WatchThenPhone)
+
+        assertEquals(VoiceAnnouncementMode.WatchThenPhone, viewModel.voiceAnnouncementMode.value)
+        viewModel.setVoiceAnnouncementMode(VoiceAnnouncementMode.PhoneOnly)
     }
 
     private fun newViewModel(): ScoreboardViewModel =

@@ -3,6 +3,7 @@ package com.courtside.pickleball.wear
 import android.content.Context
 import android.util.Log
 import com.courtside.pickleball.domain.Team
+import com.courtside.pickleball.domain.VoiceAnnouncementMode
 import com.courtside.pickleball.domain.WearSyncContract
 import com.google.android.gms.wearable.DataEventBuffer
 import com.google.android.gms.wearable.DataMap
@@ -22,6 +23,7 @@ data class PhoneScoreState(
     val teamBName: String,
     val scoreCall: String,
     val spokenScoreCall: String,
+    val voiceAnnouncementMode: VoiceAnnouncementMode,
     val matchActive: Boolean,
     val canUndo: Boolean,
     val updatedAt: Long
@@ -61,6 +63,11 @@ object WearPhoneSync {
             }
     }
 
+    fun refreshPhoneState() {
+        refreshConnectedNodes()
+        refreshLatestScoreState()
+    }
+
     fun handlePeerConnected(peer: Node) {
         Log.d(TAG, "Phone peer connected: ${peer.displayName}")
         _phoneConnected.value = true
@@ -78,6 +85,7 @@ object WearPhoneSync {
             .addOnSuccessListener { nodes ->
                 if (nodes.isEmpty()) {
                     Log.w(TAG, "No phone node available for command: $commandPath")
+                    _phoneConnected.value = false
                     return@addOnSuccessListener
                 }
 
@@ -88,11 +96,13 @@ object WearPhoneSync {
                             Log.d(TAG, "Sent command $commandPath to ${node.displayName}")
                         }
                         .addOnFailureListener { error ->
+                            _phoneConnected.value = false
                             Log.w(TAG, "Failed command $commandPath to ${node.displayName}", error)
                         }
                 }
             }
             .addOnFailureListener { error ->
+                _phoneConnected.value = false
                 Log.w(TAG, "Unable to find phone nodes for command: $commandPath", error)
             }
     }
@@ -136,6 +146,9 @@ object WearPhoneSync {
             teamBName = dataMap.getString(WearSyncContract.KEY_TEAM_B_NAME).orEmpty(),
             scoreCall = dataMap.getString(WearSyncContract.KEY_SCORE_CALL).orEmpty(),
             spokenScoreCall = dataMap.getString(WearSyncContract.KEY_SPOKEN_SCORE_CALL).orEmpty(),
+            voiceAnnouncementMode = VoiceAnnouncementMode.fromWireValue(
+                dataMap.getString(WearSyncContract.KEY_VOICE_MODE)
+            ),
             matchActive = dataMap.getBoolean(WearSyncContract.KEY_MATCH_ACTIVE),
             canUndo = dataMap.getBoolean(WearSyncContract.KEY_CAN_UNDO),
             updatedAt = dataMap.getLong(WearSyncContract.KEY_UPDATED_AT)

@@ -50,14 +50,18 @@ Use a real phone when possible.
 - App launches in landscape.
 - Team A Player 1 and Player 2 fields accept more than two characters.
 - Team B Player 1 and Player 2 fields accept more than two characters.
+- Player fields default to P1, P2, P3, and P4.
+- Team A is selected by default so Start is available immediately.
+- Defaults can be edited normally.
 - Delete/backspace works.
 - Names are uppercased.
-- Team A and Team B setup sections are same visual height.
+- My Team and Opponent Team setup sections are same visual height.
+- Watch connection status appears beside the `SET UP GAME` title and does not consume a separate row.
 - Player 1 and Player 2 fields fit side by side in each team section.
 - Keyboard does not crop entered text.
 - Pressing Enter/Done does not crash or jump focus to another field.
 - Keyboard-visible `DONE` hides the keyboard and returns to the full setup layout.
-- User can select starting server by tapping the full-width Team A or Team B label band.
+- User can select starting server by tapping the full-width My Team or Opponent Team label band.
 - Focusing a player field also selects that team as the starting server.
 - Start button enables only after all four player names and starting server are set.
 - Voice Announcements setting is visible and usable.
@@ -95,12 +99,15 @@ Use a real phone when possible.
 
 - Wear app launches on emulator or watch.
 - Phone connection status indicator is visible.
-- User can choose Team A or Team B to serve first.
+- User can choose ME or OPP to serve first.
 - Score rows fit on round display.
-- A WON and B WON buttons are easy to tap.
+- ME WON and OPP WON buttons are easy to tap.
+- Watch gives haptic feedback after rally input.
 - Undo works.
 - Undo and Reset buttons are easy to tap.
+- Watch gives haptic feedback after undo and reset.
 - Reset returns to serving-team selection.
+- Watch screen stays awake while RallyScore is open.
 - Score call updates after rally input.
 - TTS announces the initial score after choosing first server.
 - TTS announces score changes after rally input.
@@ -117,6 +124,10 @@ Initial implementation exists. Required before the connected Watch + Phone produ
 - Watch rally input updates the phone/shared display.
 - Watch undo restores the phone/shared display.
 - Watch Undo is disabled when phone undo history is empty.
+- Connected-mode rally and undo buttons are disabled while waiting for phone confirmation.
+- Connected-mode watch gives confirmation haptics after the phone-owned score update arrives.
+- Connected-mode watch gives problem haptics if phone confirmation is not received.
+- Phone and watch refresh connection state while open after reconnecting.
 - Watch does not perform score calculations, server transitions, or side-out logic locally.
 - Watch receives updated score state from the phone.
 - Watch displays the phone-owned score in connected mode.
@@ -136,7 +147,29 @@ Initial implementation exists. Required before the connected Watch + Phone produ
 - Phone display mirroring is readable in landscape.
 - Shared display uses large score numbers and high contrast.
 - Shared display shows serving team and server number.
+- Mirrored normal score screen shows Team A score, Team B score, serving team, server number, player names, CALL, Undo, End, and the small watch connection rail.
+- Mirrored normal score screen does not show large Team A Won or Team B Won buttons.
 - Tablet or portable monitor does not own independent scoring logic.
+
+## Tablet Display Manual Test
+
+- On a tablet-sized Android device or emulator, app launches in landscape.
+- Setup preserves My Team and Opponent Team name entry.
+- Starting a match opens the passive tablet display layout.
+- Tablet display shows both player-name groups.
+- Tablet display shows very large Team A and Team B scores.
+- Tablet display shows serving side and server number.
+- Tablet display shows CALL score.
+- Tablet CALL band is large enough to read from several metres away.
+- Tablet display has no Team A Won, Team B Won, Undo, End, Reset, or scoring controls.
+- Tablet display screen stays awake during use.
+- Existing phone-sized score screen remains unchanged on phones.
+- When phone and tablet are on the same local network, tablet discovery logs show the tablet display endpoint.
+- Starting a phone match publishes phone-owned tablet display snapshots.
+- If the network allows phone-to-tablet delivery, the tablet switches from setup to passive scoreboard display.
+- If the tablet remains on setup, collect logs for blocked UDP/TCP delivery and verify whether the network has client isolation or inbound-device blocking.
+- Watch commands update the phone and then publish updated tablet display snapshots.
+- Stopping phone broadcasts clears stale tablet display state after a short timeout.
 
 ## Crash Checks
 
