@@ -8,8 +8,10 @@ import com.courtside.pickleball.domain.Team
 import com.courtside.pickleball.domain.displayValue
 import java.net.DatagramPacket
 import java.net.DatagramSocket
+import java.net.Inet4Address
 import java.net.InetAddress
 import java.net.InetSocketAddress
+import java.net.NetworkInterface
 import java.net.ServerSocket
 import java.net.Socket
 import java.net.SocketTimeoutException
@@ -47,8 +49,17 @@ data class TabletDisplayState(
     }
 }
 
+enum class TabletConnectionState {
+    Searching,
+    Reconnecting,
+    Connected
+}
+
 object TabletDisplaySync {
     private const val TAG = "TabletDisplaySync"
+    private const val PREFS_NAME = "rallyscore_tablet_display_sync"
+    private const val KEY_LAST_PHONE_HOST = "last_phone_host"
+    private const val KEY_LAST_PHONE_PORT = "last_phone_port"
     private const val PORT = 45454
     private const val TABLET_TCP_PORT = 45455
     private const val PHONE_WS_PORT = 45456
@@ -61,13 +72,17 @@ object TabletDisplaySync {
     private const val TABLET_SUBNET_SCAN_INTERVAL_MS = 15_000L
     private const val TABLET_SUBNET_SCAN_TIMEOUT_MS = 80
     private const val STALE_REMOTE_STATE_MS = 5_000L
+    private const val WEBSOCKET_READ_TIMEOUT_MS = 4_000
     private const val STALE_TABLET_ADDRESS_MS = 30_000L
     private const val LISTEN_TIMEOUT_MS = 1_000
+    private const val MAX_WS_RECONNECT_ATTEMPTS = 5
     private const val MAX_PACKET_BYTES = 2_048
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val _remoteDisplayState = MutableStateFlow<TabletDisplayState?>(null)
     val remoteDisplayState: StateFlow<TabletDisplayState?> = _remoteDisplayState.asStateFlow()
+    private val _connectionState = MutableStateFlow(TabletConnectionState.Searching)
+    val connectionState: StateFlow<TabletConnectionState> = _connectionState.asStateFlow()
 
     private var appContext: Context? = null
     private var multicastLock: WifiManager.MulticastLock? = null
@@ -81,9 +96,16 @@ object TabletDisplaySync {
     @Volatile private var tabletDisplayAvailable = false
     @Volatile private var phoneWebSocketConnected = false
     @Volatile private var connectedPhoneWebSocketEndpoint: InetSocketAddress? = null
+    @Volatile private var latestPhonePayload: String? = null
+    @Volatile private var lastRemoteSnapshotReceivedAt: Long = 0L
     private val webSocketClients = Collections.synchronizedSet(mutableSetOf<Socket>())
     private val tabletEndpoints = ConcurrentHashMap<InetSocketAddress, Long>()
     private val tabletTcpEndpoints = ConcurrentHashMap<InetSocketAddress, Long>()
+
+    private data class LocalIpv4Network(
+        val address: Inet4Address,
+        val prefixLength: Int
+    )
 
     fun initialize(context: Context) {
         appContext = context.applicationContext
@@ -110,7 +132,9 @@ object TabletDisplaySync {
     fun setTabletDisplayAvailable(available: Boolean) {
         tabletDisplayAvailable = available
         if (available) {
+            setConnectionState(TabletConnectionState.Searching)
             startListener()
+            connectToRememberedPhoneWebSocket()
             connectToGatewayPhoneWebSocket()
             startTabletHelloBroadcaster()
             startTabletTcpServer()
@@ -126,6 +150,7 @@ object TabletDisplaySync {
             tabletSubnetScanJob = null
             phoneWebSocketConnected = false
             connectedPhoneWebSocketEndpoint = null
+            setConnectionState(TabletConnectionState.Searching)
         }
     }
 
@@ -142,7 +167,7 @@ object TabletDisplaySync {
                     try {
                         socket.receive(packet)
                     } catch (_: SocketTimeoutException) {
-                        clearStaleRemoteState()
+                        markStaleRemoteState()
                         continue
                     }
 
@@ -158,12 +183,14 @@ object TabletDisplaySync {
                     }
                     if (payload.startsWith(PHONE_WS_PROTOCOL)) {
                         if (tabletDisplayAvailable) {
+                            Log.d(TAG, "UDP discovered phone WebSocket availability at ${packet.address.hostAddress}")
                             connectToPhoneWebSocket(packet.address, payload.toPhoneWebSocketPort())
                         }
                         continue
                     }
 
                     val state = payload.toTabletDisplayState() ?: continue
+                    rememberPhoneEndpoint(packet.address, PHONE_WS_PORT)
                     updateRemoteDisplayState(state, "UDP")
                 }
             }
@@ -189,6 +216,7 @@ object TabletDisplaySync {
 
                     val state = stateProvider()
                     val payload = state.toTabletDisplayPayload(matchActive = true)
+                    latestPhonePayload = payload
                     val bytes = payload.toByteArray(StandardCharsets.UTF_8)
                     broadcastPhoneWebSocketAvailability(socket)
                     val targets = broadcastEndpoints() + currentTabletEndpoints()
@@ -223,8 +251,25 @@ object TabletDisplaySync {
 
     private fun connectToGatewayPhoneWebSocket() {
         if (phoneWebSocketConnected) return
-        val gateway = gatewayAddress() ?: return
+        val gateway = gatewayAddresses().firstOrNull()
+        if (gateway == null) {
+            Log.d(TAG, "No gateway address available for phone discovery")
+            return
+        }
+        Log.d(TAG, "Probing gateway for phone tablet WebSocket at ${gateway.hostAddress}:$PHONE_WS_PORT")
         connectToPhoneWebSocket(gateway, PHONE_WS_PORT)
+    }
+
+    private fun connectToRememberedPhoneWebSocket() {
+        if (phoneWebSocketConnected) return
+        val endpoint = rememberedPhoneEndpoint()
+        if (endpoint == null) {
+            Log.d(TAG, "No remembered phone endpoint available for reconnection")
+            return
+        }
+        Log.d(TAG, "Attempting reconnection to remembered phone at ${endpoint.address.hostAddress}:${endpoint.port}")
+        setConnectionState(TabletConnectionState.Reconnecting)
+        connectToPhoneWebSocket(endpoint.address, endpoint.port)
     }
 
     private fun startTabletTcpServer() {
@@ -274,6 +319,9 @@ object TabletDisplaySync {
             socket.getOutputStream().flush()
             socket.soTimeout = 0
             webSocketClients += socket
+            latestPhonePayload?.let { payload ->
+                socket.writeWebSocketTextFrame(payload)
+            }
             Log.d(TAG, "Tablet WebSocket client connected: ${socket.inetAddress.hostAddress}")
         } catch (error: Exception) {
             Log.w(TAG, "Unable to accept tablet WebSocket client: ${error.message}")
@@ -316,9 +364,22 @@ object TabletDisplaySync {
 
     private fun connectToPhoneWebSocket(address: InetAddress, port: Int?) {
         val endpoint = InetSocketAddress(address, port ?: PHONE_WS_PORT)
-        if (connectedPhoneWebSocketEndpoint == endpoint && tabletWebSocketClientJob?.isActive == true) return
+        if (connectedPhoneWebSocketEndpoint == endpoint && tabletWebSocketClientJob?.isActive == true) {
+            Log.d(TAG, "Already connecting to phone WebSocket at ${endpoint.address.hostAddress}:${endpoint.port}; skipping")
+            return
+        }
 
+        Log.d(TAG, "Initiating phone WebSocket connection to ${endpoint.address.hostAddress}:${endpoint.port}")
         connectedPhoneWebSocketEndpoint = endpoint
+        if (!phoneWebSocketConnected) {
+            setConnectionState(
+                if (_remoteDisplayState.value == null) {
+                    TabletConnectionState.Searching
+                } else {
+                    TabletConnectionState.Reconnecting
+                }
+            )
+        }
         tabletWebSocketClientJob?.cancel()
         tabletWebSocketClientJob = scope.launch {
             runTabletWebSocketClient(endpoint)
@@ -326,6 +387,7 @@ object TabletDisplaySync {
     }
 
     private suspend fun runTabletWebSocketClient(endpoint: InetSocketAddress) {
+        var consecutiveFailures = 0
         while (currentCoroutineContext().isActive && tabletDisplayAvailable) {
             try {
                 Socket().use { socket ->
@@ -335,24 +397,47 @@ object TabletDisplaySync {
                     if (!readWebSocketClientHandshake(socket)) {
                         throw IllegalStateException("Invalid WebSocket handshake")
                     }
-                    socket.soTimeout = 0
+                    socket.soTimeout = WEBSOCKET_READ_TIMEOUT_MS
                     phoneWebSocketConnected = true
+                    consecutiveFailures = 0
+                    rememberPhoneEndpoint(endpoint.address, endpoint.port)
+                    setConnectionState(TabletConnectionState.Connected)
                     Log.d(TAG, "Connected to phone tablet WebSocket at ${endpoint.address.hostAddress}:${endpoint.port}")
                     while (currentCoroutineContext().isActive && tabletDisplayAvailable) {
-                        val payload = readWebSocketTextFrame(socket) ?: break
+                        val payload = try {
+                            readWebSocketTextFrame(socket)
+                        } catch (_: SocketTimeoutException) {
+                            Log.w(TAG, "Phone tablet WebSocket heartbeat timed out at ${endpoint.address.hostAddress}:${endpoint.port}")
+                            break
+                        } ?: break
                         val state = payload.toTabletDisplayState() ?: continue
                         updateRemoteDisplayState(state, "WebSocket")
                     }
                 }
             } catch (error: Exception) {
+                consecutiveFailures++
                 Log.w(
                     TAG,
-                    "Phone tablet WebSocket unavailable at ${endpoint.address.hostAddress}:${endpoint.port}: ${error.message}"
+                    "Phone tablet WebSocket unavailable at ${endpoint.address.hostAddress}:${endpoint.port}" +
+                        " (attempt $consecutiveFailures/$MAX_WS_RECONNECT_ATTEMPTS): ${error.message}"
                 )
-                clearStaleRemoteState()
+                markStaleRemoteState()
+                if (consecutiveFailures >= MAX_WS_RECONNECT_ATTEMPTS) {
+                    Log.w(TAG, "Exceeded max WebSocket reconnect attempts; yielding to discovery")
+                    break
+                }
                 delay(TABLET_HELLO_INTERVAL_MS)
             } finally {
                 phoneWebSocketConnected = false
+                if (consecutiveFailures < MAX_WS_RECONNECT_ATTEMPTS) {
+                    setConnectionState(
+                        if (_remoteDisplayState.value == null) {
+                            TabletConnectionState.Searching
+                        } else {
+                            TabletConnectionState.Reconnecting
+                        }
+                    )
+                }
             }
         }
     }
@@ -360,6 +445,8 @@ object TabletDisplaySync {
     private suspend fun runTabletSubnetScanner() {
         while (currentCoroutineContext().isActive && tabletDisplayAvailable) {
             if (!phoneWebSocketConnected) {
+                Log.d(TAG, "Starting tablet subnet discovery scan")
+                connectToRememberedPhoneWebSocket()
                 scanLocalSubnetForPhoneWebSocket()
             }
             delay(TABLET_SUBNET_SCAN_INTERVAL_MS)
@@ -367,9 +454,27 @@ object TabletDisplaySync {
     }
 
     private fun scanLocalSubnetForPhoneWebSocket() {
-        val localAddress = localWifiAddress() ?: return
-        val gateway = gatewayAddress()
-        val addressBytes = localAddress.address
+        val gateways = gatewayAddresses().toSet()
+        gateways.forEach { gateway ->
+            if (phoneWebSocketConnected || !tabletDisplayAvailable) return
+            if (canOpenPhoneWebSocket(gateway)) {
+                Log.d(TAG, "Discovered phone tablet WebSocket at gateway ${gateway.hostAddress}:$PHONE_WS_PORT")
+                connectToPhoneWebSocket(gateway, PHONE_WS_PORT)
+                return
+            }
+        }
+
+        localIpv4Networks().forEach { network ->
+            if (phoneWebSocketConnected || !tabletDisplayAvailable) return
+            scanLocalIpv4SubnetForPhoneWebSocket(network, gateways)
+        }
+    }
+
+    private fun scanLocalIpv4SubnetForPhoneWebSocket(
+        network: LocalIpv4Network,
+        gateways: Set<InetAddress>
+    ) {
+        val addressBytes = network.address.address
         if (addressBytes.size != 4) return
 
         val prefix = byteArrayOf(addressBytes[0], addressBytes[1], addressBytes[2])
@@ -377,7 +482,7 @@ object TabletDisplaySync {
             if (phoneWebSocketConnected || !tabletDisplayAvailable) return
 
             val candidate = InetAddress.getByAddress(prefix + host.toByte())
-            if (candidate == localAddress || candidate == gateway) continue
+            if (candidate == network.address || candidate in gateways) continue
             if (canOpenPhoneWebSocket(candidate)) {
                 Log.d(TAG, "Discovered phone tablet WebSocket by subnet scan at ${candidate.hostAddress}:$PHONE_WS_PORT")
                 connectToPhoneWebSocket(candidate, PHONE_WS_PORT)
@@ -448,7 +553,7 @@ object TabletDisplaySync {
                     val socket = try {
                         serverSocket.accept()
                     } catch (_: SocketTimeoutException) {
-                        clearStaleRemoteState()
+                        markStaleRemoteState()
                         continue
                     }
 
@@ -459,7 +564,7 @@ object TabletDisplaySync {
                             .readLine()
                             ?: return@use
                         val state = payload.toTabletDisplayState() ?: return@use
-                        _remoteDisplayState.value = state
+                        updateRemoteDisplayState(state, "TCP")
                         Log.d(TAG, "Received tablet score snapshot over TCP: ${state.scoreCall}")
                     }
                 }
@@ -480,7 +585,7 @@ object TabletDisplaySync {
             try {
                 socket.receive(packet)
             } catch (_: SocketTimeoutException) {
-                clearStaleRemoteState()
+                markStaleRemoteState()
                 continue
             }
 
@@ -642,8 +747,18 @@ object TabletDisplaySync {
     }
 
     private fun updateRemoteDisplayState(state: TabletDisplayState, source: String) {
+        lastRemoteSnapshotReceivedAt = System.currentTimeMillis()
         _remoteDisplayState.value = state
+        setConnectionState(TabletConnectionState.Connected)
         Log.d(TAG, "Received tablet score snapshot over $source: ${state.scoreCall}")
+    }
+
+    private fun setConnectionState(state: TabletConnectionState) {
+        if (_connectionState.value != state) {
+            val previous = _connectionState.value
+            _connectionState.value = state
+            Log.d(TAG, "Tablet connection state: $previous -> $state")
+        }
     }
 
     private fun String.toTabletTcpPort(): Int? =
@@ -671,6 +786,7 @@ object TabletDisplaySync {
     private fun broadcastAddresses(): List<InetAddress> {
         val addresses = linkedSetOf<InetAddress>()
         addresses += InetAddress.getByName("255.255.255.255")
+        addresses += interfaceBroadcastAddresses()
 
         val context = appContext
         val wifiManager = context?.applicationContext?.getSystemService(WifiManager::class.java)
@@ -689,44 +805,95 @@ object TabletDisplaySync {
         return addresses.toList()
     }
 
-    private fun gatewayAddress(): InetAddress? {
+    private fun gatewayAddresses(): List<InetAddress> {
+        val addresses = linkedSetOf<InetAddress>()
         val context = appContext
         val wifiManager = context?.applicationContext?.getSystemService(WifiManager::class.java)
-        val gateway = wifiManager?.dhcpInfo?.gateway ?: return null
-        if (gateway == 0) return null
-        val bytes = byteArrayOf(
-            (gateway and 0xFF).toByte(),
-            (gateway shr 8 and 0xFF).toByte(),
-            (gateway shr 16 and 0xFF).toByte(),
-            (gateway shr 24 and 0xFF).toByte()
-        )
-        return InetAddress.getByAddress(bytes)
-    }
-
-    private fun localWifiAddress(): InetAddress? {
-        val context = appContext
-        val wifiManager = context?.applicationContext?.getSystemService(WifiManager::class.java)
-        val address = wifiManager?.dhcpInfo?.ipAddress ?: return null
-        if (address == 0) return null
-        val bytes = byteArrayOf(
-            (address and 0xFF).toByte(),
-            (address shr 8 and 0xFF).toByte(),
-            (address shr 16 and 0xFF).toByte(),
-            (address shr 24 and 0xFF).toByte()
-        )
-        return InetAddress.getByAddress(bytes)
+        val gateway = wifiManager?.dhcpInfo?.gateway
+        if (gateway != null && gateway != 0) {
+            val bytes = byteArrayOf(
+                (gateway and 0xFF).toByte(),
+                (gateway shr 8 and 0xFF).toByte(),
+                (gateway shr 16 and 0xFF).toByte(),
+                (gateway shr 24 and 0xFF).toByte()
+            )
+            addresses += InetAddress.getByAddress(bytes)
+        }
+        return addresses.toList()
     }
 
     private fun broadcastEndpoints(): List<InetSocketAddress> =
         broadcastAddresses().map { address -> InetSocketAddress(address, PORT) }
 
-    private fun clearStaleRemoteState() {
-        val current = _remoteDisplayState.value ?: return
-        val ageMs = System.currentTimeMillis() - current.updatedAt
-        if (ageMs > STALE_REMOTE_STATE_MS) {
-            _remoteDisplayState.value = null
-            Log.d(TAG, "Cleared stale tablet score snapshot")
+    private fun interfaceBroadcastAddresses(): List<InetAddress> =
+        networkInterfaces()
+            .flatMap { networkInterface ->
+                networkInterface.interfaceAddresses
+                    .mapNotNull { interfaceAddress ->
+                        interfaceAddress.broadcast
+                    }
+            }
+            .filterIsInstance<Inet4Address>()
+            .filterNot { it.isLoopbackAddress || it.isLinkLocalAddress }
+
+    private fun localIpv4Networks(): List<LocalIpv4Network> =
+        networkInterfaces()
+            .flatMap { networkInterface ->
+                networkInterface.interfaceAddresses.mapNotNull { interfaceAddress ->
+                    val address = interfaceAddress.address as? Inet4Address ?: return@mapNotNull null
+                    if (address.isLoopbackAddress || address.isLinkLocalAddress) return@mapNotNull null
+                    LocalIpv4Network(
+                        address = address,
+                        prefixLength = interfaceAddress.networkPrefixLength.toInt()
+                    )
+                }
+            }
+            .filter { it.prefixLength in 24..30 }
+
+    private fun networkInterfaces(): List<NetworkInterface> =
+        try {
+            Collections.list(NetworkInterface.getNetworkInterfaces())
+                .filter { networkInterface ->
+                    runCatching {
+                        networkInterface.isUp &&
+                            !networkInterface.isLoopback &&
+                            !networkInterface.isVirtual
+                    }.getOrDefault(false)
+                }
+        } catch (_: Exception) {
+            emptyList()
         }
+
+    private fun markStaleRemoteState() {
+        if (_remoteDisplayState.value == null) return
+        val ageMs = System.currentTimeMillis() - lastRemoteSnapshotReceivedAt
+        if (ageMs > STALE_REMOTE_STATE_MS) {
+            setConnectionState(TabletConnectionState.Reconnecting)
+            Log.d(TAG, "Tablet score snapshot is stale (age ${ageMs}ms); keeping last score while reconnecting")
+        }
+    }
+
+    private fun rememberPhoneEndpoint(address: InetAddress, port: Int) {
+        val host = address.hostAddress ?: return
+        val context = appContext ?: return
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_LAST_PHONE_HOST, host)
+            .putInt(KEY_LAST_PHONE_PORT, port)
+            .apply()
+    }
+
+    private fun rememberedPhoneEndpoint(): InetSocketAddress? {
+        val context = appContext ?: return null
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val host = prefs.getString(KEY_LAST_PHONE_HOST, null) ?: return null
+        val port = prefs.getInt(KEY_LAST_PHONE_PORT, PHONE_WS_PORT)
+        val address = try {
+            InetAddress.getByName(host)
+        } catch (_: Exception) {
+            return null
+        }
+        return InetSocketAddress(address, port)
     }
 
     private fun GameState.toTabletDisplayPayload(matchActive: Boolean): String =

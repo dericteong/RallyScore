@@ -3,6 +3,8 @@ package com.courtside.pickleball.sync
 import android.content.Context
 import android.util.Log
 import com.courtside.pickleball.domain.GameState
+import com.courtside.pickleball.domain.GameSettings
+import com.courtside.pickleball.domain.ServerNumber
 import com.courtside.pickleball.domain.Team
 import com.courtside.pickleball.domain.VoiceAnnouncementMode
 import com.courtside.pickleball.domain.WearSyncContract
@@ -20,6 +22,15 @@ import kotlinx.coroutines.launch
 
 object RallyScorePhoneHub {
     private const val TAG = "RallyScorePhoneHub"
+    private const val PREFS_NAME = "rallyscore_phone_match"
+    private const val KEY_MATCH_ACTIVE = "match_active"
+    private const val KEY_TEAM_A_NAME = "team_a_name"
+    private const val KEY_TEAM_B_NAME = "team_b_name"
+    private const val KEY_TEAM_A_SCORE = "team_a_score"
+    private const val KEY_TEAM_B_SCORE = "team_b_score"
+    private const val KEY_SERVING_TEAM = "serving_team"
+    private const val KEY_SERVER_NUMBER = "server_number"
+    private const val KEY_FIRST_SERVER_EXCEPTION = "first_server_exception"
 
     val store = ScoreboardStore()
 
@@ -38,6 +49,7 @@ object RallyScorePhoneHub {
         appContext = context.applicationContext
 
         TabletDisplaySync.initialize(context.applicationContext)
+        restorePersistedMatch(context.applicationContext)
         refreshConnectedNodes()
         TabletDisplaySync.startListener()
         TabletDisplaySync.startBroadcaster(
@@ -48,11 +60,13 @@ object RallyScorePhoneHub {
 
         scope.launch {
             store.state.collect { state ->
+                persistMatch(context.applicationContext, state, store.matchActive.value)
                 publishScoreState(state)
             }
         }
         scope.launch {
             store.matchActive.collect {
+                persistMatch(context.applicationContext, store.state.value, it)
                 publishScoreState(store.state.value)
             }
         }
@@ -138,6 +152,46 @@ object RallyScorePhoneHub {
     private fun Team.toWireValue(): String = when (this) {
         Team.A -> WearSyncContract.TEAM_A
         Team.B -> WearSyncContract.TEAM_B
+    }
+
+    private fun restorePersistedMatch(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val matchActive = prefs.getBoolean(KEY_MATCH_ACTIVE, false)
+        if (!matchActive) return
+
+        val servingTeam = prefs.getString(KEY_SERVING_TEAM, Team.A.name)
+            ?.let { runCatching { Team.valueOf(it) }.getOrNull() }
+            ?: Team.A
+        val serverNumber = prefs.getString(KEY_SERVER_NUMBER, ServerNumber.Two.name)
+            ?.let { runCatching { ServerNumber.valueOf(it) }.getOrNull() }
+            ?: ServerNumber.Two
+        val state = GameState(
+            teamAScore = prefs.getInt(KEY_TEAM_A_SCORE, 0),
+            teamBScore = prefs.getInt(KEY_TEAM_B_SCORE, 0),
+            servingTeam = servingTeam,
+            serverNumber = serverNumber,
+            isFirstServerException = prefs.getBoolean(KEY_FIRST_SERVER_EXCEPTION, true),
+            settings = GameSettings(
+                teamAName = prefs.getString(KEY_TEAM_A_NAME, null) ?: "Team A",
+                teamBName = prefs.getString(KEY_TEAM_B_NAME, null) ?: "Team B"
+            )
+        )
+        store.restore(state = state, matchActive = true)
+        Log.d(TAG, "Restored persisted phone match: ${state.scoreCall}")
+    }
+
+    private fun persistMatch(context: Context, state: GameState, matchActive: Boolean) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean(KEY_MATCH_ACTIVE, matchActive)
+            .putString(KEY_TEAM_A_NAME, state.settings.teamAName)
+            .putString(KEY_TEAM_B_NAME, state.settings.teamBName)
+            .putInt(KEY_TEAM_A_SCORE, state.teamAScore)
+            .putInt(KEY_TEAM_B_SCORE, state.teamBScore)
+            .putString(KEY_SERVING_TEAM, state.servingTeam.name)
+            .putString(KEY_SERVER_NUMBER, state.serverNumber.name)
+            .putBoolean(KEY_FIRST_SERVER_EXCEPTION, state.isFirstServerException)
+            .apply()
     }
 
 }

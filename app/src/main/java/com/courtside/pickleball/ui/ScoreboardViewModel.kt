@@ -7,6 +7,7 @@ import com.courtside.pickleball.domain.Team
 import com.courtside.pickleball.domain.VoiceAnnouncementMode
 import com.courtside.pickleball.sync.RallyScorePhoneHub
 import com.courtside.pickleball.sync.ScoreboardStore
+import com.courtside.pickleball.sync.TabletConnectionState
 import com.courtside.pickleball.sync.TabletDisplayState
 import com.courtside.pickleball.sync.TabletDisplaySync
 import kotlinx.coroutines.flow.StateFlow
@@ -19,6 +20,7 @@ class ScoreboardViewModel(
     val watchConnected: StateFlow<Boolean> = RallyScorePhoneHub.watchConnected
     val voiceAnnouncementMode: StateFlow<VoiceAnnouncementMode> = RallyScorePhoneHub.voiceAnnouncementMode
     val remoteTabletDisplayState: StateFlow<TabletDisplayState?> = TabletDisplaySync.remoteDisplayState
+    val tabletConnectionState: StateFlow<TabletConnectionState> = TabletDisplaySync.connectionState
 
     fun startMatch(teamAName: String, teamBName: String, startingTeam: Team) {
         store.startMatch(teamAName, teamBName, startingTeam)

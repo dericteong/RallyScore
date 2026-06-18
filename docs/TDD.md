@@ -128,7 +128,7 @@ Phone Only voice flow when Phone only mode is selected:
 1. User reviews or edits My Team and Opponent Team names on the tablet.
 2. User selects starting serving team during setup.
 3. Tablet ViewModel creates the authoritative `GameState`.
-4. User taps ME WON or OPP WON on the tablet.
+4. User taps a team score panel on the tablet to record a rally win.
 5. Tablet state stores the previous state in history.
 6. Tablet asks `PickleballScoringEngine.recordRallyWinner`.
 7. Tablet updates authoritative match state.
@@ -199,13 +199,36 @@ The phone remains the only source of truth and scoring hub.
 
 ## Tablet Standalone Controller
 
-Revised Phase 3 starts with Tablet Only mode. Tablet-sized screens should support setup, score display, rally-winner scoring, undo, correction mode when available, and voice announcements while keeping the screen awake and using large high-contrast layout.
+Revised Phase 3 starts with Tablet Only mode. Tablet-sized screens support
+setup, score display, tap-to-score panels for rally-winner input, undo and
+end controls inside the call bar, correction mode when available, and voice
+announcements while keeping the screen awake and using large high-contrast
+layout.
 
-Tablet Only owns its match state and uses the shared scoring engine exactly like Phone Only mode. This is simpler and immediately useful before multi-device sync exists.
+Tablet Only owns its match state and uses the shared scoring engine exactly
+like Phone Only mode. This is simpler and immediately useful before
+multi-device sync exists.
+
+In screen routing, a local match always takes priority over remote display
+state. The tablet shows its full controller UI whenever a local match is
+active, regardless of any remote snapshot. When no local match is active,
+it may render a passive remote-display screen or the waiting-for-phone
+screen.
 
 ## Tablet Display Client And Future Sync
 
-The existing passive tablet display client can remain as a prototype or fallback, but it is no longer the main Phase 3 direction. Passive tablet display mode renders phone-owned display snapshots:
+The existing passive tablet display client can remain as a prototype or fallback, but it is no longer the main Phase 3 direction.
+
+The tablet distinguishes two modes:
+
+- **Local controller mode:** when a match is started locally, the tablet
+  shows tap-to-score panels with full UNDO/END controls and owns match
+  state through the shared scoring engine.
+- **Remote display mode:** when no local match is active but a remote
+  phone-owned snapshot is available, the tablet renders display-only
+  state with no scoring controls, undo, end, or setup.
+
+Passive tablet display mode renders phone-owned display snapshots:
 
 - Team scores.
 - Serving side.
@@ -214,9 +237,28 @@ The existing passive tablet display client can remain as a prototype or fallback
 - CALL score.
 - Match-active timestamp.
 
-The phone hosts a lightweight local WebSocket publisher for tablet display snapshots. Tablet clients connect over the same Wi-Fi or a phone-hotspot path and render the latest confirmed phone-owned score state. The tablet also performs conservative same-subnet discovery so it can initiate the connection when the network blocks phone-to-tablet inbound delivery. UDP discovery and the earlier TCP endpoint path may remain as fallback aids while Phase 3 is hardened.
+The phone hosts a lightweight local WebSocket publisher for tablet display snapshots. Tablet clients connect over the current local IP network and render the latest confirmed phone-owned score state. The network can be venue/home Wi-Fi or the phone's own hotspot; Internet access is not required. The tablet also performs conservative same-subnet discovery so it can initiate the connection when phone-to-tablet inbound delivery is blocked. Discovery uses the remembered phone endpoint, the current network gateway when available, UDP broadcast announcements, TCP fallback endpoints, WebSocket availability broadcasts, and IPv4 interface-based subnet probing. No user-facing IP address entry is required.
+
+Connection robustness requirements for the display client:
+
+- Tablet remembers the last successful phone WebSocket endpoint.
+- Tablet retries the remembered endpoint on launch and reconnect.
+- Tablet can discover the phone over external Wi-Fi or the phone hotspot as long as both devices share a local IP network.
+- Tablet shows Searching for phone, Reconnecting, and Connected states.
+- Phone accepts reconnecting tablet clients without manual action.
+- Phone sends the latest display snapshot immediately after a WebSocket reconnect when available.
+- Score snapshots act as heartbeat.
+- Tablet detects heartbeat/read timeout and enters Reconnecting.
+- Tablet keeps the last received score visible while reconnecting.
+- After Wi-Fi returns, tablet reconnects automatically and restores the current phone-owned score.
 
 Future synced tablet controller mode should evolve beyond display snapshots into bidirectional command/state sync. Until that exists, Tablet Only and phone-owned display client mode must remain clearly separate so there is never more than one active source of truth for a match.
+
+The routing check always inspects local match state first. The `ScoreboardApp`
+composable evaluates `matchStarted` before any remote-state branch, ensuring
+a local match is never hidden by a remote snapshot. `TabletWaitingForPhoneScreen`
+is preserved for the case where a remote snapshot exists but no active match
+is reported.
 
 ## State Management
 
@@ -247,3 +289,4 @@ Current behavior: pressing Enter/Done does not auto-focus the next field.
 - Tablet Only mode is not fully implemented yet.
 - Phone + Tablet synced scoring is future work and needs conflict handling.
 - Tablet display WebSocket sync is an initial prototype and still needs venue/hotspot hardening if retained.
+- Phone app restores active match score state after app relaunch, but undo history is not persisted yet.

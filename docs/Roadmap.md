@@ -66,7 +66,16 @@ Next:
 
 ## Phase 3 - Tablet Standalone Controller
 
-Status: In progress.
+Status: Paused while tablet connection robustness is hardened.
+
+Current priority:
+
+- Harden the existing phone-to-tablet display-client connection before adding new tablet controller features.
+- Tablet should reconnect automatically after local-network disconnect/reconnect, app relaunch, or tablet reboot.
+- Phone-to-tablet display sync should work over external Wi-Fi or the phone's hotspot with no Internet and no manual IP address entry.
+- Phone should accept reconnecting tablets and send the latest match state without manual action.
+- Tablet should expose clear Searching for phone, Reconnecting, and Connected states.
+- Watch to phone scoring must remain unchanged.
 
 Goals:
 

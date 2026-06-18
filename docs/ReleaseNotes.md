@@ -37,6 +37,7 @@ Status: In development.
 - Passive tablet-sized scoreboard layout for Android tablets.
 - Initial local-network phone-to-tablet display snapshot sync using UDP discovery/snapshots plus TCP endpoint fallback.
 - Initial passive tablet display client over a phone-hosted local WebSocket.
+- Tablet display-client reconnect states: Searching for phone, Reconnecting, and Connected.
 
 ### Changed
 
@@ -59,15 +60,46 @@ Status: In development.
 - Tablet-sized Android screens now show a display-only live match layout with large scores, player names, serving side, server number, and CALL.
 - Tablet CALL display is enlarged into a high-visibility lower band.
 - Tablet-sized Android screens now show a passive waiting-for-phone screen instead of setup controls when acting as the display client.
+- Tablet display client remembers the last phone endpoint, detects heartbeat/read timeouts, keeps the last score visible while reconnecting, and receives the latest phone-owned snapshot immediately after reconnect.
+- Phone app now restores the active phone-owned score state after relaunch so reconnecting tablets can receive the current score again.
+- Tablet display-client discovery now uses current IPv4 network interfaces, gateway probing, remembered endpoints, UDP broadcasts, TCP fallback, and WebSocket snapshots so it can work over external Wi-Fi or the phone hotspot without Internet or manual IP entry.
+- Tablet scoring controller now records rally wins by tapping score panels
+  (no separate ME WON/OPP WON buttons). UNDO and END buttons appear inside
+  the call bar in local controller mode.
+- Tablet screen routing checks local match state first; a local match
+  always takes priority over remote display state.
+- Phone score rows now use team-colored backgrounds: blue for Team A,
+  green for Team B, with white text and serving dots, matching tablet visual
+  language.
+- CALL bar background changed to dark navy (#111827, was pure black) on
+  both tablet and phone.
+- CALL label changed to white (was amber), sized separately from the score
+  call numbers (38sp tablet, 28sp phone).
+- Call score enlarged: 180sp on tablet, 52sp on phone.
+- Tablet server dots are now horizontal (..) white circles left of the
+  score, with the score centered via a counterbalance spacer.
+- Tablet connection status bar shows "PHONE CONNECTED", "PHONE
+  RECONNECTING", or "SEARCHING FOR PHONE".
+- Phone scoring screen now shows watch connection status as a full-width
+  bar at the top (was a compact rail beside UNDO).
+- Phone setup screen now displays watch and tablet connection status side
+  by side.
+- Score call spoken via TTS uses English words for numbers 21–99 (e.g.
+  "twenty one") and digit-by-digit for 100+ (e.g. "1 0 3").
+- Tablet remote-display mode is explicitly passive (no controls) and
+  distinct from local controller mode (full tap-to-score panels and
+  UNDO/END).
+- TabletWaitingForPhoneScreen is preserved in the routing.
 
 ### Known Gaps
 
 - Wear sync is initial and still needs paired real-device hardening.
 - Wear app still contains standalone Watch Only scoring logic when no phone state is available.
-- Tablet Only controller mode is the revised Phase 3 direction and is not fully implemented yet.
+- Tablet Only controller mode supports tap-to-score, UNDO, and END in the
+  call bar. Correction mode is not yet implemented.
 - Phone + Tablet synced controller mode is future work and requires conflict handling.
 - Wireless tablet sync is an initial local-network prototype and still needs real-venue hardening. Some Wi-Fi paths can block local WebSocket/discovery delivery between phone and tablet.
-- No persisted match state after app restart.
+- Undo history is not persisted after app restart.
 - No in-app TTS voice selector.
 - No dedicated Bluetooth speaker mode yet; Android audio routing may handle connected speakers.
 - No formal game-complete mode for target-score games yet.

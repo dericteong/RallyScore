@@ -55,9 +55,10 @@ Landscape layout:
 
 ```text
 ---------------------------------------------------------------
-| dots | TEAM A PLAYER 1 & PLAYER 2             | Team A score |
-|------+----------------------------------------+--------------|
-| dots | TEAM B PLAYER 1 & PLAYER 2             | Team B score |
+| WATCH CONNECTED                                             |
+---------------------------------------------------------------
+| [blue]  dots | TEAM A P1 & P2             | score [white]  |
+| [green] dots | TEAM B P1 & P2             | score [white]  |
 ---------------------------------------------------------------
 | CALL serving - receiving - server | UNDO | END              |
 ---------------------------------------------------------------
@@ -65,15 +66,18 @@ Landscape layout:
 
 Interaction:
 
+- Team A row has a blue background; Team B row has a green background.
+  Text and serving dots are white.
 - Tap Team A score to record Team A won rally.
 - Tap Team B score to record Team B won rally.
 - One serving dot means Server 1.
 - Two serving dots means Server 2.
 - Only the serving team row shows dots.
-- Call bar numbers are colored by team.
+- Call bar uses dark-navy background (#111827). CALL label is white (28sp).
+  Score call text is 52sp, team-colored.
+- Watch connection status shown as a full-width bar at top of screen.
 - Undo reverses last rally.
 - End opens a confirmation dialog.
-- Shows watch connection status.
 - Phone speaker announces the confirmed score after rally input or undo when enabled.
 - In Watch then Phone mode, the phone repeats the same confirmed score approximately two seconds after the watch announces it.
 
@@ -163,23 +167,36 @@ Tablet score controller:
 
 ```text
 ---------------------------------------------------------------
-| P1 & P2                         | P3 & P4                    |
+| PHONE CONNECTED                                              |
+---------------------------------------------------------------
+| [blue] P1 & P2                  | [green] P3 & P4            |
 |                                 |                            |
-|      08                         |      06                    |
+|  ..    08                       |        06                  |
 |                                 |                            |
 | SERVING - SERVER 2              | RECEIVING                  |
 ---------------------------------------------------------------
-| CALL: 8 - 6 - 2                 | UNDO | CORRECT | END       |
----------------------------------------------------------------
-|              [ ME WON ]         [ OPP WON ]                  |
+| [dark navy]                                                   |
+|                CALL                                           |
+|              8 - 6 - 2         [white, 180sp]                |
+|    P1 & P2 SERVES  •  SERVER 2                                |
+|                                          [UNDO]  [END]        |
 ---------------------------------------------------------------
 ```
 
 Tablet controller behavior:
 
-- Shows setup, score, serving side, server number, player names, and CALL.
-- Provides large ME WON and OPP WON scoring controls.
-- Provides Undo.
+- Shows a connection status bar at the top: "PHONE CONNECTED",
+  "PHONE RECONNECTING", or "SEARCHING FOR PHONE".
+- Each team panel uses its team color as background (blue/green)
+  with white text and serving dots.
+- Tapping a team's score panel records a rally win for that team
+  (no separate ME WON/OPP WON buttons).
+- Server dots appear as white circles in a horizontal row (..)
+  left of the score, with the score centered.
+- Call bar uses dark-navy background (#111827). CALL label is
+  white, 38sp. Score call is 180sp, white.
+- UNDO and END buttons appear inside the call bar in local
+  controller mode. In remote-display mode, no controls are shown.
 - Provides correction mode when available.
 - Provides voice announcements when enabled.
 - Uses Team A blue and Team B green.
@@ -207,30 +224,42 @@ Waiting for phone:
 
 ```text
 ---------------------------------------------------------------
-| P1 & P2                         | P3 & P4                    |
+| SEARCHING FOR PHONE / RECONNECTING / PHONE CONNECTED        |
+---------------------------------------------------------------
+| [blue] P1 & P2                  | [green] P3 & P4            |
 |                                 |                            |
-|      08                         |      06                    |
+|  ..    08                       |        06                  |
 |                                 |                            |
 | SERVING - SERVER 2              | RECEIVING                  |
 ---------------------------------------------------------------
-|                                                             |
-|                         CALL                                |
-|                       8 - 6 - 2                             |
-|                  P1 & P2 SERVES - SERVER 2                  |
-|                                                             |
+| [dark navy]                                                   |
+|                         CALL                                  |
+|                       8 - 6 - 2      [white, 180sp]          |
+|                  P1 & P2 SERVES - SERVER 2                    |
 ---------------------------------------------------------------
 ```
 
-Tablet display-client behavior:
+Tablet display-client behavior (remote-display mode):
 
-- Shows team scores with very large numbers.
-- Shows serving side and server number.
-- Shows player names when space allows.
-- Shows CALL in an oversized lower band, roughly half the tablet display area.
-- Uses Team A blue and Team B green.
-- Uses high contrast and landscape-first spacing.
-- Keeps the screen awake through the existing app activity behavior.
-- Does not show Team A Won, Team B Won, Undo, End, Reset, setup, or other live-match controls.
-- Does not contain scoring logic or independent match authority while in display-client mode.
-- Initial wireless sync uses local-network WebSocket display snapshots from the phone source of truth.
-- If wireless snapshots stop, the tablet drops stale remote display state after a short timeout.
+- Shows team scores on team-colored backgrounds (blue/green) with white text.
+- Shows serving side and server number with horizontal server dots.
+- Shows CALL in an oversized lower band with dark-navy background
+  (#111827) and white label/score.
+- Connection status bar at top shows current phone connection state.
+- Uses Team A blue and Team B green. Uses high contrast.
+- Keeps the screen awake.
+- Does not show scoring controls, Undo, End, Reset, setup, or other
+  live-match controls. The screen is purely passive.
+- Does not contain scoring logic or independent match authority
+  while in remote-display mode.
+- Initial wireless sync uses local-network WebSocket display
+  snapshots from the phone source of truth.
+- If wireless snapshots stop, the tablet drops stale remote display
+  state after a short timeout.
+
+Routing note: The tablet checks local match state first. If a local
+match is active, the full controller screen (with tap-to-score and
+UNDO/END) is shown regardless of remote state. The passive
+remote-display screens here only render when no local match is active.
+`TabletWaitingForPhoneScreen` is preserved for when a remote snapshot
+exists but no match is active.

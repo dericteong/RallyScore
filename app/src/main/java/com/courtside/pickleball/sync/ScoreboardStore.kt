@@ -70,4 +70,10 @@ class ScoreboardStore(
     }
 
     fun canUndo(): Boolean = _matchActive.value && history.isNotEmpty()
+
+    fun restore(state: GameState, matchActive: Boolean) {
+        history.clear()
+        _state.value = state
+        _matchActive.value = matchActive
+    }
 }

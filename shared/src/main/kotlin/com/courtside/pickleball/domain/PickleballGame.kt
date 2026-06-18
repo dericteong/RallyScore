@@ -94,5 +94,25 @@ private fun Int.spokenNumber(): String = when (this) {
     18 -> "eighteen"
     19 -> "nineteen"
     20 -> "twenty"
-    else -> toString()
+    else -> spokenNumberAbove20()
+}
+
+private fun Int.spokenNumberAbove20(): String {
+    if (this < 100) {
+        val tens = this / 10
+        val ones = this % 10
+        val tensWord = when (tens) {
+            2 -> "twenty"
+            3 -> "thirty"
+            4 -> "forty"
+            5 -> "fifty"
+            6 -> "sixty"
+            7 -> "seventy"
+            8 -> "eighty"
+            9 -> "ninety"
+            else -> ""
+        }
+        return if (ones == 0) tensWord else "$tensWord ${ones.spokenNumber()}"
+    }
+    return toString().map { it }.joinToString(" ")
 }

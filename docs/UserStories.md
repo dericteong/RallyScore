@@ -71,6 +71,8 @@
 - As an organizer, I want the shared display to avoid accidental touch controls when it is only being used as the scoreboard.
 - As a player, I want the shared display to show only team scores, serving team, and server number during a match.
 - As a player, I want the tablet to follow the phone-owned score automatically so I can keep scoring from the watch without touching the tablet.
+- As a player on an outdoor court, I want the phone to host the tablet connection through its hotspot so RallyScore works without venue Wi-Fi or Internet.
+- As a player, I want the phone and tablet to find each other automatically so I do not need to enter or understand IP addresses.
 
 ## Future Phone + Tablet Sync
 

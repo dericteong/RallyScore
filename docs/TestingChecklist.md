@@ -181,12 +181,26 @@ Initial implementation exists. Required before the connected Watch + Phone produ
 - Starting a match on the phone opens the passive tablet display layout after sync connects.
 - Tablet display shows player names, scores, serving side, server number, and CALL.
 - When phone and tablet are on the same local network or the tablet is connected to the phone hotspot, tablet discovery/WebSocket logs show a phone display endpoint.
+- With no external Wi-Fi available, turn on the phone hotspot, join the tablet to that hotspot, and verify the tablet finds the phone without manual IP entry.
+- With Internet disabled or unavailable, verify phone-to-tablet display sync still works over the phone hotspot.
+- With both devices on normal external Wi-Fi, verify the same discovery/reconnect behavior still works.
 - If phone-to-tablet delivery is blocked, tablet-side same-subnet discovery attempts to find the phone WebSocket by initiating the connection from the tablet.
 - Starting a phone match publishes phone-owned tablet display snapshots over the local WebSocket.
 - If the network allows local-device delivery, the tablet switches from waiting-for-phone to passive scoreboard display.
 - If the tablet remains on the waiting screen, collect logs for blocked local WebSocket/discovery delivery and verify whether the network has client isolation or inbound-device blocking.
 - Watch commands update the phone and then publish updated tablet display snapshots.
 - Stopping phone broadcasts clears stale tablet display state after a short timeout.
+- Tablet shows Searching for phone before discovering a phone endpoint.
+- Tablet shows Connected after receiving confirmed phone-owned score snapshots.
+- Tablet shows Reconnecting after heartbeat/read timeout while preserving the last displayed score.
+- Tablet remembers the last phone address and retries it after relaunch.
+- Phone accepts tablet reconnects without manual action.
+- Reconnected tablet receives the full current score state immediately.
+- Turning tablet Wi-Fi off and on reconnects automatically.
+- Moving the tablet from external Wi-Fi to the phone hotspot reconnects automatically after both devices share the hotspot network.
+- Closing and reopening the tablet app reconnects automatically.
+- Closing and reopening the phone app restores the active phone-owned score and keeps accepting tablet reconnects.
+- Rebooting the tablet reconnects automatically after RallyScore is opened.
 
 ## Future Phone + Tablet Sync Manual Test
 

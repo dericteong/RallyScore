@@ -103,6 +103,7 @@ Large shared scoreboard
 - Phone Only scoring as a first-class mode.
 - Tablet Only scoring as a first-class standalone controller mode.
 - Large-screen, portable-monitor, or Android-tablet scoreboard display for all players.
+- Phone-to-tablet display sync works without Internet or venue Wi-Fi when the tablet joins the phone's hotspot.
 - Standard doubles pickleball scoring.
 - Setup screen for My Team and Opponent Team player names, with two player fields per team.
 - Short development/social-play defaults pre-populate setup fields so a user can start immediately.
@@ -141,7 +142,7 @@ Standalone mode:
 - Own server transitions and side outs.
 - Own match state and undo history.
 - Communicate with the watch.
-- Communicate with the display device.
+- Communicate with the display device over the current local IP network, including external Wi-Fi or the phone's own hotspot.
 - Announce confirmed score updates from the phone speaker when enabled.
 - Continue scoring if the watch, tablet, or monitor disconnects.
 - Provide direct phone scoring as a first-class Phone Only experience.
@@ -153,8 +154,11 @@ Tablet Only mode:
 - Own score calculations using the shared scoring engine.
 - Own server transitions and side outs.
 - Own match setup, match state, undo history, correction mode when available, voice announcements, and display output.
+- Provide tap-to-score panels: tapping a team's score records a rally win.
+- Show UNDO and END buttons inside the call bar in controller mode.
 - Provide large, high-contrast scoring controls and score display.
 - Keep the screen awake.
+- Local match state takes priority over remote state in routing.
 
 Future synced mode:
 
@@ -170,10 +174,13 @@ Future synced mode:
 - Show server number.
 - Avoid controls during an active match.
 - Remain readable by all four players.
+- Connect automatically when the phone and tablet are on the same local IP network.
+- Require no Internet, cloud service, or manual IP address entry.
 
 ## Current Behavior
 
-- The phone app currently uses a table-style score screen and can be used directly as a first-class Phone Only scoring mode.
+- The phone app uses team-colored score rows: blue background for Team A,
+  green background for Team B, with white text and serving dots.
 - Setup defaults are P1, P2, P3, and P4, with My Team selected to serve first by default.
 - The Wear app currently supports standalone prototype scoring with watch-side score calls. This is a temporary implementation mismatch with the target architecture; future watch work should evolve it into a command-only controller.
 - Watch-to-phone synchronization is implemented in initial form and continues to be hardened.
@@ -190,7 +197,24 @@ Future synced mode:
 - Phone Only mode announces immediately with no delay when Phone only mode is selected.
 - Bluetooth speaker routing can rely on Android audio routing for now.
 - Scores continue beyond 11 for timed games.
-- Tablet-sized Android screens currently render a passive scoreboard layout when acting as a synced display client. The revised Phase 3 direction is to add Tablet Only controller mode first.
+- Tablet-sized screens support both a passive remote-display mode and a local
+  controller mode. In controller mode, tapping team score panels records rally
+  wins, and UNDO/END buttons appear in the call bar. In remote-display mode,
+  no controls are shown.
+- The CALL bar on both tablet and phone uses a dark-navy background (#111827).
+- The CALL label is white (38sp tablet, 28sp phone) rendered as a separate
+  Text composable from the score call numbers.
+- The call score is enlarged: 180sp on tablet, 52sp on phone.
+- Server dots on tablet are horizontal white circles (..) left of the score,
+  with a counterbalance spacer centering the score number.
+- Phone and tablet show connection status bars at the top of the score screen
+  (WATCH CONNECTED/OFFLINE and TABLET CONNECTED/SEARCHING).
+- Score call spoken via TTS uses English words for numbers 21–99 (e.g.
+  "twenty one") and digit-by-digit for 100+ (e.g. "1 0 3").
+- Tablet screen routing checks local match state first; a local match always
+  takes priority over remote display state. `TabletWaitingForPhoneScreen` is
+  preserved.
+- Phone-to-tablet display sync is local-network based and should work over external Wi-Fi or a phone hotspot as long as both devices are on the same IP network.
 
 ## Non-Goals For Current MVP
 
