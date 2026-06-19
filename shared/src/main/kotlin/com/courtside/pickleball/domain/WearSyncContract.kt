@@ -26,14 +26,20 @@ object WearSyncContract {
     const val VOICE_OFF = "off"
     const val VOICE_PHONE_ONLY = "phone_only"
     const val VOICE_WATCH_ONLY = "watch_only"
+    const val VOICE_TABLET_ONLY = "tablet_only"
     const val VOICE_WATCH_THEN_PHONE = "watch_then_phone"
+    const val VOICE_WATCH_THEN_TABLET = "watch_then_tablet"
+    const val VOICE_PHONE_THEN_TABLET = "phone_then_tablet"
 }
 
 enum class VoiceAnnouncementMode(val wireValue: String) {
     Off(WearSyncContract.VOICE_OFF),
     PhoneOnly(WearSyncContract.VOICE_PHONE_ONLY),
     WatchOnly(WearSyncContract.VOICE_WATCH_ONLY),
-    WatchThenPhone(WearSyncContract.VOICE_WATCH_THEN_PHONE);
+    TabletOnly(WearSyncContract.VOICE_TABLET_ONLY),
+    WatchThenPhone(WearSyncContract.VOICE_WATCH_THEN_PHONE),
+    WatchThenTablet(WearSyncContract.VOICE_WATCH_THEN_TABLET),
+    PhoneThenTablet(WearSyncContract.VOICE_PHONE_THEN_TABLET);
 
     companion object {
         fun fromWireValue(value: String?): VoiceAnnouncementMode =

@@ -5,7 +5,9 @@ import android.net.wifi.WifiManager
 import android.util.Log
 import com.courtside.pickleball.domain.GameState
 import com.courtside.pickleball.domain.Team
+import com.courtside.pickleball.domain.VoiceAnnouncementMode
 import com.courtside.pickleball.domain.displayValue
+import com.courtside.pickleball.domain.spokenScoreCall
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.Inet4Address
@@ -40,7 +42,10 @@ data class TabletDisplayState(
     val servingTeam: Team,
     val serverNumber: Int,
     val scoreCall: String,
+    val spokenScoreCall: String,
+    val voiceAnnouncementMode: VoiceAnnouncementMode,
     val matchActive: Boolean,
+    val canUndo: Boolean,
     val updatedAt: Long
 ) {
     fun servingName(): String = when (servingTeam) {
@@ -55,6 +60,18 @@ enum class TabletConnectionState {
     Connected
 }
 
+enum class TabletCommand(val wireValue: String) {
+    TeamAWonRally("TABLET_ME_WON_RALLY"),
+    TeamBWonRally("TABLET_OPP_WON_RALLY"),
+    Undo("TABLET_UNDO"),
+    EndMatch("TABLET_END_MATCH");
+
+    companion object {
+        fun fromWireValue(value: String): TabletCommand? =
+            entries.firstOrNull { it.wireValue == value }
+    }
+}
+
 object TabletDisplaySync {
     private const val TAG = "TabletDisplaySync"
     private const val PREFS_NAME = "rallyscore_tablet_display_sync"
@@ -64,6 +81,7 @@ object TabletDisplaySync {
     private const val TABLET_TCP_PORT = 45455
     private const val PHONE_WS_PORT = 45456
     private const val PROTOCOL = "RALLYSCORE_TABLET_V1"
+    private const val TABLET_COMMAND_PROTOCOL = "RALLYSCORE_TABLET_COMMAND_V1"
     private const val TABLET_HELLO_PROTOCOL = "RALLYSCORE_TABLET_HELLO_V1"
     private const val PHONE_WS_PROTOCOL = "RALLYSCORE_PHONE_WS_V1"
     private const val WEBSOCKET_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
@@ -96,6 +114,8 @@ object TabletDisplaySync {
     @Volatile private var tabletDisplayAvailable = false
     @Volatile private var phoneWebSocketConnected = false
     @Volatile private var connectedPhoneWebSocketEndpoint: InetSocketAddress? = null
+    @Volatile private var connectedPhoneWebSocket: Socket? = null
+    @Volatile private var tabletCommandHandler: ((TabletCommand) -> Unit)? = null
     @Volatile private var latestPhonePayload: String? = null
     @Volatile private var lastRemoteSnapshotReceivedAt: Long = 0L
     private val webSocketClients = Collections.synchronizedSet(mutableSetOf<Socket>())
@@ -120,18 +140,50 @@ object TabletDisplaySync {
 
     fun startBroadcaster(
         stateProvider: () -> GameState,
-        matchActiveProvider: () -> Boolean
+        matchActiveProvider: () -> Boolean,
+        canUndoProvider: () -> Boolean = { false },
+        voiceModeProvider: () -> VoiceAnnouncementMode = { VoiceAnnouncementMode.PhoneOnly },
+        onTabletCommand: (TabletCommand) -> Unit = {}
     ) {
+        tabletCommandHandler = onTabletCommand
         if (broadcasterJob?.isActive == true) return
         startPhoneWebSocketServer()
         broadcasterJob = scope.launch {
-            runBroadcaster(stateProvider, matchActiveProvider)
+            runBroadcaster(stateProvider, matchActiveProvider, canUndoProvider, voiceModeProvider)
+        }
+    }
+
+    fun sendTabletCommand(command: TabletCommand) {
+        val socket = connectedPhoneWebSocket
+        if (!tabletDisplayAvailable || !phoneWebSocketConnected || socket == null) {
+            Log.w(TAG, "Unable to send tablet command while phone WebSocket is disconnected: ${command.wireValue}")
+            setConnectionState(
+                if (_remoteDisplayState.value == null) {
+                    TabletConnectionState.Searching
+                } else {
+                    TabletConnectionState.Reconnecting
+                }
+            )
+            return
+        }
+
+        scope.launch {
+            try {
+                socket.writeWebSocketTextFrame(command.toWirePayload())
+                Log.d(TAG, "Sent tablet command: ${command.wireValue}")
+            } catch (error: Exception) {
+                Log.w(TAG, "Failed to send tablet command: ${command.wireValue}", error)
+                phoneWebSocketConnected = false
+                connectedPhoneWebSocket = null
+                setConnectionState(TabletConnectionState.Reconnecting)
+            }
         }
     }
 
     fun setTabletDisplayAvailable(available: Boolean) {
         tabletDisplayAvailable = available
         if (available) {
+            stopLocalHubPublisher()
             setConnectionState(TabletConnectionState.Searching)
             startListener()
             connectToRememberedPhoneWebSocket()
@@ -149,9 +201,19 @@ object TabletDisplaySync {
             tabletSubnetScanJob?.cancel()
             tabletSubnetScanJob = null
             phoneWebSocketConnected = false
+            connectedPhoneWebSocket = null
             connectedPhoneWebSocketEndpoint = null
             setConnectionState(TabletConnectionState.Searching)
         }
+    }
+
+    private fun stopLocalHubPublisher() {
+        broadcasterJob?.cancel()
+        broadcasterJob = null
+        phoneWebSocketServerJob?.cancel()
+        phoneWebSocketServerJob = null
+        latestPhonePayload = null
+        closeWebSocketClients()
     }
 
     private suspend fun runListener() {
@@ -203,19 +265,20 @@ object TabletDisplaySync {
 
     private suspend fun runBroadcaster(
         stateProvider: () -> GameState,
-        matchActiveProvider: () -> Boolean
+        matchActiveProvider: () -> Boolean,
+        canUndoProvider: () -> Boolean,
+        voiceModeProvider: () -> VoiceAnnouncementMode
     ) {
         try {
             DatagramSocket().use { socket ->
                 socket.broadcast = true
                 while (currentCoroutineContext().isActive) {
-                    if (!matchActiveProvider()) {
-                        delay(BROADCAST_INTERVAL_MS)
-                        continue
-                    }
-
                     val state = stateProvider()
-                    val payload = state.toTabletDisplayPayload(matchActive = true)
+                    val payload = state.toTabletDisplayPayload(
+                        matchActive = matchActiveProvider(),
+                        canUndo = canUndoProvider(),
+                        voiceAnnouncementMode = voiceModeProvider()
+                    )
                     latestPhonePayload = payload
                     val bytes = payload.toByteArray(StandardCharsets.UTF_8)
                     broadcastPhoneWebSocketAvailability(socket)
@@ -250,7 +313,7 @@ object TabletDisplaySync {
     }
 
     private fun connectToGatewayPhoneWebSocket() {
-        if (phoneWebSocketConnected) return
+        if (phoneWebSocketConnected || hasFreshRemoteSnapshot()) return
         val gateway = gatewayAddresses().firstOrNull()
         if (gateway == null) {
             Log.d(TAG, "No gateway address available for phone discovery")
@@ -261,14 +324,16 @@ object TabletDisplaySync {
     }
 
     private fun connectToRememberedPhoneWebSocket() {
-        if (phoneWebSocketConnected) return
+        if (phoneWebSocketConnected || hasFreshRemoteSnapshot()) return
         val endpoint = rememberedPhoneEndpoint()
         if (endpoint == null) {
             Log.d(TAG, "No remembered phone endpoint available for reconnection")
             return
         }
         Log.d(TAG, "Attempting reconnection to remembered phone at ${endpoint.address.hostAddress}:${endpoint.port}")
-        setConnectionState(TabletConnectionState.Reconnecting)
+        if (!hasFreshRemoteSnapshot()) {
+            setConnectionState(TabletConnectionState.Reconnecting)
+        }
         connectToPhoneWebSocket(endpoint.address, endpoint.port)
     }
 
@@ -310,7 +375,7 @@ object TabletDisplaySync {
         }
     }
 
-    private fun acceptWebSocketClient(socket: Socket) {
+    private suspend fun acceptWebSocketClient(socket: Socket) {
         try {
             socket.soTimeout = LISTEN_TIMEOUT_MS
             val key = readWebSocketHandshakeKey(socket) ?: return socket.close()
@@ -319,12 +384,24 @@ object TabletDisplaySync {
             socket.getOutputStream().flush()
             socket.soTimeout = 0
             webSocketClients += socket
+            setConnectionState(TabletConnectionState.Connected)
             latestPhonePayload?.let { payload ->
                 socket.writeWebSocketTextFrame(payload)
             }
             Log.d(TAG, "Tablet WebSocket client connected: ${socket.inetAddress.hostAddress}")
+            while (currentCoroutineContext().isActive) {
+                val payload = readWebSocketTextFrame(socket) ?: break
+                val command = payload.toTabletCommand() ?: continue
+                Log.d(TAG, "Received tablet command: ${command.wireValue}")
+                tabletCommandHandler?.invoke(command)
+            }
         } catch (error: Exception) {
             Log.w(TAG, "Unable to accept tablet WebSocket client: ${error.message}")
+        } finally {
+            webSocketClients -= socket
+            if (webSocketClients.isEmpty()) {
+                setConnectionState(TabletConnectionState.Reconnecting)
+            }
             socket.closeQuietly()
         }
     }
@@ -364,6 +441,10 @@ object TabletDisplaySync {
 
     private fun connectToPhoneWebSocket(address: InetAddress, port: Int?) {
         val endpoint = InetSocketAddress(address, port ?: PHONE_WS_PORT)
+        if (phoneWebSocketConnected || hasFreshRemoteSnapshot()) {
+            Log.d(TAG, "Skipping phone WebSocket probe at ${endpoint.address.hostAddress}:${endpoint.port}; phone state is already fresh")
+            return
+        }
         if (connectedPhoneWebSocketEndpoint == endpoint && tabletWebSocketClientJob?.isActive == true) {
             Log.d(TAG, "Already connecting to phone WebSocket at ${endpoint.address.hostAddress}:${endpoint.port}; skipping")
             return
@@ -371,7 +452,7 @@ object TabletDisplaySync {
 
         Log.d(TAG, "Initiating phone WebSocket connection to ${endpoint.address.hostAddress}:${endpoint.port}")
         connectedPhoneWebSocketEndpoint = endpoint
-        if (!phoneWebSocketConnected) {
+        if (!phoneWebSocketConnected && !hasFreshRemoteSnapshot()) {
             setConnectionState(
                 if (_remoteDisplayState.value == null) {
                     TabletConnectionState.Searching
@@ -389,8 +470,10 @@ object TabletDisplaySync {
     private suspend fun runTabletWebSocketClient(endpoint: InetSocketAddress) {
         var consecutiveFailures = 0
         while (currentCoroutineContext().isActive && tabletDisplayAvailable) {
+            var activeSocket: Socket? = null
             try {
                 Socket().use { socket ->
+                    activeSocket = socket
                     socket.connect(endpoint, LISTEN_TIMEOUT_MS)
                     socket.soTimeout = LISTEN_TIMEOUT_MS
                     writeWebSocketClientHandshake(socket, endpoint.hostString)
@@ -399,6 +482,7 @@ object TabletDisplaySync {
                     }
                     socket.soTimeout = WEBSOCKET_READ_TIMEOUT_MS
                     phoneWebSocketConnected = true
+                    connectedPhoneWebSocket = socket
                     consecutiveFailures = 0
                     rememberPhoneEndpoint(endpoint.address, endpoint.port)
                     setConnectionState(TabletConnectionState.Connected)
@@ -429,14 +513,11 @@ object TabletDisplaySync {
                 delay(TABLET_HELLO_INTERVAL_MS)
             } finally {
                 phoneWebSocketConnected = false
+                if (connectedPhoneWebSocket == activeSocket) {
+                    connectedPhoneWebSocket = null
+                }
                 if (consecutiveFailures < MAX_WS_RECONNECT_ATTEMPTS) {
-                    setConnectionState(
-                        if (_remoteDisplayState.value == null) {
-                            TabletConnectionState.Searching
-                        } else {
-                            TabletConnectionState.Reconnecting
-                        }
-                    )
+                    markStaleRemoteState()
                 }
             }
         }
@@ -653,7 +734,10 @@ object TabletDisplaySync {
 
     private fun publishToWebSocketClients(payload: String) {
         val staleClients = mutableListOf<Socket>()
-        webSocketClients.forEach { socket ->
+        val clients = synchronized(webSocketClients) {
+            webSocketClients.toList()
+        }
+        clients.forEach { socket ->
             try {
                 socket.writeWebSocketTextFrame(payload)
             } catch (_: Exception) {
@@ -669,19 +753,21 @@ object TabletDisplaySync {
 
     private fun Socket.writeWebSocketTextFrame(payload: String) {
         val bytes = payload.toByteArray(StandardCharsets.UTF_8)
-        val output = getOutputStream()
-        output.write(0x81)
-        when {
-            bytes.size <= 125 -> output.write(bytes.size)
-            bytes.size <= 65_535 -> {
-                output.write(126)
-                output.write((bytes.size shr 8) and 0xFF)
-                output.write(bytes.size and 0xFF)
+        synchronized(this) {
+            val output = getOutputStream()
+            output.write(0x81)
+            when {
+                bytes.size <= 125 -> output.write(bytes.size)
+                bytes.size <= 65_535 -> {
+                    output.write(126)
+                    output.write((bytes.size shr 8) and 0xFF)
+                    output.write(bytes.size and 0xFF)
+                }
+                else -> error("Tablet display payload too large")
             }
-            else -> error("Tablet display payload too large")
+            output.write(bytes)
+            output.flush()
         }
-        output.write(bytes)
-        output.flush()
     }
 
     private fun readWebSocketTextFrame(socket: Socket): String? {
@@ -766,6 +852,19 @@ object TabletDisplaySync {
 
     private fun String.toPhoneWebSocketPort(): Int? =
         split("|").getOrNull(1)?.toIntOrNull()
+
+    private fun TabletCommand.toWirePayload(): String =
+        listOf(
+            TABLET_COMMAND_PROTOCOL,
+            wireValue,
+            System.currentTimeMillis().toString()
+        ).joinToString("|")
+
+    private fun String.toTabletCommand(): TabletCommand? {
+        val fields = split("|")
+        if (fields.size < 2 || fields[0] != TABLET_COMMAND_PROTOCOL) return null
+        return TabletCommand.fromWireValue(fields[1])
+    }
 
     private fun acquireMulticastLock() {
         val context = appContext ?: return
@@ -873,6 +972,10 @@ object TabletDisplaySync {
         }
     }
 
+    private fun hasFreshRemoteSnapshot(): Boolean =
+        _remoteDisplayState.value != null &&
+            System.currentTimeMillis() - lastRemoteSnapshotReceivedAt <= STALE_REMOTE_STATE_MS
+
     private fun rememberPhoneEndpoint(address: InetAddress, port: Int) {
         val host = address.hostAddress ?: return
         val context = appContext ?: return
@@ -896,34 +999,50 @@ object TabletDisplaySync {
         return InetSocketAddress(address, port)
     }
 
-    private fun GameState.toTabletDisplayPayload(matchActive: Boolean): String =
+    private fun GameState.toTabletDisplayPayload(
+        matchActive: Boolean,
+        canUndo: Boolean,
+        voiceAnnouncementMode: VoiceAnnouncementMode
+    ): String =
         listOf(
             PROTOCOL,
             System.currentTimeMillis().toString(),
             matchActive.toString(),
+            canUndo.toString(),
             settings.teamAName.toWireField(),
             settings.teamBName.toWireField(),
             teamAScore.toString(),
             teamBScore.toString(),
             servingTeam.toWireValue(),
             serverNumber.displayValue.toString(),
-            scoreCall.toWireField()
+            scoreCall.toWireField(),
+            spokenScoreCall().toWireField(),
+            voiceAnnouncementMode.wireValue
         ).joinToString("|")
 
     private fun String.toTabletDisplayState(): TabletDisplayState? {
         val fields = split("|")
-        if (fields.size != 10 || fields[0] != PROTOCOL) return null
+        if ((fields.size != 10 && fields.size != 11 && fields.size != 13) || fields[0] != PROTOCOL) return null
+        val hasCanUndo = fields.size == 11 || fields.size == 13
+        val hasVoiceFields = fields.size == 13
+        val offset = if (hasCanUndo) 1 else 0
+        val scoreCall = fields[9 + offset].fromWireField()
 
         return TabletDisplayState(
             updatedAt = fields[1].toLongOrNull() ?: return null,
             matchActive = fields[2].toBooleanStrictOrNull() ?: return null,
-            teamAName = fields[3].fromWireField(),
-            teamBName = fields[4].fromWireField(),
-            teamAScore = fields[5].toIntOrNull() ?: return null,
-            teamBScore = fields[6].toIntOrNull() ?: return null,
-            servingTeam = fields[7].toTeam(),
-            serverNumber = fields[8].toIntOrNull() ?: return null,
-            scoreCall = fields[9].fromWireField()
+            canUndo = if (hasCanUndo) fields[3].toBooleanStrictOrNull() ?: false else false,
+            teamAName = fields[3 + offset].fromWireField(),
+            teamBName = fields[4 + offset].fromWireField(),
+            teamAScore = fields[5 + offset].toIntOrNull() ?: return null,
+            teamBScore = fields[6 + offset].toIntOrNull() ?: return null,
+            servingTeam = fields[7 + offset].toTeam(),
+            serverNumber = fields[8 + offset].toIntOrNull() ?: return null,
+            scoreCall = scoreCall,
+            spokenScoreCall = if (hasVoiceFields) fields[10 + offset].fromWireField() else scoreCall,
+            voiceAnnouncementMode = VoiceAnnouncementMode.fromWireValue(
+                if (hasVoiceFields) fields[11 + offset] else null
+            )
         )
     }
 

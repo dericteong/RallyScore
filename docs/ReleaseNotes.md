@@ -30,7 +30,7 @@ Status: In development.
 - Phone-owned score snapshots include active-match and undo-availability state for connected Wear control.
 - Phone and Wear connection status indicators.
 - Manual `DONE` keyboard-dismiss control on the compact setup screen.
-- MVP voice announcement modes: Off, Phone only, Watch only, and Watch then Phone.
+- MVP voice announcement modes: Off, Phone only, Watch only, Tablet only, Watch then Phone, Watch then Tablet, and Phone then Tablet.
 - Short setup player-name defaults for faster development and social-play testing.
 - Player-perspective setup and watch labels: My Team, Opponent Team, ME WON, OPP WON, ME SERVES, and OPP SERVES.
 - Watch haptic feedback for rally input, undo, confirmed connected-mode score updates, and phone-confirmation problems.
@@ -51,6 +51,8 @@ Status: In development.
 - Phone ViewModel now delegates to a phone-owned score store that can also receive watch commands.
 - Setup field Enter/Done no longer auto-focuses the next field because that caused Compose focus crashes on Samsung devices.
 - Connected-mode score announcements use confirmed phone-owned state. Watch then Phone mode announces from the watch first, then repeats from the phone approximately two seconds later.
+- Tablet voice announcements are supported in Tablet only, Watch then Tablet, and Phone then Tablet modes.
+- Connected tablet voice announcements use confirmed phone-owned snapshots and do not announce predicted scores.
 - Connected Wear now waits for an active phone match before showing remote scoring controls.
 - Connected Wear now disables rally and undo controls while waiting for phone confirmation to reduce accidental double taps.
 - Phone and Wear apps refresh connection state while open to improve reconnection behavior.
@@ -59,10 +61,12 @@ Status: In development.
 - External display support is treated as mirroring the existing phone score screen to a tablet or portable monitor.
 - Tablet-sized Android screens now show a display-only live match layout with large scores, player names, serving side, server number, and CALL.
 - Tablet CALL display is enlarged into a high-visibility lower band.
-- Tablet-sized Android screens now show a passive waiting-for-phone screen instead of setup controls when acting as the display client.
+- Tablet-sized Android screens now fall back to normal setup when disconnected or when no active phone-owned match is available.
 - Tablet display client remembers the last phone endpoint, detects heartbeat/read timeouts, keeps the last score visible while reconnecting, and receives the latest phone-owned snapshot immediately after reconnect.
 - Phone app now restores the active phone-owned score state after relaunch so reconnecting tablets can receive the current score again.
 - Tablet display-client discovery now uses current IPv4 network interfaces, gateway probing, remembered endpoints, UDP broadcasts, TCP fallback, and WebSocket snapshots so it can work over external Wi-Fi or the phone hotspot without Internet or manual IP entry.
+- Connected tablet mode now sends rally, Undo, and End commands to the phone over the existing local WebSocket.
+- Phone applies connected tablet commands through the phone-owned score store and shared scoring engine, then broadcasts confirmed state back to tablets and Wear OS watches.
 - Tablet scoring controller now records rally wins by tapping score panels
   (no separate ME WON/OPP WON buttons). UNDO and END buttons appear inside
   the call bar in local controller mode.
@@ -89,7 +93,9 @@ Status: In development.
 - Tablet remote-display mode is explicitly passive (no controls) and
   distinct from local controller mode (full tap-to-score panels and
   UNDO/END).
-- TabletWaitingForPhoneScreen is preserved in the routing.
+- Connected tablet mode is command-only: it does not predict or independently
+  mutate phone-owned score state before confirmation.
+- The blocking waiting-for-phone tablet screen was removed from the primary routing.
 
 ### Known Gaps
 

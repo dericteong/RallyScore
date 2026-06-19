@@ -75,6 +75,7 @@ Current priority:
 - Phone-to-tablet display sync should work over external Wi-Fi or the phone's hotspot with no Internet and no manual IP address entry.
 - Phone should accept reconnecting tablets and send the latest match state without manual action.
 - Tablet should expose clear Searching for phone, Reconnecting, and Connected states.
+- Connected tablet should send rally, Undo, and End commands to the phone and wait for confirmed phone-owned state.
 - Watch to phone scoring must remain unchanged.
 
 Goals:
@@ -113,7 +114,8 @@ Goals:
 
 - Add explicit phone-tablet pairing/discovery.
 - Share one canonical match state between phone and tablet.
-- Allow either phone or tablet to send rally, undo, and correction intent.
+- Evolve current tablet-to-phone command sync into full synced controller mode.
+- Allow either phone or tablet to send rally, undo, and correction intent with conflict handling.
 - Ensure score updates from either device update all devices.
 - Add conflict handling when phone and tablet send commands at nearly the same time.
 - Preserve Watch + Phone flow and allow Watch + Phone + Tablet synced mode.

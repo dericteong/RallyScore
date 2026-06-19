@@ -2,12 +2,15 @@ package com.courtside.pickleball.ui
 
 import android.content.Context
 import android.media.AudioAttributes
+import android.media.AudioManager
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import android.speech.tts.Voice
 import android.text.Editable
 import android.text.InputFilter
 import android.text.TextWatcher
+import android.util.Log
 import android.view.KeyEvent
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
@@ -77,6 +80,7 @@ import com.courtside.pickleball.domain.VoiceAnnouncementMode
 import com.courtside.pickleball.domain.displayValue
 import com.courtside.pickleball.domain.spokenScoreCall
 import com.courtside.pickleball.sync.TabletConnectionState
+import com.courtside.pickleball.sync.TabletCommand
 import com.courtside.pickleball.sync.TabletDisplayState
 import com.courtside.pickleball.sync.TabletDisplaySync
 import java.util.Locale
@@ -101,10 +105,11 @@ private val SetupPlayerInputCompactHeight = 44.dp
 private val ScoreCellWidth = 180.dp
 private val ServeCellWidth = 96.dp
 private val ScoreControlButtonWidth = 92.dp
-private const val WatchThenPhoneDelayMs = 2_000L
+private const val SecondaryVoiceDelayMs = 2_000L
 private const val WatchConnectionRefreshIntervalMs = 5_000L
 private const val TabletSmallestWidthDp = 600
 private const val ScoreSpeechRate = 0.9f
+private const val VoiceTag = "RallyScoreVoice"
 
 @Composable
 fun ScoreboardApp(viewModel: ScoreboardViewModel) {
@@ -117,6 +122,7 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
     val configuration = LocalConfiguration.current
     val useTabletDisplayLayout = configuration.smallestScreenWidthDp >= TabletSmallestWidthDp
     val activeRemoteTabletState = remoteTabletDisplayState?.takeIf { it.matchActive }
+    val activeRemoteTabletVoiceSignature = activeRemoteTabletState?.voiceSignature()
     var setupTeamAPlayer1 by remember { mutableStateOf("P1") }
     var setupTeamAPlayer2 by remember { mutableStateOf("P2") }
     var setupTeamBPlayer1 by remember { mutableStateOf("P3") }
@@ -127,8 +133,12 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
     var ttsReady by remember { mutableStateOf(false) }
     var pendingScoreCall by remember { mutableStateOf<String?>(null) }
     var lastObservedMatchState by remember { mutableStateOf<GameState?>(null) }
+    var lastObservedRemoteTabletSignature by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
     val density = LocalDensity.current
+    val audioManager = remember(context) {
+        context.applicationContext.getSystemService(AudioManager::class.java)
+    }
     val tts = remember(context) {
         TextToSpeech(context.applicationContext) { status ->
             ttsReady = status == TextToSpeech.SUCCESS
@@ -136,20 +146,32 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
     }
 
     fun speakScoreCall(scoreCall: String) {
+        val deviceLabel = if (useTabletDisplayLayout) "tablet" else "phone"
+        val utteranceId = "score-${System.nanoTime()}"
+        audioManager?.requestAudioFocus(
+            null,
+            AudioManager.STREAM_MUSIC,
+            AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK
+        )
+        Log.d(VoiceTag, "Speaking score on $deviceLabel: $scoreCall")
         tts.useBestAvailableVoice()
         tts.setSpeechRate(ScoreSpeechRate)
         tts.setPitch(1.0f)
         tts.setAudioAttributes(scoreAudioAttributes())
-        tts.speak(scoreCall, TextToSpeech.QUEUE_FLUSH, scoreSpeechParams(), "score-${System.nanoTime()}")
+        val result = tts.speak(scoreCall, TextToSpeech.QUEUE_FLUSH, scoreSpeechParams(), utteranceId)
+        Log.d(VoiceTag, "TTS speak result on $deviceLabel: $result ($utteranceId)")
     }
 
-    fun announceScore(gameState: GameState) {
-        val scoreCall = gameState.spokenScoreCall()
+    fun announceScoreCall(scoreCall: String) {
         if (ttsReady) {
             speakScoreCall(scoreCall)
         } else {
             pendingScoreCall = scoreCall
         }
+    }
+
+    fun announceScore(gameState: GameState) {
+        announceScoreCall(gameState.spokenScoreCall())
     }
 
     LaunchedEffect(ttsReady, pendingScoreCall) {
@@ -165,29 +187,56 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
             tts.useBestAvailableVoice()
             tts.setSpeechRate(ScoreSpeechRate)
             tts.setPitch(1.0f)
-        }
-    }
+            tts.setOnUtteranceProgressListener(
+                object : UtteranceProgressListener() {
+                    override fun onStart(utteranceId: String?) {
+                        Log.d(VoiceTag, "TTS started: $utteranceId")
+                    }
 
-    LaunchedEffect(watchConnected, voiceModeManuallySelected) {
-        if (!voiceModeManuallySelected) {
-            viewModel.setVoiceAnnouncementMode(
-                if (watchConnected) {
-                    VoiceAnnouncementMode.WatchThenPhone
-                } else {
-                    VoiceAnnouncementMode.PhoneOnly
+                    override fun onDone(utteranceId: String?) {
+                        Log.d(VoiceTag, "TTS done: $utteranceId")
+                        audioManager?.abandonAudioFocus(null)
+                    }
+
+                    @Deprecated("Deprecated in Java")
+                    override fun onError(utteranceId: String?) {
+                        Log.w(VoiceTag, "TTS error: $utteranceId")
+                        audioManager?.abandonAudioFocus(null)
+                    }
+
+                    override fun onError(utteranceId: String?, errorCode: Int) {
+                        Log.w(VoiceTag, "TTS error: $utteranceId code=$errorCode")
+                        audioManager?.abandonAudioFocus(null)
+                    }
                 }
             )
         }
     }
 
-    LaunchedEffect(voiceAnnouncementMode) {
-        if (!voiceAnnouncementMode.usesPhoneSpeaker()) {
+    LaunchedEffect(watchConnected, tabletConnectionState, useTabletDisplayLayout, voiceModeManuallySelected) {
+        if (!voiceModeManuallySelected) {
+            viewModel.setVoiceAnnouncementMode(
+                when {
+                    useTabletDisplayLayout -> VoiceAnnouncementMode.TabletOnly
+                    watchConnected && tabletConnectionState == TabletConnectionState.Connected -> {
+                        VoiceAnnouncementMode.WatchThenTablet
+                    }
+                    watchConnected -> VoiceAnnouncementMode.WatchThenPhone
+                    tabletConnectionState == TabletConnectionState.Connected -> VoiceAnnouncementMode.PhoneThenTablet
+                    else -> VoiceAnnouncementMode.PhoneOnly
+                }
+            )
+        }
+    }
+
+    LaunchedEffect(voiceAnnouncementMode, useTabletDisplayLayout) {
+        if (!voiceAnnouncementMode.usesThisDeviceSpeaker(useTabletDisplayLayout)) {
             pendingScoreCall = null
             tts.stop()
         }
     }
 
-    LaunchedEffect(matchStarted, state, voiceAnnouncementMode, watchConnected) {
+    LaunchedEffect(matchStarted, state, voiceAnnouncementMode, watchConnected, useTabletDisplayLayout) {
         if (!matchStarted) {
             lastObservedMatchState = null
             return@LaunchedEffect
@@ -195,11 +244,30 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
 
         val previous = lastObservedMatchState
         lastObservedMatchState = state
-        if (previous != null && state != previous && voiceAnnouncementMode.usesPhoneSpeaker()) {
-            if (voiceAnnouncementMode == VoiceAnnouncementMode.WatchThenPhone && watchConnected) {
-                delay(WatchThenPhoneDelayMs)
+        if (previous != null && state != previous && voiceAnnouncementMode.usesThisDeviceSpeaker(useTabletDisplayLayout)) {
+            if (voiceAnnouncementMode.isDelayedOnThisDevice(useTabletDisplayLayout, watchConnected)) {
+                delay(SecondaryVoiceDelayMs)
             }
             announceScore(state)
+        }
+    }
+
+    LaunchedEffect(activeRemoteTabletVoiceSignature, useTabletDisplayLayout) {
+        if (!useTabletDisplayLayout || activeRemoteTabletState == null) {
+            lastObservedRemoteTabletSignature = null
+            return@LaunchedEffect
+        }
+
+        val signature = activeRemoteTabletVoiceSignature ?: return@LaunchedEffect
+        val previousSignature = lastObservedRemoteTabletSignature
+        lastObservedRemoteTabletSignature = signature
+
+        val mode = activeRemoteTabletState.voiceAnnouncementMode
+        if (previousSignature != null && signature != previousSignature && mode.usesTabletSpeaker()) {
+            if (mode.isDelayedOnTablet()) {
+                delay(SecondaryVoiceDelayMs)
+            }
+            announceScoreCall(activeRemoteTabletState.spokenScoreCall.ifBlank { activeRemoteTabletState.scoreCall })
         }
     }
 
@@ -229,7 +297,11 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
             if (matchStarted) {
                 if (useTabletDisplayLayout) {
                     TabletDisplayScreen(
-                        state = state.toTabletDisplayState(matchActive = true),
+                        state = state.toTabletDisplayState(
+                            matchActive = true,
+                            canUndo = viewModel.canUndo(),
+                            voiceAnnouncementMode = voiceAnnouncementMode
+                        ),
                         connectionState = tabletConnectionState,
                         canUndo = viewModel.canUndo(),
                         onTeamARally = { viewModel.recordRallyWinner(Team.A) },
@@ -252,10 +324,13 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
             } else if (useTabletDisplayLayout && activeRemoteTabletState != null) {
                 TabletDisplayScreen(
                     state = activeRemoteTabletState,
-                    connectionState = tabletConnectionState
+                    connectionState = tabletConnectionState,
+                    canUndo = activeRemoteTabletState.canUndo,
+                    onTeamARally = { viewModel.sendTabletCommand(TabletCommand.TeamAWonRally) },
+                    onTeamBRally = { viewModel.sendTabletCommand(TabletCommand.TeamBWonRally) },
+                    onUndo = { viewModel.sendTabletCommand(TabletCommand.Undo) },
+                    onEndMatchRequested = { viewModel.sendTabletCommand(TabletCommand.EndMatch) }
                 )
-            } else if (useTabletDisplayLayout && remoteTabletDisplayState != null) {
-                TabletWaitingForPhoneScreen()
             } else {
                 MatchSetupScreen(
                     teamAPlayer1 = setupTeamAPlayer1,
@@ -675,50 +750,6 @@ private fun ScorePreviewCard(startingTeam: Team?, compact: Boolean = false) {
             textAlign = TextAlign.Center,
             maxLines = 1
         )
-    }
-}
-
-@Composable
-private fun TabletWaitingForPhoneScreen() {
-    Surface(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Ink),
-        color = Ink
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .safeDrawingPadding()
-                .padding(horizontal = 48.dp, vertical = 40.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(
-                text = "RALLYSCORE",
-                color = Color.White,
-                fontSize = 52.sp,
-                fontWeight = FontWeight.Black,
-                textAlign = TextAlign.Center,
-                maxLines = 1
-            )
-            Text(
-                text = "WAITING FOR PHONE",
-                color = ConnectedAmber,
-                fontSize = 34.sp,
-                fontWeight = FontWeight.Black,
-                textAlign = TextAlign.Center,
-                maxLines = 1
-            )
-            Text(
-                text = "START THE MATCH ON THE PHONE",
-                color = Color.White,
-                fontSize = 26.sp,
-                fontWeight = FontWeight.Black,
-                textAlign = TextAlign.Center,
-                maxLines = 1
-            )
-        }
     }
 }
 
@@ -1312,6 +1343,12 @@ private fun VoiceAnnouncementControls(
                 selected = selectedMode == VoiceAnnouncementMode.PhoneOnly,
                 onClick = { onModeChange(VoiceAnnouncementMode.PhoneOnly) }
             )
+            VoiceModeButton(
+                modifier = Modifier.weight(1f),
+                label = "TABLET",
+                selected = selectedMode == VoiceAnnouncementMode.TabletOnly,
+                onClick = { onModeChange(VoiceAnnouncementMode.TabletOnly) }
+            )
         }
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1329,6 +1366,24 @@ private fun VoiceAnnouncementControls(
                 label = "WATCH + PHONE",
                 selected = selectedMode == VoiceAnnouncementMode.WatchThenPhone,
                 onClick = { onModeChange(VoiceAnnouncementMode.WatchThenPhone) }
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            VoiceModeButton(
+                modifier = Modifier.weight(1f),
+                label = "WATCH > TABLET",
+                selected = selectedMode == VoiceAnnouncementMode.WatchThenTablet,
+                onClick = { onModeChange(VoiceAnnouncementMode.WatchThenTablet) }
+            )
+            VoiceModeButton(
+                modifier = Modifier.weight(1f),
+                label = "PHONE > TABLET",
+                selected = selectedMode == VoiceAnnouncementMode.PhoneThenTablet,
+                onClick = { onModeChange(VoiceAnnouncementMode.PhoneThenTablet) }
             )
         }
     }
@@ -1618,7 +1673,11 @@ private fun GameState.servingSummary(): String {
     return "${servingSide.uppercase()} SERVES"
 }
 
-private fun GameState.toTabletDisplayState(matchActive: Boolean): TabletDisplayState =
+private fun GameState.toTabletDisplayState(
+    matchActive: Boolean,
+    canUndo: Boolean,
+    voiceAnnouncementMode: VoiceAnnouncementMode
+): TabletDisplayState =
     TabletDisplayState(
         teamAName = settings.teamAName,
         teamBName = settings.teamBName,
@@ -1627,9 +1686,39 @@ private fun GameState.toTabletDisplayState(matchActive: Boolean): TabletDisplayS
         servingTeam = servingTeam,
         serverNumber = serverNumber.displayValue,
         scoreCall = scoreCall,
+        spokenScoreCall = spokenScoreCall(),
+        voiceAnnouncementMode = voiceAnnouncementMode,
         matchActive = matchActive,
+        canUndo = canUndo,
         updatedAt = System.currentTimeMillis()
     )
+
+private fun VoiceAnnouncementMode.usesPhoneSpeaker(): Boolean =
+    this == VoiceAnnouncementMode.PhoneOnly ||
+        this == VoiceAnnouncementMode.WatchThenPhone ||
+        this == VoiceAnnouncementMode.PhoneThenTablet
+
+private fun VoiceAnnouncementMode.usesTabletSpeaker(): Boolean =
+    this == VoiceAnnouncementMode.TabletOnly ||
+        this == VoiceAnnouncementMode.WatchThenTablet ||
+        this == VoiceAnnouncementMode.PhoneThenTablet
+
+private fun VoiceAnnouncementMode.usesThisDeviceSpeaker(isTablet: Boolean): Boolean =
+    if (isTablet) usesTabletSpeaker() else usesPhoneSpeaker()
+
+private fun VoiceAnnouncementMode.isDelayedOnThisDevice(isTablet: Boolean, watchConnected: Boolean): Boolean =
+    when {
+        isTablet -> isDelayedOnTablet()
+        this == VoiceAnnouncementMode.WatchThenPhone && watchConnected -> true
+        else -> false
+    }
+
+private fun VoiceAnnouncementMode.isDelayedOnTablet(): Boolean =
+    this == VoiceAnnouncementMode.WatchThenTablet ||
+        this == VoiceAnnouncementMode.PhoneThenTablet
+
+private fun TabletDisplayState.voiceSignature(): String =
+    "$teamAScore|$teamBScore|$servingTeam|$serverNumber|$spokenScoreCall|$voiceAnnouncementMode"
 
 private fun normalizePlayerNamesInput(rawValue: String): String =
     rawValue
@@ -1652,18 +1741,16 @@ private fun formatTeamName(player1: String, player2: String, team: Team): String
     }
 }
 
-private fun VoiceAnnouncementMode.usesPhoneSpeaker(): Boolean =
-    this == VoiceAnnouncementMode.PhoneOnly || this == VoiceAnnouncementMode.WatchThenPhone
-
 private fun scoreAudioAttributes(): AudioAttributes =
     AudioAttributes.Builder()
-        .setUsage(AudioAttributes.USAGE_MEDIA)
+        .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
         .build()
 
 private fun scoreSpeechParams(): Bundle =
     Bundle().apply {
         putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, 1.0f)
+        putInt(TextToSpeech.Engine.KEY_PARAM_STREAM, AudioManager.STREAM_MUSIC)
     }
 
 private fun TextToSpeech.useBestAvailableVoice() {

@@ -45,7 +45,7 @@ Current setup behavior:
 - Keyboard-visible mode shows a `DONE` control to hide the keyboard and reveal the Start button.
 - Pressing Enter/Done does not auto-focus the next field.
 - Shows watch connection status as a compact amber/red watch marker beside the `SET UP GAME` title.
-- Shows Voice Announcements. Target MVP choices are Off, Phone only, Watch only, and Watch then Phone.
+- Shows Voice Announcements. Target MVP choices are Off, Phone, Watch, Tablet, Watch > Phone, Watch > Tablet, and Phone > Tablet.
 
 ## Phone Score Screen
 
@@ -80,6 +80,8 @@ Interaction:
 - End opens a confirmation dialog.
 - Phone speaker announces the confirmed score after rally input or undo when enabled.
 - In Watch then Phone mode, the phone repeats the same confirmed score approximately two seconds after the watch announces it.
+- In Watch then Tablet mode, the tablet repeats the same confirmed score approximately two seconds after the watch announces it.
+- In Phone then Tablet mode, the tablet repeats the same confirmed score approximately two seconds after the phone announces it.
 
 ## Wear Controller Screen
 
@@ -118,6 +120,7 @@ Connected Watch + Phone behavior:
 - Watch gives haptic feedback for sent commands, confirmed score updates, and phone-confirmation problems.
 - Watch periodically refreshes phone connection and latest score state while open.
 - In Watch then Phone mode, watch announces the confirmed phone score immediately after receiving phone state.
+- In Watch then Tablet mode, watch announces the confirmed phone score immediately after receiving phone state.
 
 ## Shared Display / Mirroring
 
@@ -208,19 +211,9 @@ Tablet controller behavior:
 
 ## Tablet Display Client Prototype
 
-Passive tablet display-client mode can remain as a prototype/fallback. In tablet-client mode, the tablet reads phone-owned display snapshots and does not show setup or scoring controls.
-
-Waiting for phone:
-
-```text
----------------------------------------------------------------
-|                                                             |
-|                         RALLYSCORE                          |
-|                      WAITING FOR PHONE                      |
-|                 START THE MATCH ON THE PHONE                |
-|                                                             |
----------------------------------------------------------------
-```
+When the tablet is disconnected, searching, or has no active phone-owned match,
+it uses the normal setup screen and can start a standalone tablet-owned match.
+There is no blocking waiting-for-phone screen in the primary flow.
 
 ```text
 ---------------------------------------------------------------
@@ -239,7 +232,7 @@ Waiting for phone:
 ---------------------------------------------------------------
 ```
 
-Tablet display-client behavior (remote-display mode):
+Connected tablet behavior:
 
 - Shows team scores on team-colored backgrounds (blue/green) with white text.
 - Shows serving side and server number with horizontal server dots.
@@ -248,18 +241,19 @@ Tablet display-client behavior (remote-display mode):
 - Connection status bar at top shows current phone connection state.
 - Uses Team A blue and Team B green. Uses high contrast.
 - Keeps the screen awake.
-- Does not show scoring controls, Undo, End, Reset, setup, or other
-  live-match controls. The screen is purely passive.
-- Does not contain scoring logic or independent match authority
-  while in remote-display mode.
-- Initial wireless sync uses local-network WebSocket display
-  snapshots from the phone source of truth.
+- Tapping team score panels sends rally-winner commands to the phone.
+- UNDO and END send commands to the phone.
+- Does not contain scoring logic or independent match authority while
+  connected to a phone-owned match.
+- Does not update optimistically; the screen updates only after confirmed
+  phone-owned snapshots return.
+- Initial wireless sync uses local-network WebSocket snapshots and
+  tablet-to-phone commands.
 - If wireless snapshots stop, the tablet drops stale remote display
   state after a short timeout.
 
 Routing note: The tablet checks local match state first. If a local
 match is active, the full controller screen (with tap-to-score and
-UNDO/END) is shown regardless of remote state. The passive
-remote-display screens here only render when no local match is active.
-`TabletWaitingForPhoneScreen` is preserved for when a remote snapshot
-exists but no match is active.
+UNDO/END) is shown regardless of remote state. Connected phone-owned
+screens only render when no local match is active and the phone snapshot
+reports an active match. Otherwise the tablet shows setup.

@@ -63,7 +63,7 @@ Responsibilities:
 - Receive watch commands through Wear OS `MessageClient`.
 - Publish score state to the watch through Wear OS `DataClient`.
 - Provide Text-to-Speech score calls from the phone after authoritative state changes.
-- Support target MVP voice modes: Off, Phone only, Watch only, and Watch then Phone.
+- Support target MVP voice modes: Off, Phone only, Watch only, Tablet only, Watch then Phone, Watch then Tablet, and Phone then Tablet.
 - Render large table-style scoreboard and controls.
 - Keep the normal score screen readable enough for mirroring to a tablet or portable monitor.
 - Preserve direct phone scoring as a first-class Phone Only mode.
@@ -123,6 +123,25 @@ Phone Only voice flow when Phone only mode is selected:
 1. Phone state updates after rally input or undo.
 2. Phone announces the confirmed score immediately.
 
+Tablet Only voice flow when Tablet only mode is selected:
+
+1. Tablet state updates after rally input or undo.
+2. Tablet announces the confirmed score immediately.
+
+Connected Watch + Phone + Tablet voice flow when Watch then Tablet mode is selected:
+
+1. Watch receives confirmed phone score state.
+2. Watch announces the confirmed score immediately.
+3. Tablet receives the same confirmed phone-owned tablet snapshot.
+4. Tablet announces the same score approximately two seconds later.
+
+Connected Phone + Tablet voice flow when Phone then Tablet mode is selected:
+
+1. Phone updates confirmed phone-owned state.
+2. Phone announces the confirmed score immediately.
+3. Tablet receives the same confirmed phone-owned tablet snapshot.
+4. Tablet announces the same score approximately two seconds later.
+
 ### Tablet Only Data Flow
 
 1. User reviews or edits My Team and Opponent Team names on the tablet.
@@ -140,15 +159,18 @@ Tablet Only mode should reuse the same shared scoring engine and core Android sc
 
 ### Future Phone + Tablet Synced Data Flow
 
-Phone + Tablet synced mode is future work after Tablet Only mode is stable.
+Phone + Tablet synced mode starts as command/state sync with the phone as
+the sole source of truth. Full peer-controller sync with conflict handling is
+future work.
 
 Required principles:
 
 - Phone and tablet share one canonical match state.
-- Either device may send rally, undo, or correction intent once synchronized.
-- The sync owner applies intent through the shared scoring engine.
+- Tablet may send rally, undo, or end intent once synchronized.
+- Phone applies intent through the shared scoring engine.
 - All devices render the confirmed resulting state.
-- Conflict handling is required if phone and tablet send commands at nearly the same time.
+- Tablet must not predict or locally mutate the connected phone-owned score.
+- Conflict handling is required before allowing truly simultaneous peer controller ownership.
 - The app must not allow phone and tablet to independently score separate copies of the same live match without clear standalone-mode separation.
 
 ### Watch Only Data Flow
@@ -212,8 +234,9 @@ multi-device sync exists.
 In screen routing, a local match always takes priority over remote display
 state. The tablet shows its full controller UI whenever a local match is
 active, regardless of any remote snapshot. When no local match is active,
-it may render a passive remote-display screen or the waiting-for-phone
-screen.
+it renders a connected phone-owned controller only when an active phone match
+snapshot exists; otherwise it renders the normal setup screen so the tablet is
+always usable as a standalone controller.
 
 ## Tablet Display Client And Future Sync
 
@@ -224,11 +247,15 @@ The tablet distinguishes two modes:
 - **Local controller mode:** when a match is started locally, the tablet
   shows tap-to-score panels with full UNDO/END controls and owns match
   state through the shared scoring engine.
-- **Remote display mode:** when no local match is active but a remote
-  phone-owned snapshot is available, the tablet renders display-only
-  state with no scoring controls, undo, end, or setup.
+- **Connected phone controller mode:** when no local match is active but a
+  phone-owned active snapshot is available, the tablet renders the same large
+  scoreboard controls. Tapping score panels, UNDO, or END sends a command to
+  the phone. The tablet redraws only after receiving confirmed phone-owned
+  state.
+- **Passive remote display mode:** may remain as an optional future display-only
+  surface, but the preferred connected tablet behavior is secondary controller.
 
-Passive tablet display mode renders phone-owned display snapshots:
+Connected tablet mode renders phone-owned display snapshots:
 
 - Team scores.
 - Serving side.
@@ -238,6 +265,16 @@ Passive tablet display mode renders phone-owned display snapshots:
 - Match-active timestamp.
 
 The phone hosts a lightweight local WebSocket publisher for tablet display snapshots. Tablet clients connect over the current local IP network and render the latest confirmed phone-owned score state. The network can be venue/home Wi-Fi or the phone's own hotspot; Internet access is not required. The tablet also performs conservative same-subnet discovery so it can initiate the connection when phone-to-tablet inbound delivery is blocked. Discovery uses the remembered phone endpoint, the current network gateway when available, UDP broadcast announcements, TCP fallback endpoints, WebSocket availability broadcasts, and IPv4 interface-based subnet probing. No user-facing IP address entry is required.
+
+The same WebSocket also carries tablet-to-phone commands:
+
+- `TABLET_ME_WON_RALLY`
+- `TABLET_OPP_WON_RALLY`
+- `TABLET_UNDO`
+- `TABLET_END_MATCH`
+
+Commands represent intent only. The tablet does not run connected scoring
+logic or update its connected score optimistically.
 
 Connection robustness requirements for the display client:
 
@@ -252,13 +289,16 @@ Connection robustness requirements for the display client:
 - Tablet keeps the last received score visible while reconnecting.
 - After Wi-Fi returns, tablet reconnects automatically and restores the current phone-owned score.
 
-Future synced tablet controller mode should evolve beyond display snapshots into bidirectional command/state sync. Until that exists, Tablet Only and phone-owned display client mode must remain clearly separate so there is never more than one active source of truth for a match.
+Future synced tablet controller mode should evolve beyond command/state sync
+into conflict-handled bidirectional peer control. Until that exists, Tablet
+Only and phone-owned connected tablet mode must remain clearly separate so
+there is never more than one active source of truth for a match.
 
 The routing check always inspects local match state first. The `ScoreboardApp`
 composable evaluates `matchStarted` before any remote-state branch, ensuring
-a local match is never hidden by a remote snapshot. `TabletWaitingForPhoneScreen`
-is preserved for the case where a remote snapshot exists but no active match
-is reported.
+a local match is never hidden by a remote snapshot. If no local match is active
+and no active phone-owned snapshot exists, the tablet falls through to setup
+instead of showing a blocking waiting screen.
 
 ## State Management
 
@@ -283,7 +323,7 @@ Current behavior: pressing Enter/Done does not auto-focus the next field.
 - `GameStatus.Complete` exists, but current timed-play behavior does not automatically complete games.
 - Rally history is not persisted across process death.
 - TTS voice selection uses best available English voice from Android; no in-app voice picker exists.
-- Voice settings implementation may lag the target modes; target MVP modes are Off, Phone only, Watch only, and Watch then Phone.
+- Voice settings support Off, Phone only, Watch only, Tablet only, Watch then Phone, Watch then Tablet, and Phone then Tablet.
 - Wear app has an initial phone sync path, but real-device pairing/reconnect behavior still needs hardening.
 - Wear app currently contains prototype scoring logic; target watch control must move scoring authority back to the phone.
 - Tablet Only mode is not fully implemented yet.

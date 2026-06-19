@@ -802,7 +802,9 @@ private fun PhoneScoreState.scoreSignature(): String =
     "$teamAScore|$teamBScore|$servingTeam|$serverNumber|$scoreCall"
 
 private fun VoiceAnnouncementMode.usesWatchSpeaker(): Boolean =
-    this == VoiceAnnouncementMode.WatchOnly || this == VoiceAnnouncementMode.WatchThenPhone
+    this == VoiceAnnouncementMode.WatchOnly ||
+        this == VoiceAnnouncementMode.WatchThenPhone ||
+        this == VoiceAnnouncementMode.WatchThenTablet
 
 private fun Context.vibrateWatchAction() {
     vibratePattern(longArrayOf(0, 35), intArrayOf(0, 160))

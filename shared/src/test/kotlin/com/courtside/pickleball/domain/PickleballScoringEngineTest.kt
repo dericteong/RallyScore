@@ -102,7 +102,7 @@ class PickleballScoringEngineTest {
     }
 
     @Test
-    fun spokenScoreCallFallsBackToDigitsAboveTwenty() {
+    fun spokenScoreCallUsesWordsAboveTwenty() {
         val state = GameState(
             teamAScore = 21,
             teamBScore = 20,
@@ -111,7 +111,7 @@ class PickleballScoringEngineTest {
             isFirstServerException = false
         )
 
-        assertEquals("21 twenty two", state.spokenScoreCall())
+        assertEquals("twenty one twenty two", state.spokenScoreCall())
     }
 
     @Test

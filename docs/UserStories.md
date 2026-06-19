@@ -73,6 +73,8 @@
 - As a player, I want the tablet to follow the phone-owned score automatically so I can keep scoring from the watch without touching the tablet.
 - As a player on an outdoor court, I want the phone to host the tablet connection through its hotspot so RallyScore works without venue Wi-Fi or Internet.
 - As a player, I want the phone and tablet to find each other automatically so I do not need to enter or understand IP addresses.
+- As a player, I want a connected tablet to score rallies and undo by sending commands to the phone so all devices keep one shared score.
+- As a player, I want the connected tablet to update only after the phone confirms the score so it never shows a predicted or conflicting score.
 
 ## Future Phone + Tablet Sync
 

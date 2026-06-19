@@ -54,7 +54,10 @@ object RallyScorePhoneHub {
         TabletDisplaySync.startListener()
         TabletDisplaySync.startBroadcaster(
             stateProvider = { store.state.value },
-            matchActiveProvider = { store.matchActive.value }
+            matchActiveProvider = { store.matchActive.value },
+            canUndoProvider = { store.canUndo() },
+            voiceModeProvider = { _voiceAnnouncementMode.value },
+            onTabletCommand = { command -> handleTabletCommand(command) }
         )
         publishScoreState(store.state.value)
 
@@ -121,6 +124,36 @@ object RallyScorePhoneHub {
             }
         }
         publishScoreState(next)
+    }
+
+    private fun handleTabletCommand(command: TabletCommand) {
+        scope.launch {
+            if (!store.matchActive.value) {
+                Log.w(TAG, "Ignored tablet command while no phone match is active: ${command.wireValue}")
+                publishScoreState(store.state.value)
+                return@launch
+            }
+
+            val next = when (command) {
+                TabletCommand.TeamAWonRally -> {
+                    Log.d(TAG, "Tablet command: TABLET_ME_WON_RALLY")
+                    store.recordRallyWinner(Team.A)
+                }
+                TabletCommand.TeamBWonRally -> {
+                    Log.d(TAG, "Tablet command: TABLET_OPP_WON_RALLY")
+                    store.recordRallyWinner(Team.B)
+                }
+                TabletCommand.Undo -> {
+                    Log.d(TAG, "Tablet command: TABLET_UNDO")
+                    store.undo()
+                }
+                TabletCommand.EndMatch -> {
+                    Log.d(TAG, "Tablet command: TABLET_END_MATCH")
+                    store.endMatch()
+                }
+            }
+            publishScoreState(next)
+        }
     }
 
     private fun publishScoreState(state: GameState) {

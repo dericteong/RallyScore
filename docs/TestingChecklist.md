@@ -65,6 +65,7 @@ Use a real phone when possible.
 - Focusing a player field also selects that team as the starting server.
 - Start button enables only after all four player names and starting server are set.
 - Voice Announcements setting is visible and usable.
+- Voice Announcements includes Off, Phone, Watch, Tablet, Watch > Phone, Watch > Tablet, and Phone > Tablet.
 
 ## Phone Score / Display Manual Test
 
@@ -136,6 +137,9 @@ Initial implementation exists. Required before the connected Watch + Phone produ
 - In Watch then Phone mode, phone announces the same confirmed score approximately two seconds later.
 - In Phone only mode, phone announces immediately.
 - In Watch only mode, only the watch announces after confirmed phone state is received.
+- In Tablet only mode on a tablet-owned match, tablet announces immediately after confirmed local tablet state changes.
+- In Watch then Tablet mode, watch announces the confirmed phone score immediately and tablet announces the same score approximately two seconds later.
+- In Phone then Tablet mode, phone announces the confirmed phone score immediately and tablet announces the same score approximately two seconds later.
 - In Off mode, no device announces.
 - Watch reconnects and resyncs after temporary disconnect.
 - Phone-only scoring remains available when no watch is connected.
@@ -167,7 +171,8 @@ Initial implementation exists. Required before the connected Watch + Phone produ
 - Undo restores the previous rally.
 - Correction mode is available if already implemented for the shared phone/tablet UI.
 - Tablet voice announcement setting is visible and usable.
-- Tablet announces the confirmed score when voice is enabled.
+- Tablet announces the confirmed score when Tablet only mode is enabled in standalone tablet mode.
+- Connected tablet announces only after receiving confirmed phone-owned state.
 - Tablet screen stays awake during use.
 - Tablet Only mode works without a phone or watch.
 - Existing phone-sized score screen remains unchanged on phones.
@@ -176,8 +181,8 @@ Initial implementation exists. Required before the connected Watch + Phone produ
 ## Tablet Display Client / Sync Prototype Manual Test
 
 - Display-client mode remains passive if explicitly used.
-- Before receiving a phone match, tablet display-client mode shows a passive waiting-for-phone screen.
-- Tablet display-client mode does not expose setup fields or scoring controls.
+- Before receiving an active phone match, tablet shows the normal setup screen.
+- Disconnected tablet can set up, score, undo, and end a standalone match.
 - Starting a match on the phone opens the passive tablet display layout after sync connects.
 - Tablet display shows player names, scores, serving side, server number, and CALL.
 - When phone and tablet are on the same local network or the tablet is connected to the phone hotspot, tablet discovery/WebSocket logs show a phone display endpoint.
@@ -186,9 +191,16 @@ Initial implementation exists. Required before the connected Watch + Phone produ
 - With both devices on normal external Wi-Fi, verify the same discovery/reconnect behavior still works.
 - If phone-to-tablet delivery is blocked, tablet-side same-subnet discovery attempts to find the phone WebSocket by initiating the connection from the tablet.
 - Starting a phone match publishes phone-owned tablet display snapshots over the local WebSocket.
-- If the network allows local-device delivery, the tablet switches from waiting-for-phone to passive scoreboard display.
-- If the tablet remains on the waiting screen, collect logs for blocked local WebSocket/discovery delivery and verify whether the network has client isolation or inbound-device blocking.
+- If the network allows local-device delivery and the phone has an active match, the tablet switches from setup to connected tablet controller display.
+- If the tablet remains on setup while the phone has an active match, collect logs for blocked local WebSocket/discovery delivery and verify whether the network has client isolation or inbound-device blocking.
 - Watch commands update the phone and then publish updated tablet display snapshots.
+- Tapping the blue/My Team score panel on a connected tablet sends a tablet command to the phone.
+- Tapping the green/Opponent score panel on a connected tablet sends a tablet command to the phone.
+- The tablet does not change the connected score until the phone broadcasts confirmed state.
+- Phone applies connected tablet rally commands through the shared scoring engine.
+- Phone broadcasts connected tablet score changes back to the tablet and to the watch if connected.
+- Connected tablet UNDO sends a command to the phone and all connected displays update from confirmed phone state.
+- Connected tablet END sends a command to the phone and all connected displays leave the active match after confirmed phone state.
 - Stopping phone broadcasts clears stale tablet display state after a short timeout.
 - Tablet shows Searching for phone before discovering a phone endpoint.
 - Tablet shows Connected after receiving confirmed phone-owned score snapshots.

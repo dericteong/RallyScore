@@ -8,6 +8,7 @@ import com.courtside.pickleball.domain.VoiceAnnouncementMode
 import com.courtside.pickleball.sync.RallyScorePhoneHub
 import com.courtside.pickleball.sync.ScoreboardStore
 import com.courtside.pickleball.sync.TabletConnectionState
+import com.courtside.pickleball.sync.TabletCommand
 import com.courtside.pickleball.sync.TabletDisplayState
 import com.courtside.pickleball.sync.TabletDisplaySync
 import kotlinx.coroutines.flow.StateFlow
@@ -43,6 +44,10 @@ class ScoreboardViewModel(
 
     fun endMatch() {
         store.endMatch()
+    }
+
+    fun sendTabletCommand(command: TabletCommand) {
+        TabletDisplaySync.sendTabletCommand(command)
     }
 
     fun setVoiceAnnouncementMode(mode: VoiceAnnouncementMode) {

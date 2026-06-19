@@ -63,18 +63,18 @@ Large shared scoreboard
 ### Mode 4 - Phone + Android Tablet Synced
 
 - Phone and tablet share one canonical match state.
-- Either phone or tablet may update the score after synchronization is established.
-- Score updates from either device must update the other device.
-- Conflict handling is required when both devices send changes at nearly the same time.
-- This is future work after Tablet Only is stable.
+- Connected tablet can send rally, Undo, and End commands to the phone.
+- Phone remains source of truth and applies commands through the shared scoring engine.
+- Tablet updates only after receiving confirmed phone-owned state.
+- Full conflict-handled peer controller sync is future work.
 
 ### Mode 5 - Watch + Phone + Android Tablet Synced
 
 - Phone remains the source of truth.
 - Watch acts as remote control through the phone.
-- Tablet may act as a synced controller/display once phone-tablet sync exists.
-- Score updates from watch, phone, or tablet must resolve through one canonical match state.
-- This is future work after Tablet Only and Phone + Tablet sync are stable.
+- Tablet acts as a secondary controller/display by sending commands to the phone.
+- Score updates from watch, phone, or tablet resolve through the phone-owned match state.
+- Full conflict-handled phone/tablet peer sync is future work.
 
 ### Mode 6 - Watch + Phone + Portable Monitor
 
@@ -114,7 +114,7 @@ Large shared scoreboard
 - Undo reverses the full previous rally.
 - End game returns to setup after confirmation.
 - Score calls are displayed and spoken after rally input.
-- MVP voice modes: Off, Phone only, Watch only, and Watch then Phone.
+- MVP voice modes: Off, Phone only, Watch only, Tablet only, Watch then Phone, Watch then Tablet, and Phone then Tablet.
 - Offline operation.
 - Keep the display source awake during use.
 
@@ -163,7 +163,7 @@ Tablet Only mode:
 Future synced mode:
 
 - Share one canonical match state with the phone.
-- Send tablet scoring intent to the sync owner instead of scoring a separate copy.
+- Send tablet scoring intent to the phone instead of scoring a separate copy.
 - Receive confirmed score state and update its display.
 - Handle conflicts explicitly when phone and tablet act at nearly the same time.
 
@@ -194,13 +194,18 @@ Future synced mode:
 - The call bar displays serving score first, receiving score second, server number third.
 - Android Text-to-Speech can announce the confirmed phone-owned score call after rally input or undo.
 - Connected Watch + Phone voice direction: watch announces the confirmed phone state immediately, and phone repeats the same confirmed score approximately two seconds later when Watch then Phone mode is selected.
+- Connected Watch + Phone + Tablet voice direction: watch announces the confirmed phone state immediately, and tablet repeats the same confirmed score approximately two seconds later when Watch then Tablet mode is selected.
+- Connected Phone + Tablet voice direction: phone announces the confirmed phone state immediately, and tablet repeats the same confirmed score approximately two seconds later when Phone then Tablet mode is selected.
 - Phone Only mode announces immediately with no delay when Phone only mode is selected.
+- Tablet Only mode announces immediately with no delay when Tablet only mode is selected.
 - Bluetooth speaker routing can rely on Android audio routing for now.
 - Scores continue beyond 11 for timed games.
-- Tablet-sized screens support both a passive remote-display mode and a local
-  controller mode. In controller mode, tapping team score panels records rally
-  wins, and UNDO/END buttons appear in the call bar. In remote-display mode,
-  no controls are shown.
+- Tablet-sized screens are always usable. When disconnected or no active phone
+  match is available, the tablet shows setup and can own a standalone match.
+  In connected mode, tapping team score panels sends commands to the phone and
+  the tablet redraws only after confirmed phone state returns. In local
+  controller mode, tapping team score panels records rally wins through the
+  shared scoring engine, and UNDO/END buttons appear in the call bar.
 - The CALL bar on both tablet and phone uses a dark-navy background (#111827).
 - The CALL label is white (38sp tablet, 28sp phone) rendered as a separate
   Text composable from the score call numbers.
@@ -212,8 +217,8 @@ Future synced mode:
 - Score call spoken via TTS uses English words for numbers 21–99 (e.g.
   "twenty one") and digit-by-digit for 100+ (e.g. "1 0 3").
 - Tablet screen routing checks local match state first; a local match always
-  takes priority over remote display state. `TabletWaitingForPhoneScreen` is
-  preserved.
+  takes priority over remote display state. Disconnected or inactive remote
+  state falls through to setup.
 - Phone-to-tablet display sync is local-network based and should work over external Wi-Fi or a phone hotspot as long as both devices are on the same IP network.
 
 ## Non-Goals For Current MVP
