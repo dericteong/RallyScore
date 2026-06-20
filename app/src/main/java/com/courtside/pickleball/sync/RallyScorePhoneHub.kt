@@ -99,13 +99,24 @@ object RallyScorePhoneHub {
     }
 
     fun handleWatchCommand(path: String) {
-        if (!store.matchActive.value) {
+        if (!store.matchActive.value &&
+            path != WearSyncContract.COMMAND_START_MATCH_TEAM_A &&
+            path != WearSyncContract.COMMAND_START_MATCH_TEAM_B
+        ) {
             Log.w(TAG, "Ignored watch command while no phone match is active: $path")
             publishScoreState(store.state.value)
             return
         }
 
         val next = when (path) {
+            WearSyncContract.COMMAND_START_MATCH_TEAM_A -> {
+                Log.d(TAG, "Watch command: START_MATCH_TEAM_A")
+                store.reset(settings = store.state.value.settings, startingTeam = Team.A)
+            }
+            WearSyncContract.COMMAND_START_MATCH_TEAM_B -> {
+                Log.d(TAG, "Watch command: START_MATCH_TEAM_B")
+                store.reset(settings = store.state.value.settings, startingTeam = Team.B)
+            }
             WearSyncContract.COMMAND_A_WON_RALLY -> {
                 Log.d(TAG, "Watch command: A_WON_RALLY")
                 store.recordRallyWinner(Team.A)
@@ -117,6 +128,10 @@ object RallyScorePhoneHub {
             WearSyncContract.COMMAND_UNDO -> {
                 Log.d(TAG, "Watch command: UNDO")
                 store.undo()
+            }
+            WearSyncContract.COMMAND_END_MATCH -> {
+                Log.d(TAG, "Watch command: END_MATCH")
+                store.endMatch()
             }
             else -> {
                 Log.w(TAG, "Ignored unknown watch command: $path")

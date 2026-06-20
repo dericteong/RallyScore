@@ -102,8 +102,19 @@ Use a real phone when possible.
 - Phone connection status indicator is visible.
 - User can choose ME or OPP to serve first.
 - Score rows fit on round display.
-- ME WON and OPP WON buttons are easy to tap.
+- Watch uses a black background without a white launch flash.
+- ME and OPP score tiles are large, side by side, and remain readable with double-digit scores.
+- Tapping the ME score tile records My Team won rally.
+- Tapping the OPP score tile records Opponent won rally.
+- The center score call has no `CALL` label and its score/server colors match the represented teams.
+- The top connection pill sits compactly near the top edge without crowding the score area.
+- Connected is amber; disconnected/standalone is red.
+- Undo uses an icon-style control with a large enough touch target and accessible Undo label.
+- Undo and the score tiles do not overlap on a round watch display.
+- Score tiles remain fully inside the round safe area without clipping.
+- End remains available through the secondary watch action path without crowding the main row.
 - Watch gives haptic feedback after rally input.
+- Rally input uses a single short vibration; Undo uses a double vibration.
 - Undo works.
 - Undo and Reset buttons are easy to tap.
 - Watch gives haptic feedback after undo and reset.
@@ -120,7 +131,8 @@ Use a real phone when possible.
 Initial implementation exists. Required before the connected Watch + Phone product experience is considered complete.
 
 - Watch can discover or pair with the phone scoring hub.
-- Watch shows a connected idle/start-on-phone state when the phone is connected but has not started a match.
+- Watch shows connected phone-idle choices when the phone is connected but has not started a match.
+- From that connected idle state, the watch can still start a standalone local match with ME SERVES or OPP SERVES.
 - Phone owns authoritative match state.
 - Watch rally input updates the phone/shared display.
 - Watch undo restores the phone/shared display.

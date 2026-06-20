@@ -11,12 +11,17 @@ import android.os.SystemClock
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -28,6 +33,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -49,11 +55,18 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.courtside.pickleball.domain.GameState
+import com.courtside.pickleball.domain.GameSettings
 import com.courtside.pickleball.domain.GameStatus
 import com.courtside.pickleball.domain.PickleballScoringEngine
 import com.courtside.pickleball.domain.Team
@@ -64,25 +77,37 @@ import com.courtside.pickleball.domain.spokenScoreCall
 import java.util.Locale
 import kotlinx.coroutines.delay
 
-private val Ink = Color(0xFF050607)
-private val Paper = Color(0xFFFFFFFF)
-private val TeamBlue = Color(0xFF005BBB)
-private val TeamGreen = Color(0xFF007A3D)
+private val WatchBackground = Color(0xFF000000)
+private val MainText = Color(0xFFFFFFFF)
+private val SecondaryText = Color(0xFFD1D5DB)
+private val TeamBlue = Color(0xFF42A5F5)
+private val TeamGreen = Color(0xFF66BB6A)
 private val ConnectedAmber = Color(0xFFFFC107)
-private val ProblemRed = Color(0xFFB00020)
-private val InactiveGray = Color(0xFF6C737D)
-private val TableLine = Color(0xFF242A31)
+private val ProblemRed = Color(0xFFEF5350)
+private val InactiveGray = Color(0xFF374151)
+private val UndoButtonBackground = Color(0xFF111827)
+private val TeamBluePanel = Color(0xFF1565C0)
+private val TeamGreenPanel = Color(0xFF2E7D32)
 private const val TAG = "WearScoreboardApp"
 private const val WatchActionDebounceMs = 700L
 private const val PhoneConfirmationTimeoutMs = 2_200L
 private const val FeedbackVisibleMs = 900L
 private const val PhoneRefreshIntervalMs = 5_000L
 private const val ScoreSpeechRate = 0.9f
+private val WatchStandaloneDefaults = GameSettings(
+    teamAName = "P1 & P2",
+    teamBName = "P3 & P4"
+)
 
 private enum class WatchCommandFeedback {
     Sent,
     Confirmed,
     Problem
+}
+
+private enum class ConnectedStartTarget {
+    Phone,
+    Watch
 }
 
 @Composable
@@ -100,6 +125,10 @@ fun WearScoreboardApp() {
     var baselinePhoneUpdateAt by remember { mutableStateOf<Long?>(null) }
     var watchCommandFeedback by remember { mutableStateOf<WatchCommandFeedback?>(null) }
     var lastConnectedScoreSignature by remember { mutableStateOf<String?>(null) }
+    var showEndConfirmation by remember { mutableStateOf(false) }
+    var connectedEndRequest by remember { mutableStateOf(false) }
+    var pendingEndCommand by remember { mutableStateOf(false) }
+    var connectedStartTarget by remember { mutableStateOf(ConnectedStartTarget.Phone) }
     val context = LocalContext.current
     val haptics = LocalHapticFeedback.current
     val tts = remember(context) {
@@ -112,8 +141,6 @@ fun WearScoreboardApp() {
         val now = SystemClock.elapsedRealtime()
         if (now - lastWatchActionAt < WatchActionDebounceMs) return
         lastWatchActionAt = now
-        context.vibrateWatchAction()
-        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
         action()
     }
 
@@ -122,6 +149,7 @@ fun WearScoreboardApp() {
         commandSentAt = SystemClock.elapsedRealtime()
         baselinePhoneUpdateAt = phoneScoreState?.updatedAt
         watchCommandFeedback = WatchCommandFeedback.Sent
+        pendingEndCommand = commandPath == WearSyncContract.COMMAND_END_MATCH
         WearPhoneSync.sendCommand(context, commandPath)
     }
 
@@ -187,6 +215,7 @@ fun WearScoreboardApp() {
         val baseline = baselinePhoneUpdateAt
         if (awaitingPhoneConfirmation && (baseline == null || updatedAt > baseline)) {
             awaitingPhoneConfirmation = false
+            pendingEndCommand = false
             watchCommandFeedback = WatchCommandFeedback.Confirmed
             context.vibrateWatchConfirmed()
             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -199,6 +228,14 @@ fun WearScoreboardApp() {
 
     LaunchedEffect(phoneConnected, phoneScoreState?.updatedAt) {
         val scoreState = phoneScoreState
+        if (pendingEndCommand && phoneConnected && scoreState?.matchActive == false) {
+            pendingEndCommand = false
+            awaitingPhoneConfirmation = false
+            watchCommandFeedback = null
+            connectedEndRequest = false
+            return@LaunchedEffect
+        }
+
         if (!phoneConnected || scoreState?.matchActive != true) {
             lastConnectedScoreSignature = null
             return@LaunchedEffect
@@ -219,6 +256,7 @@ fun WearScoreboardApp() {
         delay(PhoneConfirmationTimeoutMs)
         if (awaitingPhoneConfirmation && commandSentAt == pendingCommandSentAt) {
             awaitingPhoneConfirmation = false
+            pendingEndCommand = false
             watchCommandFeedback = WatchCommandFeedback.Problem
             context.vibrateWatchProblem()
             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -243,73 +281,195 @@ fun WearScoreboardApp() {
         }
     }
 
+    LaunchedEffect(phoneConnected, phoneScoreState?.matchActive, state) {
+        if (!phoneConnected || phoneScoreState?.matchActive == true || state != null) {
+            connectedStartTarget = ConnectedStartTarget.Phone
+        }
+    }
+
     MaterialTheme {
         Surface(
             modifier = Modifier.fillMaxSize(),
-            color = Paper
+            color = WatchBackground
         ) {
             val current = state
             val connectedScoreState = phoneScoreState.takeIf { phoneConnected }
-            if (connectedScoreState?.matchActive == true) {
-                WearConnectedScoreboardScreen(
-                    state = connectedScoreState,
-                    feedback = watchCommandFeedback,
-                    actionsEnabled = !awaitingPhoneConfirmation,
+            fun startStandaloneMatch(servingTeam: Team) {
+                val next = GameState(
+                    servingTeam = servingTeam,
+                    settings = WatchStandaloneDefaults
+                )
+                history.clear()
+                state = next
+                announceScore(next)
+            }
+
+            if (current != null) {
+                WearScoreboardScreen(
+                    state = current,
+                    canUndo = history.isNotEmpty(),
                     onTeamAWon = {
                         runWatchAction {
-                            sendPhoneCommand(WearSyncContract.COMMAND_A_WON_RALLY)
+                            context.vibrateSingleTap()
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            recordWinner(Team.A)
                         }
                     },
                     onTeamBWon = {
                         runWatchAction {
-                            sendPhoneCommand(WearSyncContract.COMMAND_B_WON_RALLY)
+                            context.vibrateSingleTap()
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            recordWinner(Team.B)
                         }
                     },
                     onUndo = {
                         runWatchAction {
-                            sendPhoneCommand(WearSyncContract.COMMAND_UNDO)
-                        }
-                    }
-                )
-            } else if (connectedScoreState != null) {
-                WearConnectedIdleScreen()
-            } else if (current == null) {
-                WearServeSetupScreen(
-                    onTeamAStarts = {
-                        runWatchAction {
-                            val next = GameState(servingTeam = Team.A)
-                            history.clear()
-                            state = next
-                            announceScore(next)
-                        }
-                    },
-                    onTeamBStarts = {
-                        runWatchAction {
-                            val next = GameState(servingTeam = Team.B)
-                            history.clear()
-                            state = next
-                            announceScore(next)
-                        }
-                    }
-                )
-            } else {
-                WearScoreboardScreen(
-                    state = current,
-                    canUndo = history.isNotEmpty(),
-                    onTeamAWon = { runWatchAction { recordWinner(Team.A) } },
-                    onTeamBWon = { runWatchAction { recordWinner(Team.B) } },
-                    onUndo = {
-                        runWatchAction {
+                            context.vibrateDoubleTap()
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             val previous = history.removeLastOrNull() ?: return@runWatchAction
                             state = previous
                             announceScore(previous)
                         }
+                    },
+                    onEndRequested = {
+                        connectedEndRequest = false
+                        showEndConfirmation = true
                     },
                     onReset = {
                         runWatchAction {
                             history.clear()
                             tts.stop()
                             state = null
+                        }
+                    }
+                )
+            } else if (connectedScoreState?.matchActive == true) {
+                WearConnectedScoreboardScreen(
+                    state = connectedScoreState,
+                    feedback = watchCommandFeedback,
+                    actionsEnabled = !awaitingPhoneConfirmation,
+                    onTeamAWon = {
+                        runWatchAction {
+                            context.vibrateSingleTap()
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            sendPhoneCommand(WearSyncContract.COMMAND_A_WON_RALLY)
+                        }
+                    },
+                    onTeamBWon = {
+                        runWatchAction {
+                            context.vibrateSingleTap()
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            sendPhoneCommand(WearSyncContract.COMMAND_B_WON_RALLY)
+                        }
+                    },
+                    onUndo = {
+                        runWatchAction {
+                            context.vibrateDoubleTap()
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            sendPhoneCommand(WearSyncContract.COMMAND_UNDO)
+                        }
+                    },
+                    onEndRequested = {
+                        connectedEndRequest = true
+                        showEndConfirmation = true
+                    }
+                )
+            } else if (connectedScoreState != null) {
+                if (connectedStartTarget == ConnectedStartTarget.Phone) {
+                    WearConnectedStartChoiceScreen(
+                        onTeamAStarts = {
+                            runWatchAction {
+                                context.vibrateSingleTap()
+                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                sendPhoneCommand(WearSyncContract.COMMAND_START_MATCH_TEAM_A)
+                            }
+                        },
+                        onTeamBStarts = {
+                            runWatchAction {
+                                context.vibrateSingleTap()
+                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                sendPhoneCommand(WearSyncContract.COMMAND_START_MATCH_TEAM_B)
+                            }
+                        },
+                        title = "START ON PHONE",
+                        secondaryLabel = "START ON WATCH",
+                        onSecondaryAction = {
+                            connectedStartTarget = ConnectedStartTarget.Watch
+                        }
+                    )
+                } else {
+                    WearConnectedStartChoiceScreen(
+                        onTeamAStarts = {
+                            runWatchAction {
+                                startStandaloneMatch(Team.A)
+                            }
+                        },
+                        onTeamBStarts = {
+                            runWatchAction {
+                                startStandaloneMatch(Team.B)
+                            }
+                        },
+                        title = "START ON WATCH",
+                        secondaryLabel = "START ON PHONE",
+                        onSecondaryAction = {
+                            connectedStartTarget = ConnectedStartTarget.Phone
+                            WearPhoneSync.refreshPhoneState()
+                        }
+                    )
+                }
+            } else {
+                WearServeSetupScreen(
+                    onTeamAStarts = {
+                        runWatchAction {
+                            startStandaloneMatch(Team.A)
+                        }
+                    },
+                    onTeamBStarts = {
+                        runWatchAction {
+                            startStandaloneMatch(Team.B)
+                        }
+                    }
+                )
+            }
+
+            if (showEndConfirmation) {
+                AlertDialog(
+                    onDismissRequest = { showEndConfirmation = false },
+                    containerColor = UndoButtonBackground,
+                    title = {
+                        Text(
+                            text = "End game?",
+                            color = MainText,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Black
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                showEndConfirmation = false
+                                if (connectedEndRequest) {
+                                    awaitingPhoneConfirmation = true
+                                    commandSentAt = SystemClock.elapsedRealtime()
+                                    baselinePhoneUpdateAt = phoneScoreState?.updatedAt
+                                    watchCommandFeedback = WatchCommandFeedback.Sent
+                                    pendingEndCommand = true
+                                    context.vibrateDoubleTap()
+                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    WearPhoneSync.sendCommand(context, WearSyncContract.COMMAND_END_MATCH)
+                                } else {
+                                    history.clear()
+                                    tts.stop()
+                                    state = null
+                                }
+                            }
+                        ) {
+                            Text("END", color = ProblemRed, fontWeight = FontWeight.Black)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showEndConfirmation = false }) {
+                            Text("CANCEL", color = SecondaryText, fontWeight = FontWeight.Black)
                         }
                     }
                 )
@@ -326,7 +486,7 @@ private fun WearServeSetupScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Paper)
+            .background(WatchBackground)
             .padding(horizontal = 30.dp, vertical = 14.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically)
@@ -334,7 +494,7 @@ private fun WearServeSetupScreen(
         WearConnectionLabel(connected = false)
         Text(
             text = "SERVES FIRST",
-            color = Ink,
+            color = SecondaryText,
             fontSize = 16.sp,
             fontWeight = FontWeight.Black,
             textAlign = TextAlign.Center,
@@ -342,7 +502,7 @@ private fun WearServeSetupScreen(
         )
         Text(
             text = "0 - 0 - 2",
-            color = Ink,
+            color = MainText,
             fontSize = 28.sp,
             fontWeight = FontWeight.Black,
             textAlign = TextAlign.Center,
@@ -370,93 +530,107 @@ private fun WearConnectedScoreboardScreen(
     actionsEnabled: Boolean,
     onTeamAWon: () -> Unit,
     onTeamBWon: () -> Unit,
-    onUndo: () -> Unit
+    onUndo: () -> Unit,
+    onEndRequested: () -> Unit
 ) {
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Paper)
-            .padding(horizontal = 26.dp, vertical = 3.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(3.dp, Alignment.CenterVertically)
+            .background(WatchBackground)
+            .padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 14.dp)
     ) {
-        WearConnectionLabel(connected = true, feedback = feedback)
-        ConnectedScoreBlock(state)
+        WearConnectionLabel(
+            modifier = Modifier.align(Alignment.TopCenter),
+            connected = true,
+            feedback = feedback
+        )
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            RallyButton(
-                modifier = Modifier.weight(1f),
-                label = "ME\nWON",
-                color = TeamBlue,
-                enabled = actionsEnabled,
-                onClick = onTeamAWon
-            )
-            RallyButton(
-                modifier = Modifier.weight(1f),
-                label = "OPP\nWON",
-                color = TeamGreen,
-                enabled = actionsEnabled,
-                onClick = onTeamBWon
-            )
-        }
-
-        OutlinedButton(
+        ConnectedScoreSummary(
             modifier = Modifier
-                .fillMaxWidth(0.46f)
-                .height(30.dp),
-            onClick = onUndo,
-            enabled = state.canUndo && actionsEnabled,
-            shape = RoundedCornerShape(8.dp),
-            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
-        ) {
-            Text(
-                text = "UNDO",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Black,
-                maxLines = 1
-            )
-        }
+                .align(Alignment.TopCenter)
+                .padding(top = 34.dp),
+            state = state,
+            canUndo = state.canUndo && actionsEnabled,
+            onUndo = onUndo,
+            onEnd = onEndRequested,
+            endEnabled = true
+        )
+
+        WearScorePanels(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 2.dp),
+            teamAScore = state.teamAScore,
+            teamBScore = state.teamBScore,
+            servingTeam = state.servingTeam,
+            teamAName = "ME WON",
+            teamBName = "OPP WON",
+            enabled = actionsEnabled,
+            onTeamATapped = onTeamAWon,
+            onTeamBTapped = onTeamBWon
+        )
     }
 }
 
 @Composable
-private fun WearConnectedIdleScreen() {
+private fun WearConnectedStartChoiceScreen(
+    onTeamAStarts: () -> Unit,
+    onTeamBStarts: () -> Unit,
+    title: String,
+    secondaryLabel: String,
+    onSecondaryAction: () -> Unit
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Paper)
-            .padding(horizontal = 30.dp, vertical = 14.dp),
+            .background(WatchBackground)
+            .padding(horizontal = 26.dp, vertical = 14.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically)
+        verticalArrangement = Arrangement.spacedBy(7.dp, Alignment.CenterVertically)
     ) {
         WearConnectionLabel(connected = true)
         Text(
-            text = "START ON",
-            color = Ink,
-            fontSize = 20.sp,
+            text = title,
+            color = MainText,
+            fontSize = 18.sp,
             fontWeight = FontWeight.Black,
             textAlign = TextAlign.Center,
             maxLines = 1
         )
-        Text(
-            text = "PHONE",
-            color = Ink,
-            fontSize = 36.sp,
-            fontWeight = FontWeight.Black,
-            textAlign = TextAlign.Center,
-            maxLines = 1
+        ServeChoiceButton(
+            modifier = Modifier.fillMaxWidth(0.82f),
+            label = "ME SERVES",
+            color = TeamBlue,
+            onClick = onTeamAStarts
         )
-        Text(
-            text = "0 - 0 - 2",
-            color = Ink,
-            fontSize = 26.sp,
-            fontWeight = FontWeight.Black,
-            textAlign = TextAlign.Center,
-            maxLines = 1
+        ServeChoiceButton(
+            modifier = Modifier.fillMaxWidth(0.82f),
+            label = "OPP SERVES",
+            color = TeamGreen,
+            onClick = onTeamBStarts
         )
+        OutlinedButton(
+            modifier = Modifier
+                .fillMaxWidth(0.82f)
+                .height(44.dp),
+            onClick = onSecondaryAction,
+            shape = RoundedCornerShape(22.dp),
+            border = BorderStroke(2.dp, ConnectedAmber),
+            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+            colors = ButtonDefaults.outlinedButtonColors(
+                containerColor = WatchBackground,
+                contentColor = ConnectedAmber
+            )
+        ) {
+            Text(
+                text = secondaryLabel,
+                color = ConnectedAmber,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Black,
+                textAlign = TextAlign.Center,
+                maxLines = 1
+            )
+        }
     }
 }
 
@@ -467,78 +641,45 @@ private fun WearScoreboardScreen(
     onTeamAWon: () -> Unit,
     onTeamBWon: () -> Unit,
     onUndo: () -> Unit,
+    onEndRequested: () -> Unit,
     onReset: () -> Unit
 ) {
     val gameOver = state.status is GameStatus.Complete
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Paper)
-            .padding(horizontal = 26.dp, vertical = 10.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically)
+            .background(WatchBackground)
+            .padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 14.dp)
     ) {
-        WearConnectionLabel(connected = false)
-        ScoreBlock(state)
+        WearConnectionLabel(
+            modifier = Modifier.align(Alignment.TopCenter),
+            connected = false
+        )
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            RallyButton(
-                modifier = Modifier.weight(1f),
-                label = "ME\nWON",
-                color = TeamBlue,
-                enabled = !gameOver,
-                onClick = onTeamAWon
-            )
-            RallyButton(
-                modifier = Modifier.weight(1f),
-                label = "OPP\nWON",
-                color = TeamGreen,
-                enabled = !gameOver,
-                onClick = onTeamBWon
-            )
-        }
+        ScoreSummary(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 34.dp),
+            state = state,
+            canUndo = canUndo,
+            onUndo = onUndo,
+            onEnd = onEndRequested
+        )
 
-        Row(
-            modifier = Modifier.fillMaxWidth(0.78f),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            OutlinedButton(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(36.dp),
-                onClick = onUndo,
-                enabled = canUndo,
-                shape = RoundedCornerShape(8.dp),
-                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
-            ) {
-                Text(
-                    text = "UNDO",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Black,
-                    maxLines = 1
-                )
-            }
-            TextButton(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(36.dp),
-                onClick = onReset,
-                shape = RoundedCornerShape(8.dp),
-                colors = ButtonDefaults.textButtonColors(contentColor = ProblemRed),
-                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
-            ) {
-                Text(
-                    text = "RESET",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Black,
-                    maxLines = 1
-                )
-            }
-        }
+        WearScorePanels(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 2.dp),
+            teamAScore = state.teamAScore,
+            teamBScore = state.teamBScore,
+            servingTeam = state.servingTeam,
+            teamAName = "ME WON",
+            teamBName = "OPP WON",
+            enabled = !gameOver,
+            onTeamATapped = onTeamAWon,
+            onTeamBTapped = onTeamBWon
+        )
     }
 }
 
@@ -553,7 +694,12 @@ private fun ServeChoiceButton(
         modifier = modifier.height(40.dp),
         onClick = onClick,
         shape = RoundedCornerShape(24.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = color),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = color,
+            contentColor = MainText,
+            disabledContainerColor = InactiveGray,
+            disabledContentColor = SecondaryText.copy(alpha = 0.55f)
+        ),
         contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp)
     ) {
         Text(
@@ -567,35 +713,31 @@ private fun ServeChoiceButton(
 }
 
 @Composable
-private fun ScoreBlock(state: GameState) {
+private fun ScoreSummary(
+    modifier: Modifier = Modifier,
+    state: GameState,
+    canUndo: Boolean,
+    onUndo: () -> Unit,
+    onEnd: () -> Unit
+) {
     val status = state.status
 
     Column(
-        modifier = Modifier.fillMaxWidth(0.78f),
+        modifier = modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(3.dp)
+        verticalArrangement = Arrangement.spacedBy(9.dp)
     ) {
-        WearScoreTableRow(
-            label = "A",
-            score = state.teamAScore,
-            color = TeamBlue,
-            isServing = state.servingTeam == Team.A,
+        WearCallScoreText(
+            teamAScore = state.teamAScore,
+            teamBScore = state.teamBScore,
+            servingTeam = state.servingTeam,
             serverNumber = state.serverNumber.displayValue
         )
-        WearScoreTableRow(
-            label = "B",
-            score = state.teamBScore,
-            color = TeamGreen,
-            isServing = state.servingTeam == Team.B,
-            serverNumber = state.serverNumber.displayValue
-        )
-        Text(
-            text = state.callText(),
-            color = state.teamColor(state.servingTeam),
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Black,
-            textAlign = TextAlign.Center,
-            maxLines = 1
+        WearUtilityRow(
+            canUndo = canUndo,
+            onUndo = onUndo,
+            endEnabled = true,
+            onEnd = onEnd
         )
 
         if (status is GameStatus.Complete) {
@@ -612,39 +754,37 @@ private fun ScoreBlock(state: GameState) {
 }
 
 @Composable
-private fun ConnectedScoreBlock(state: PhoneScoreState) {
+private fun ConnectedScoreSummary(
+    modifier: Modifier = Modifier,
+    state: PhoneScoreState,
+    canUndo: Boolean,
+    onUndo: () -> Unit,
+    onEnd: () -> Unit,
+    endEnabled: Boolean
+) {
     Column(
-        modifier = Modifier.fillMaxWidth(0.78f),
+        modifier = modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(3.dp)
+        verticalArrangement = Arrangement.spacedBy(9.dp)
     ) {
-        WearScoreTableRow(
-            label = "A",
-            score = state.teamAScore,
-            color = TeamBlue,
-            isServing = state.servingTeam == Team.A,
+        WearCallScoreText(
+            teamAScore = state.teamAScore,
+            teamBScore = state.teamBScore,
+            servingTeam = state.servingTeam,
             serverNumber = state.serverNumber
         )
-        WearScoreTableRow(
-            label = "B",
-            score = state.teamBScore,
-            color = TeamGreen,
-            isServing = state.servingTeam == Team.B,
-            serverNumber = state.serverNumber
-        )
-        Text(
-            text = state.scoreCall,
-            color = state.teamColor(state.servingTeam),
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Black,
-            textAlign = TextAlign.Center,
-            maxLines = 1
+        WearUtilityRow(
+            canUndo = canUndo,
+            onUndo = onUndo,
+            endEnabled = endEnabled,
+            onEnd = onEnd
         )
     }
 }
 
 @Composable
 private fun WearConnectionLabel(
+    modifier: Modifier = Modifier,
     connected: Boolean,
     feedback: WatchCommandFeedback? = null
 ) {
@@ -652,97 +792,131 @@ private fun WearConnectionLabel(
     val color = when {
         isProblem -> ProblemRed
         connected -> ConnectedAmber
-        else -> InactiveGray
+        else -> ProblemRed
     }
     val text = when (feedback) {
         WatchCommandFeedback.Sent -> "SENT"
         WatchCommandFeedback.Confirmed -> "SCORE OK"
         WatchCommandFeedback.Problem -> "PHONE?"
-        null -> if (connected) "PHONE CONNECTED" else "STANDALONE"
+        null -> if (connected) "CONNECTED" else "STANDALONE"
     }
-    val textColor = if (connected && !isProblem) Ink else Color.White
-
-    Text(
-        modifier = Modifier
-            .clip(RoundedCornerShape(7.dp))
-            .background(color)
-            .padding(horizontal = 8.dp, vertical = 2.dp),
-        text = text,
-        color = textColor,
-        fontSize = 10.sp,
-        fontWeight = FontWeight.Black,
-        textAlign = TextAlign.Center,
-        maxLines = 1
-    )
-}
-
-@Composable
-private fun WearScoreTableRow(
-    label: String,
-    score: Int,
-    color: Color,
-    isServing: Boolean,
-    serverNumber: Int
-) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(32.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(Color.White),
-        verticalAlignment = Alignment.CenterVertically
+        modifier = modifier
+            .clip(RoundedCornerShape(999.dp))
+            .border(1.dp, color.copy(alpha = 0.8f), RoundedCornerShape(999.dp))
+            .background(color.copy(alpha = 0.12f))
+            .padding(horizontal = 7.dp, vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Box(
             modifier = Modifier
-                .width(30.dp)
-                .fillMaxHeight(),
-            contentAlignment = Alignment.Center
-        ) {
-            WearServeDots(
-                color = color,
-                isServing = isServing,
-                serverNumber = serverNumber
-            )
-        }
-        WearTableDivider()
-        Text(
-            modifier = Modifier
-                .width(30.dp)
-                .padding(horizontal = 4.dp),
-            text = label,
-            color = color,
-            fontSize = 22.sp,
-            fontWeight = FontWeight.Black,
-            textAlign = TextAlign.Center,
-            maxLines = 1
+                .size(5.dp)
+                .background(color, CircleShape)
         )
-        WearTableDivider()
         Text(
-            modifier = Modifier.weight(1f),
-            text = score.toString(),
+            text = text,
             color = color,
-            fontSize = 27.sp,
+            fontSize = 8.sp,
             fontWeight = FontWeight.Black,
             textAlign = TextAlign.Center,
-            lineHeight = 28.sp,
             maxLines = 1
         )
     }
 }
 
 @Composable
-private fun WearServeDots(color: Color, isServing: Boolean, serverNumber: Int) {
+private fun WearScorePanels(
+    modifier: Modifier = Modifier,
+    teamAScore: Int,
+    teamBScore: Int,
+    servingTeam: Team,
+    teamAName: String,
+    teamBName: String,
+    enabled: Boolean,
+    onTeamATapped: () -> Unit,
+    onTeamBTapped: () -> Unit
+) {
     Row(
-        modifier = Modifier.size(width = 26.dp, height = 14.dp),
-        horizontalArrangement = Arrangement.spacedBy(3.dp, Alignment.CenterHorizontally),
-        verticalAlignment = Alignment.CenterVertically
+        modifier = modifier
+            .fillMaxWidth()
+            .height(92.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        if (isServing) {
-            repeat(serverNumber) {
-                Box(
-                    modifier = Modifier
-                        .size(9.dp)
-                        .background(color, CircleShape)
+        WearScorePanel(
+            modifier = Modifier.weight(1f),
+            label = teamAName,
+            score = teamAScore,
+            isServing = servingTeam == Team.A,
+            panelColor = TeamBluePanel,
+            enabled = enabled,
+            onClick = onTeamATapped
+        )
+        WearScorePanel(
+            modifier = Modifier.weight(1f),
+            label = teamBName,
+            score = teamBScore,
+            isServing = servingTeam == Team.B,
+            panelColor = TeamGreenPanel,
+            enabled = enabled,
+            onClick = onTeamBTapped
+        )
+    }
+}
+
+@Composable
+private fun WearScorePanel(
+    modifier: Modifier,
+    label: String,
+    score: Int,
+    isServing: Boolean,
+    panelColor: Color,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    Button(
+        modifier = modifier
+            .fillMaxHeight()
+            .semantics { contentDescription = "$label score" },
+        onClick = onClick,
+        enabled = enabled,
+        shape = RoundedCornerShape(18.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = panelColor,
+            contentColor = MainText,
+            disabledContainerColor = InactiveGray,
+            disabledContentColor = SecondaryText.copy(alpha = 0.6f)
+        ),
+        contentPadding = PaddingValues(horizontal = 5.dp, vertical = 7.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(5.dp, Alignment.CenterVertically)
+        ) {
+            Text(
+                text = label,
+                color = MainText,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Black,
+                maxLines = 1,
+                lineHeight = 15.sp,
+                textAlign = TextAlign.Center,
+                overflow = TextOverflow.Ellipsis
+            )
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(5.dp, Alignment.CenterVertically)
+            ) {
+                WearServeDots(isServing = isServing)
+                Text(
+                    text = score.toString(),
+                    color = MainText,
+                    fontSize = 35.sp,
+                    lineHeight = 35.sp,
+                    fontWeight = FontWeight.Black,
+                    maxLines = 1,
+                    textAlign = TextAlign.Center
                 )
             }
         }
@@ -750,13 +924,121 @@ private fun WearServeDots(color: Color, isServing: Boolean, serverNumber: Int) {
 }
 
 @Composable
-private fun WearTableDivider() {
-    Box(
-        modifier = Modifier
-            .fillMaxHeight()
-            .width(2.dp)
-            .background(TableLine)
+private fun WearCallScoreText(
+    teamAScore: Int,
+    teamBScore: Int,
+    servingTeam: Team,
+    serverNumber: Int
+) {
+    val servingScore = if (servingTeam == Team.A) teamAScore else teamBScore
+    val receivingScore = if (servingTeam == Team.A) teamBScore else teamAScore
+    val servingColor = if (servingTeam == Team.A) TeamBlue else TeamGreen
+    val receivingColor = if (servingTeam == Team.A) TeamGreen else TeamBlue
+
+    Text(
+        modifier = Modifier.fillMaxWidth(0.82f),
+        text = AnnotatedString.Builder().apply {
+            withStyle(SpanStyle(color = servingColor, fontWeight = FontWeight.Black)) {
+                append(servingScore.toString())
+            }
+            withStyle(SpanStyle(color = SecondaryText, fontWeight = FontWeight.SemiBold)) {
+                append(" - ")
+            }
+            withStyle(SpanStyle(color = receivingColor, fontWeight = FontWeight.Black)) {
+                append(receivingScore.toString())
+            }
+            withStyle(SpanStyle(color = SecondaryText, fontWeight = FontWeight.SemiBold)) {
+                append(" - ")
+            }
+            withStyle(SpanStyle(color = servingColor, fontWeight = FontWeight.Black)) {
+                append(serverNumber.toString())
+            }
+        }.toAnnotatedString(),
+        fontSize = 34.sp,
+        lineHeight = 36.sp,
+        textAlign = TextAlign.Center,
+        maxLines = 1
     )
+}
+
+@Composable
+@OptIn(ExperimentalFoundationApi::class)
+private fun WearUtilityRow(
+    canUndo: Boolean,
+    onUndo: () -> Unit,
+    endEnabled: Boolean,
+    onEnd: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .width(58.dp)
+                .height(26.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .border(
+                    BorderStroke(1.dp, if (canUndo) ConnectedAmber else InactiveGray),
+                    RoundedCornerShape(14.dp)
+                )
+                .background(UndoButtonBackground)
+                .combinedClickable(
+                    enabled = canUndo || endEnabled,
+                    onClick = {
+                        if (canUndo) onUndo()
+                    },
+                    onLongClick = {
+                        if (endEnabled) onEnd()
+                    }
+                )
+                .semantics {
+                    contentDescription = if (endEnabled) {
+                        "Undo. Long press to end game"
+                    } else {
+                        "Undo"
+                    }
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "↶",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Black,
+                maxLines = 1,
+                color = if (canUndo) MainText else SecondaryText.copy(alpha = 0.55f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun WearServeDots(isServing: Boolean) {
+    Row(
+        modifier = Modifier.height(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(5.dp, Alignment.CenterHorizontally),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (isServing) {
+            repeat(2) {
+                Box(
+                    modifier = Modifier
+                        .size(5.dp)
+                        .background(ConnectedAmber, CircleShape)
+                )
+            }
+        }
+    }
+}
+
+private fun String.watchTeamLabel(): String {
+    val players = uppercase().split(" & ").map { it.trim() }.filter { it.isNotEmpty() }
+    return when {
+        players.size >= 2 -> "${players[0].take(2)} ${players[1].take(2)}"
+        players.isNotEmpty() -> players.first().take(2)
+        else -> "--"
+    }
 }
 
 @Composable
@@ -768,35 +1050,28 @@ private fun RallyButton(
     onClick: () -> Unit
 ) {
     Button(
-        modifier = modifier.height(44.dp),
+        modifier = modifier.height(40.dp),
         onClick = onClick,
         enabled = enabled,
         shape = RoundedCornerShape(28.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = color),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = color,
+            contentColor = MainText,
+            disabledContainerColor = InactiveGray,
+            disabledContentColor = SecondaryText.copy(alpha = 0.55f)
+        ),
         contentPadding = PaddingValues(0.dp)
     ) {
         Text(
             text = label,
-            fontSize = 20.sp,
+            fontSize = 15.sp,
             fontWeight = FontWeight.Black,
             textAlign = TextAlign.Center,
-            lineHeight = 21.sp,
+            lineHeight = 17.sp,
             maxLines = 2
         )
     }
 }
-
-private fun GameState.teamColor(team: Team): Color =
-    when (team) {
-        Team.A -> TeamBlue
-        Team.B -> TeamGreen
-    }
-
-private fun PhoneScoreState.teamColor(team: Team): Color =
-    when (team) {
-        Team.A -> TeamBlue
-        Team.B -> TeamGreen
-    }
 
 private fun PhoneScoreState.scoreSignature(): String =
     "$teamAScore|$teamBScore|$servingTeam|$serverNumber|$scoreCall"
@@ -806,8 +1081,12 @@ private fun VoiceAnnouncementMode.usesWatchSpeaker(): Boolean =
         this == VoiceAnnouncementMode.WatchThenPhone ||
         this == VoiceAnnouncementMode.WatchThenTablet
 
-private fun Context.vibrateWatchAction() {
-    vibratePattern(longArrayOf(0, 35), intArrayOf(0, 160))
+private fun Context.vibrateSingleTap() {
+    vibratePattern(longArrayOf(0, 24), intArrayOf(0, 160))
+}
+
+private fun Context.vibrateDoubleTap() {
+    vibratePattern(longArrayOf(0, 20, 42, 20), intArrayOf(0, 150, 0, 150))
 }
 
 private fun Context.vibrateWatchConfirmed() {
@@ -851,9 +1130,6 @@ private fun scoreSpeechParams(): Bundle =
     Bundle().apply {
         putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, 1.0f)
     }
-
-private fun GameState.callText(): String =
-    "${servingScore} - ${receivingScore} - ${serverNumber.displayValue}"
 
 private fun TextToSpeech.useBestAvailableVoice() {
     val bestEnglishVoice = voices

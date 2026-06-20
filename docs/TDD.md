@@ -80,7 +80,7 @@ Contains:
 - `WearDataLayerListenerService`
 - Text-to-Speech score calls for standalone Watch Only mode.
 
-Current Wear behavior supports connected remote mode when phone score state is available and standalone Watch Only mode when phone state is unavailable. Connected Wear behavior is command-only: My Team won rally, Opponent won rally, and Undo. Connected-mode controls are temporarily disabled while awaiting phone confirmation to reduce accidental double taps during play. The watch should not contain pickleball scoring logic, server-transition logic, side-out logic, or authoritative match state in connected mode.
+Current Wear behavior supports connected remote mode when the phone has an active match and standalone Watch Only mode when no phone-owned match is active. If the phone is connected but idle, the watch still allows a local standalone match to start from the watch. Connected Wear behavior is command-only: My Team won rally, Opponent won rally, and Undo. Connected-mode controls are temporarily disabled while awaiting phone confirmation to reduce accidental double taps during play. The watch should not contain pickleball scoring logic, server-transition logic, side-out logic, or authoritative match state in connected mode.
 
 ## Supported Product Modes
 

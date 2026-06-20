@@ -4,6 +4,9 @@ object WearSyncContract {
     const val COMMAND_A_WON_RALLY = "/rallyscore/command/a_won_rally"
     const val COMMAND_B_WON_RALLY = "/rallyscore/command/b_won_rally"
     const val COMMAND_UNDO = "/rallyscore/command/undo"
+    const val COMMAND_END_MATCH = "/rallyscore/command/end_match"
+    const val COMMAND_START_MATCH_TEAM_A = "/rallyscore/command/start_match_team_a"
+    const val COMMAND_START_MATCH_TEAM_B = "/rallyscore/command/start_match_team_b"
 
     const val SCORE_STATE_PATH = "/rallyscore/score_state"
 

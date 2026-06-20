@@ -89,13 +89,21 @@ Round/small-screen optimized primary controller layout:
 
 ```text
 ---------------------
-|       SCORE        |
-|      0 - 0 - 2     |
-|                    |
-| [ME WON] [OPP WON] |
-|      [ UNDO ]      |
+|  • PHONE CONNECTED |
+|      8 - 6 - 2     |
+|        [ ↶ ]       |
+| [ ME  8 ][ OPP  6 ]|
 ---------------------
 ```
+
+- Uses a black background with white primary text and light-gray secondary text.
+- My Team uses bright blue; Opponent uses bright green.
+- Connected status uses amber and disconnected/standalone status uses red.
+- The top connection state is a compact rounded pill that keeps status visible without dominating the screen.
+- The score tiles are the primary scoring controls. Tapping the blue or green score tile records the rally winner.
+- The score call remains above the controls and omits the literal `CALL` label.
+- Undo sits alone in a compact utility row beneath the score call.
+- End moves off the crowded main row and is triggered from a secondary gesture so score tiles can stay fully readable on round displays.
 
 Standalone Watch Only behavior:
 
@@ -110,7 +118,9 @@ Standalone Watch Only behavior:
 Connected Watch + Phone behavior:
 
 - Shows standalone status when no phone state is available.
-- Shows connected phone score state when phone sync is available.
+- When the phone is connected but idle, shows explicit `START ON WATCH` and `START ON PHONE` choices. `START ON WATCH` begins a standalone watch-owned match with ME SERVES or OPP SERVES. `START ON PHONE` keeps the watch in a waiting state until a phone-owned match begins.
+- In the connected idle state, the watch may also start a fresh phone-owned match directly using the existing phone team names and either `ME SERVES` or `OPP SERVES`, so players can restart from the watch after ending a phone-owned game without touching the phone unless names change.
+- Shows connected phone score state when phone sync is available and the phone has an active match.
 - Watch sends My Team won rally, Opponent won rally, and Undo commands to the phone during live play.
 - Phone remains the source of truth.
 - Watch mirrors the phone-owned score state.
@@ -176,13 +186,10 @@ Tablet score controller:
 |                                 |                            |
 |  ..    08                       |        06                  |
 |                                 |                            |
-| SERVING - SERVER 2              | RECEIVING                  |
 ---------------------------------------------------------------
 | [dark navy]                                                   |
-|                CALL                                           |
-|              8 - 6 - 2         [white, 180sp]                |
-|    P1 & P2 SERVES  •  SERVER 2                                |
-|                                          [UNDO]  [END]        |
+| CALL             8 - 6 - 2      [white, oversized]           |
+| P1 & P2 SERVES  •  SERVER 2               [UNDO]  [END]      |
 ---------------------------------------------------------------
 ```
 
@@ -195,9 +202,9 @@ Tablet controller behavior:
 - Tapping a team's score panel records a rally win for that team
   (no separate ME WON/OPP WON buttons).
 - Server dots appear as white circles in a horizontal row (..)
-  left of the score, with the score centered.
-- Call bar uses dark-navy background (#111827). CALL label is
-  white, 38sp. Score call is 180sp, white.
+  left of the score, and serving/server status now lives in the call bar.
+- Call bar uses dark-navy background (#111827). CALL label sits left of the
+  score call, which is oversized for distance readability.
 - UNDO and END buttons appear inside the call bar in local
   controller mode. In remote-display mode, no controls are shown.
 - Provides correction mode when available.

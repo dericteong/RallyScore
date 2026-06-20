@@ -176,9 +176,11 @@ Current behavior:
 
 - Uses the shared scoring engine.
 - Keeps local state in Compose.
-- Provides ME WON, OPP WON, UNDO, and RESET controls.
+- Uses score tiles as the primary ME WON and OPP WON controls.
+- Keeps Undo on the main screen and exposes End as a secondary watch action to protect round-screen readability.
 - Speaks score calls locally in standalone mode.
-- When phone state is available, switches to connected remote-control mode.
+- When the phone has an active match, switches to connected remote-control mode.
+- When the phone is connected but idle, the watch may still start a standalone local match.
 
 Standalone Watch Only behavior:
 

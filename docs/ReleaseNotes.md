@@ -26,6 +26,7 @@ Status: In development.
 - Wear OS standalone prototype.
 - Wear serving-team selection before scoring.
 - Wear Text-to-Speech score calls.
+- Wear scoring screens use a black high-contrast theme, side-by-side score panels, a larger color-coded CALL, and round-screen-optimized controls.
 - Initial Wear OS Data Layer sync using watch commands and phone-owned score snapshots.
 - Phone-owned score snapshots include active-match and undo-availability state for connected Wear control.
 - Phone and Wear connection status indicators.

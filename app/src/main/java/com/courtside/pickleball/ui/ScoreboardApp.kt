@@ -39,6 +39,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -123,6 +125,7 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
     val useTabletDisplayLayout = configuration.smallestScreenWidthDp >= TabletSmallestWidthDp
     val activeRemoteTabletState = remoteTabletDisplayState?.takeIf { it.matchActive }
     val activeRemoteTabletVoiceSignature = activeRemoteTabletState?.voiceSignature()
+    val showRemoteTabletMatch = useTabletDisplayLayout && activeRemoteTabletState != null
     var setupTeamAPlayer1 by remember { mutableStateOf("P1") }
     var setupTeamAPlayer2 by remember { mutableStateOf("P2") }
     var setupTeamBPlayer1 by remember { mutableStateOf("P3") }
@@ -242,6 +245,11 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
             return@LaunchedEffect
         }
 
+        if (showRemoteTabletMatch) {
+            lastObservedMatchState = state
+            return@LaunchedEffect
+        }
+
         val previous = lastObservedMatchState
         lastObservedMatchState = state
         if (previous != null && state != previous && voiceAnnouncementMode.usesThisDeviceSpeaker(useTabletDisplayLayout)) {
@@ -294,7 +302,17 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
         CompositionLocalProvider(
             LocalDensity provides Density(density.density, fontScale = 1f)
         ) {
-            if (matchStarted) {
+            if (showRemoteTabletMatch) {
+                TabletDisplayScreen(
+                    state = activeRemoteTabletState!!,
+                    connectionState = tabletConnectionState,
+                    canUndo = activeRemoteTabletState.canUndo,
+                    onTeamARally = { viewModel.sendTabletCommand(TabletCommand.TeamAWonRally) },
+                    onTeamBRally = { viewModel.sendTabletCommand(TabletCommand.TeamBWonRally) },
+                    onUndo = { viewModel.sendTabletCommand(TabletCommand.Undo) },
+                    onEndMatchRequested = { viewModel.sendTabletCommand(TabletCommand.EndMatch) }
+                )
+            } else if (matchStarted) {
                 if (useTabletDisplayLayout) {
                     TabletDisplayScreen(
                         state = state.toTabletDisplayState(
@@ -321,16 +339,6 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
                         onEndMatchRequested = { showEndMatchDialog = true }
                     )
                 }
-            } else if (useTabletDisplayLayout && activeRemoteTabletState != null) {
-                TabletDisplayScreen(
-                    state = activeRemoteTabletState,
-                    connectionState = tabletConnectionState,
-                    canUndo = activeRemoteTabletState.canUndo,
-                    onTeamARally = { viewModel.sendTabletCommand(TabletCommand.TeamAWonRally) },
-                    onTeamBRally = { viewModel.sendTabletCommand(TabletCommand.TeamBWonRally) },
-                    onUndo = { viewModel.sendTabletCommand(TabletCommand.Undo) },
-                    onEndMatchRequested = { viewModel.sendTabletCommand(TabletCommand.EndMatch) }
-                )
             } else {
                 MatchSetupScreen(
                     teamAPlayer1 = setupTeamAPlayer1,
@@ -520,13 +528,13 @@ private fun MatchSetupScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(if (keyboardVisible) 8.dp else 8.dp)
             ) {
-                ScorePreviewCard(startingTeam, compact = keyboardVisible)
                 if (!keyboardVisible) {
                     VoiceAnnouncementControls(
                         selectedMode = voiceAnnouncementMode,
                         onModeChange = onVoiceAnnouncementModeChange
                     )
                 }
+                ScorePreviewCard(startingTeam, compact = keyboardVisible)
                 if (keyboardVisible) {
                     OutlinedButton(
                         modifier = Modifier
@@ -598,12 +606,14 @@ private fun SetupTeamNameFields(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(if (compact) 22.dp else 24.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(color)
                 .clickable(onClick = onSelect),
-            contentAlignment = Alignment.CenterStart
+            contentAlignment = Alignment.Center
         ) {
             Text(
                 text = label,
-                color = color,
+                color = Color.White,
                 fontSize = if (compact) 13.sp else 14.sp,
                 fontWeight = FontWeight.Black,
                 maxLines = 1
@@ -777,10 +787,16 @@ private fun TabletDisplayScreen(
                 .fillMaxSize()
                 .safeDrawingPadding()
                 .padding(horizontal = 34.dp, vertical = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             ConnectionStatusBar(
                 connectionState = connectionState
+            )
+            TabletDisplayCallBar(
+                state = state,
+                canUndo = canUndo,
+                onUndo = onUndo,
+                onEndMatchRequested = onEndMatchRequested
             )
             Row(
                 modifier = Modifier
@@ -807,12 +823,6 @@ private fun TabletDisplayScreen(
                     onTap = if (isController) onTeamBRally else null
                 )
             }
-            TabletDisplayCallBar(
-                state = state,
-                canUndo = canUndo,
-                onUndo = onUndo,
-                onEndMatchRequested = onEndMatchRequested
-            )
         }
     }
 }
@@ -830,97 +840,72 @@ private fun TabletTeamScorePanel(
     onTap: (() -> Unit)? = null
 ) {
     val nameFontSize = if (isTablet) 42.sp else 28.sp
-    val nameLineHeight = if (isTablet) 46.sp else 32.sp
-    val scoreFontSize = if (isTablet) 172.sp else 100.sp
-    val scoreLineHeight = if (isTablet) 176.sp else 104.sp
-    val dotSize = if (isTablet) 36.dp else 20.dp
-    val dotSpacing = if (isTablet) 52.dp else 28.dp
-
-    Column(
+    val nameLineHeight = if (isTablet) 44.sp else 32.sp
+    val scoreFontSize = if (isTablet) 152.sp else 100.sp
+    val scoreLineHeight = if (isTablet) 156.sp else 104.sp
+    val dotSize = if (isTablet) 34.dp else 20.dp
+    val dotSpacing = if (isTablet) 40.dp else 28.dp
+    Box(
         modifier = modifier
             .fillMaxHeight()
             .clip(RoundedCornerShape(10.dp))
             .background(color)
-            .padding(horizontal = if (isTablet) 24.dp else 14.dp, vertical = if (isTablet) 22.dp else 12.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(
-            text = name.uppercase(),
-            color = Color.White,
-            fontSize = nameFontSize,
-            fontWeight = FontWeight.Black,
-            lineHeight = nameLineHeight,
-            textAlign = TextAlign.Center,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis
-        )
-        Row(
-            modifier = if (onTap != null) Modifier.clickable(enabled = enabled, onClick = onTap) else Modifier,
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (isServing) {
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    repeat(serverNumber.displayValue) {
-                        Box(
-                            modifier = Modifier
-                                .size(dotSize)
-                                .background(Color.White, CircleShape)
-                        )
-                    }
+            .then(
+                if (onTap != null) {
+                    Modifier.clickable(enabled = enabled, onClick = onTap)
+                } else {
+                    Modifier
                 }
-            } else {
-                Box(modifier = Modifier.size(dotSize))
-            }
-            Box(modifier = Modifier.width(dotSpacing))
-            Text(
-                text = score.toString(),
-                color = Color.White,
-                fontSize = scoreFontSize,
-                fontWeight = FontWeight.Black,
-                lineHeight = scoreLineHeight,
-                textAlign = TextAlign.Center,
-                maxLines = 1
             )
-            Box(modifier = Modifier.width(dotSize + dotSpacing))
-        }
-        TabletServingIndicator(
-            color = color,
-            isServing = isServing,
-            serverNumber = serverNumber,
-            isTablet = isTablet
-        )
-    }
-}
-
-@Composable
-private fun TabletServingIndicator(
-    color: Color,
-    isServing: Boolean,
-    serverNumber: ServerNumber,
-    isTablet: Boolean = true
-) {
-    val backgroundColor = if (isServing) Color.White else Color.White.copy(alpha = 0.22f)
-    val textColor = if (isServing) color else Color.White
-    val height = if (isTablet) 66.dp else 48.dp
-    val fontSize = if (isTablet) 28.sp else 18.sp
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(height)
-            .clip(RoundedCornerShape(8.dp))
-            .background(backgroundColor),
-        contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = if (isServing) "SERVING  •  SERVER ${serverNumber.displayValue}" else "RECEIVING",
-            color = textColor,
-            fontSize = fontSize,
-            fontWeight = FontWeight.Black,
-            textAlign = TextAlign.Center,
-            maxLines = 1
-        )
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = if (isTablet) 20.dp else 14.dp, vertical = if (isTablet) 12.dp else 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = name.uppercase(),
+                color = Color.White,
+                fontSize = nameFontSize,
+                fontWeight = FontWeight.Black,
+                lineHeight = nameLineHeight,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (isServing) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        repeat(serverNumber.displayValue) {
+                            Box(
+                                modifier = Modifier
+                                    .size(dotSize)
+                                    .background(Color.White, CircleShape)
+                            )
+                        }
+                    }
+                } else {
+                    Box(modifier = Modifier.size(dotSize))
+                }
+                Box(modifier = Modifier.width(dotSpacing))
+                Text(
+                    text = score.toString(),
+                    color = Color.White,
+                    fontSize = scoreFontSize,
+                    fontWeight = FontWeight.Black,
+                    lineHeight = scoreLineHeight,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1
+                )
+                Box(modifier = Modifier.width(dotSize + dotSpacing))
+            }
+        }
     }
 }
 
@@ -1011,62 +996,71 @@ private fun TabletDisplayCallBar(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .then(if (showControls) Modifier else Modifier.fillMaxHeight(0.5f))
             .clip(RoundedCornerShape(10.dp))
             .background(CallBackground)
-            .padding(horizontal = 32.dp, vertical = 18.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+            .padding(horizontal = 32.dp, vertical = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text(
-            text = "CALL",
-            color = Color.White,
-            fontSize = 38.sp,
-            fontWeight = FontWeight.Black,
-            lineHeight = 40.sp,
-            maxLines = 1
-        )
-        Text(
-            text = state.coloredScoreCall(),
-            color = Color.White,
-            fontSize = 180.sp,
-            fontWeight = FontWeight.Black,
-            lineHeight = 184.sp,
-            textAlign = TextAlign.Center,
-            maxLines = 1
-        )
-        Text(
-            text = "${state.servingName().uppercase()} SERVES  •  SERVER ${state.serverNumber}",
-            color = Color.White,
-            fontSize = 32.sp,
-            fontWeight = FontWeight.Black,
-            textAlign = TextAlign.Center,
-            maxLines = 1
-        )
-        if (showControls) {
-            Row(
+        Box(
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                text = "CALL",
+                color = Color.White,
+                fontSize = 34.sp,
+                fontWeight = FontWeight.Black,
+                lineHeight = 36.sp,
+                maxLines = 1,
+                modifier = Modifier.align(Alignment.CenterStart)
+            )
+            Text(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 14.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                OutlinedButton(
-                    modifier = Modifier.height(56.dp).width(120.dp),
-                    onClick = onUndo!!,
-                    enabled = canUndo,
-                    shape = RoundedCornerShape(8.dp),
-                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                    .align(Alignment.Center)
+                    .fillMaxWidth(),
+                text = state.coloredScoreCall(),
+                color = Color.White,
+                fontSize = 212.sp,
+                fontWeight = FontWeight.Black,
+                lineHeight = 204.sp,
+                textAlign = TextAlign.Center,
+                maxLines = 1
+            )
+        }
+        Box(
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                modifier = Modifier.align(Alignment.Center),
+                text = "${state.servingName().uppercase()} SERVES  •  SERVER ${state.serverNumber}",
+                color = Color.White,
+                fontSize = 28.sp,
+                fontWeight = FontWeight.Black,
+                textAlign = TextAlign.Center,
+                maxLines = 1
+            )
+            if (showControls) {
+                Row(
+                    modifier = Modifier.align(Alignment.CenterEnd),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("UNDO", fontSize = 20.sp, fontWeight = FontWeight.Black, maxLines = 1)
-                }
-                OutlinedButton(
-                    modifier = Modifier.height(56.dp).width(120.dp),
-                    onClick = onEndMatchRequested!!,
-                    shape = RoundedCornerShape(8.dp),
-                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
-                ) {
-                    Text("END", fontSize = 20.sp, fontWeight = FontWeight.Black, maxLines = 1)
+                    OutlinedButton(
+                        modifier = Modifier.height(56.dp).width(120.dp),
+                        onClick = onUndo!!,
+                        enabled = canUndo,
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                    ) {
+                        Text("UNDO", fontSize = 20.sp, fontWeight = FontWeight.Black, maxLines = 1)
+                    }
+                    OutlinedButton(
+                        modifier = Modifier.height(56.dp).width(120.dp),
+                        onClick = onEndMatchRequested!!,
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                    ) {
+                        Text("END", fontSize = 20.sp, fontWeight = FontWeight.Black, maxLines = 1)
+                    }
                 }
             }
         }
@@ -1316,6 +1310,8 @@ private fun VoiceAnnouncementControls(
     selectedMode: VoiceAnnouncementMode,
     onModeChange: (VoiceAnnouncementMode) -> Unit
 ) {
+    var expanded by remember { mutableStateOf(false) }
+
     Column(
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
@@ -1326,110 +1322,55 @@ private fun VoiceAnnouncementControls(
             fontWeight = FontWeight.Black,
             maxLines = 1
         )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            VoiceModeButton(
-                modifier = Modifier.weight(1f),
-                label = "OFF",
-                selected = selectedMode == VoiceAnnouncementMode.Off,
-                onClick = { onModeChange(VoiceAnnouncementMode.Off) }
-            )
-            VoiceModeButton(
-                modifier = Modifier.weight(1f),
-                label = "PHONE",
-                selected = selectedMode == VoiceAnnouncementMode.PhoneOnly,
-                onClick = { onModeChange(VoiceAnnouncementMode.PhoneOnly) }
-            )
-            VoiceModeButton(
-                modifier = Modifier.weight(1f),
-                label = "TABLET",
-                selected = selectedMode == VoiceAnnouncementMode.TabletOnly,
-                onClick = { onModeChange(VoiceAnnouncementMode.TabletOnly) }
-            )
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            VoiceModeButton(
-                modifier = Modifier.weight(1f),
-                label = "WATCH",
-                selected = selectedMode == VoiceAnnouncementMode.WatchOnly,
-                onClick = { onModeChange(VoiceAnnouncementMode.WatchOnly) }
-            )
-            VoiceModeButton(
-                modifier = Modifier.weight(1f),
-                label = "WATCH + PHONE",
-                selected = selectedMode == VoiceAnnouncementMode.WatchThenPhone,
-                onClick = { onModeChange(VoiceAnnouncementMode.WatchThenPhone) }
-            )
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            VoiceModeButton(
-                modifier = Modifier.weight(1f),
-                label = "WATCH > TABLET",
-                selected = selectedMode == VoiceAnnouncementMode.WatchThenTablet,
-                onClick = { onModeChange(VoiceAnnouncementMode.WatchThenTablet) }
-            )
-            VoiceModeButton(
-                modifier = Modifier.weight(1f),
-                label = "PHONE > TABLET",
-                selected = selectedMode == VoiceAnnouncementMode.PhoneThenTablet,
-                onClick = { onModeChange(VoiceAnnouncementMode.PhoneThenTablet) }
-            )
+        Box(modifier = Modifier.fillMaxWidth()) {
+            OutlinedButton(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(40.dp),
+                onClick = { expanded = true },
+                shape = RoundedCornerShape(8.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+            ) {
+                Text(
+                    text = selectedMode.setupLabel(),
+                    color = Ink,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Black,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1
+                )
+            }
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                VoiceAnnouncementMode.entries.forEach { mode ->
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                text = mode.setupLabel(),
+                                fontWeight = if (mode == selectedMode) FontWeight.Black else FontWeight.Medium
+                            )
+                        },
+                        onClick = {
+                            expanded = false
+                            onModeChange(mode)
+                        }
+                    )
+                }
+            }
         }
     }
 }
 
-@Composable
-private fun VoiceModeButton(
-    modifier: Modifier,
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit
-) {
-    val shape = RoundedCornerShape(8.dp)
-    if (selected) {
-        Button(
-            modifier = modifier.height(32.dp),
-            onClick = onClick,
-            shape = shape,
-            colors = ButtonDefaults.buttonColors(containerColor = Ink),
-            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
-        ) {
-            Text(
-                text = label,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Black,
-                textAlign = TextAlign.Center,
-                maxLines = 1
-            )
-        }
-    } else {
-        OutlinedButton(
-            modifier = modifier.height(32.dp),
-            onClick = onClick,
-            shape = shape,
-            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
-        ) {
-            Text(
-                text = label,
-                color = Ink,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Black,
-                textAlign = TextAlign.Center,
-                maxLines = 1
-            )
-        }
-    }
+private fun VoiceAnnouncementMode.setupLabel(): String = when (this) {
+    VoiceAnnouncementMode.Off -> "Off"
+    VoiceAnnouncementMode.PhoneOnly -> "Phone"
+    VoiceAnnouncementMode.WatchOnly -> "Watch"
+    VoiceAnnouncementMode.TabletOnly -> "Tablet"
+    VoiceAnnouncementMode.WatchThenPhone -> "Watch -> Phone"
+    VoiceAnnouncementMode.WatchThenTablet -> "Watch -> Tablet"
+    VoiceAnnouncementMode.PhoneThenTablet -> "Phone -> Tablet"
 }
 
 @Composable
@@ -1565,27 +1506,29 @@ private fun ControlBar(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxHeight()
-            .background(CallBackground, RoundedCornerShape(8.dp))
+                .background(CallBackground, RoundedCornerShape(8.dp))
                 .padding(horizontal = 18.dp, vertical = 0.dp),
-            contentAlignment = Alignment.Center
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "CALL",
-                    color = Color.White,
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.Black,
-                    maxLines = 1
-                )
-                Text(
-                    text = state.scoreOnlyCallBarText(status),
-                    color = Color.White,
-                    fontSize = 52.sp,
-                    fontWeight = FontWeight.Black,
-                    lineHeight = 56.sp,
-                    maxLines = 1
-                )
-            }
+            Text(
+                modifier = Modifier.align(Alignment.CenterStart),
+                text = "CALL",
+                color = Color.White,
+                fontSize = 28.sp,
+                fontWeight = FontWeight.Black,
+                maxLines = 1
+            )
+            Text(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .fillMaxWidth(),
+                text = state.scoreOnlyCallBarText(status),
+                color = Color.White,
+                fontSize = 52.sp,
+                fontWeight = FontWeight.Black,
+                lineHeight = 56.sp,
+                maxLines = 1,
+                textAlign = TextAlign.Center
+            )
         }
         OutlinedButton(
             modifier = Modifier
@@ -1651,7 +1594,6 @@ private fun GameState.scoreOnlyCallBarText(status: GameStatus) = buildAnnotatedS
     }
 
     val receivingTeam = servingTeam.opponent()
-    append("  ")
     pushStyle(SpanStyle(color = teamColor(servingTeam)))
     append(servingScore.toString())
     pop()
@@ -1718,7 +1660,7 @@ private fun VoiceAnnouncementMode.isDelayedOnTablet(): Boolean =
         this == VoiceAnnouncementMode.PhoneThenTablet
 
 private fun TabletDisplayState.voiceSignature(): String =
-    "$teamAScore|$teamBScore|$servingTeam|$serverNumber|$spokenScoreCall|$voiceAnnouncementMode"
+    "$teamAScore|$teamBScore|$servingTeam|$serverNumber|$spokenScoreCall"
 
 private fun normalizePlayerNamesInput(rawValue: String): String =
     rawValue

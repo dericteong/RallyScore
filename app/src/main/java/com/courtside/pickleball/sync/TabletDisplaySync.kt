@@ -157,6 +157,10 @@ object TabletDisplaySync {
         val socket = connectedPhoneWebSocket
         if (!tabletDisplayAvailable || !phoneWebSocketConnected || socket == null) {
             Log.w(TAG, "Unable to send tablet command while phone WebSocket is disconnected: ${command.wireValue}")
+            if (tabletDisplayAvailable) {
+                connectToRememberedPhoneWebSocket()
+                connectToGatewayPhoneWebSocket()
+            }
             setConnectionState(
                 if (_remoteDisplayState.value == null) {
                     TabletConnectionState.Searching
@@ -313,7 +317,7 @@ object TabletDisplaySync {
     }
 
     private fun connectToGatewayPhoneWebSocket() {
-        if (phoneWebSocketConnected || hasFreshRemoteSnapshot()) return
+        if (phoneWebSocketConnected) return
         val gateway = gatewayAddresses().firstOrNull()
         if (gateway == null) {
             Log.d(TAG, "No gateway address available for phone discovery")
@@ -324,7 +328,7 @@ object TabletDisplaySync {
     }
 
     private fun connectToRememberedPhoneWebSocket() {
-        if (phoneWebSocketConnected || hasFreshRemoteSnapshot()) return
+        if (phoneWebSocketConnected) return
         val endpoint = rememberedPhoneEndpoint()
         if (endpoint == null) {
             Log.d(TAG, "No remembered phone endpoint available for reconnection")
@@ -441,8 +445,8 @@ object TabletDisplaySync {
 
     private fun connectToPhoneWebSocket(address: InetAddress, port: Int?) {
         val endpoint = InetSocketAddress(address, port ?: PHONE_WS_PORT)
-        if (phoneWebSocketConnected || hasFreshRemoteSnapshot()) {
-            Log.d(TAG, "Skipping phone WebSocket probe at ${endpoint.address.hostAddress}:${endpoint.port}; phone state is already fresh")
+        if (phoneWebSocketConnected) {
+            Log.d(TAG, "Skipping phone WebSocket probe at ${endpoint.address.hostAddress}:${endpoint.port}; phone socket already connected")
             return
         }
         if (connectedPhoneWebSocketEndpoint == endpoint && tabletWebSocketClientJob?.isActive == true) {
@@ -836,6 +840,10 @@ object TabletDisplaySync {
         lastRemoteSnapshotReceivedAt = System.currentTimeMillis()
         _remoteDisplayState.value = state
         setConnectionState(TabletConnectionState.Connected)
+        if (tabletDisplayAvailable && !phoneWebSocketConnected) {
+            connectToRememberedPhoneWebSocket()
+            connectToGatewayPhoneWebSocket()
+        }
         Log.d(TAG, "Received tablet score snapshot over $source: ${state.scoreCall}")
     }
 
