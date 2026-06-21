@@ -20,6 +20,10 @@ sealed interface GameStatus {
 data class GameSettings(
     val teamAName: String = "Team A",
     val teamBName: String = "Team B",
+    val teamAPlayer1: String = "P1",
+    val teamAPlayer2: String = "P2",
+    val teamBPlayer1: String = "P3",
+    val teamBPlayer2: String = "P4",
     val targetScore: Int = 11,
     val winBy: Int = 2
 )
@@ -55,6 +59,24 @@ data class GameState(
     fun withScore(team: Team, score: Int): GameState = when (team) {
         Team.A -> copy(teamAScore = score)
         Team.B -> copy(teamBScore = score)
+    }
+
+    fun courtOrderedTeamName(team: Team): String {
+        val isEvenScore = scoreFor(team) % 2 == 0
+        return when (team) {
+            Team.A -> if (isEvenScore) "${settings.teamAPlayer1} & ${settings.teamAPlayer2}"
+                      else "${settings.teamAPlayer2} & ${settings.teamAPlayer1}"
+            Team.B -> if (isEvenScore) "${settings.teamBPlayer1} & ${settings.teamBPlayer2}"
+                      else "${settings.teamBPlayer2} & ${settings.teamBPlayer1}"
+        }
+    }
+
+    fun servingPlayerName(): String {
+        val effectiveServerIsOne = isFirstServerException || serverNumber == ServerNumber.One
+        return when (servingTeam) {
+            Team.A -> if (effectiveServerIsOne) settings.teamAPlayer1 else settings.teamAPlayer2
+            Team.B -> if (effectiveServerIsOne) settings.teamBPlayer2 else settings.teamBPlayer1
+        }
     }
 }
 

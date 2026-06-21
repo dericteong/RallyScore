@@ -16,36 +16,44 @@ These are text wireframes for the current design direction. They are not pixel-p
 
 The phone owns setup, scoring authority, and match state whenever it is present. Phone Only is a first-class mode. In Watch + Phone mode, the phone also communicates with the watch controller and display device.
 
-Landscape layout:
+Landscape side-by-side layout:
 
 ```text
----------------------------------------------------------------
-| SET UP GAME                    [⌚]  | FIRST SCORE CALL       |
-| Enter names, then tap who serves... |                         |
-|                                     |      0 - 0 - 2          |
-| [My Team]                           |                         |
-| [ player 1 input ][ player 2 input] | ME/OPP SERVES FIRST    |
-|                                     |                         |
-| [Opponent Team]                     | [ START 0 - 0 - 2 ]     |
-| [ player 1 input ][ player 2 input] |                         |
----------------------------------------------------------------
+------------------------------------------------------------------
+| [blue square] RallyScore         WATCH CONNECTED | TABLET S... |
+| SET UP GAME                                                    |
+| Enter names, then tap who serves first.                        |
+| -------------------------------------------------------------- |
+| [blue card] My Team        | [dark gray circle ⇅] |  VOICE     |
+| [P1 input ][P2 input ]     |                       |  [mode]    |
+|                             |                       |            |
+| [green card] Opponent Team |                       |  [WE SERVE |
+| [P3 input ][P4 input ]     |                       |   FIRST]   |
+| -------------------------------------------------------------- |
+|                                        [ START NEW GAME ]       |
+------------------------------------------------------------------
 ```
 
 Current setup behavior:
 
-- Team player names are entered manually.
-- Each team has separate Player 1 and Player 2 fields.
-- Player fields sit side by side within each team section.
-- Player fields are pre-populated with neutral development/social-play defaults: P1, P2, P3, and P4.
+- The phone setup screen uses landscape orientation (`SCREEN_ORIENTATION_SENSOR_LANDSCAPE`).
+- Side-by-side layout with team name fields on the left and score preview/voice controls on the right.
+- App title "RallyScore" with a solid blue square badge at top left.
+- Swap teams button (⇅) between My Team and Opponent Team cards.
+- Solid team-colored cards (blue for My Team, green for Opponent Team).
+- `imePadding()` applied so keyboard does not crop content.
+- The team form column is always vertically scrollable.
+- Each team has separate Player 1 and Player 2 fields, side by side within the team card.
+- Player fields are pre-populated with defaults: P1, P2, P3, P4.
 - Names are normalized to uppercase.
-- Tapping the full-width team label band or focusing a team field selects that team as the first server.
-- Team A is selected as the default first server, so the user may start immediately or edit values first.
+- Tapping the team label band or focusing a team field selects that team as the first server.
+- Team A is selected as the default first server.
 - Start button is enabled when all four player names are non-empty and a starting team is selected.
-- Keyboard-visible mode compacts the layout.
-- Keyboard-visible mode shows a `DONE` control to hide the keyboard and reveal the Start button.
+- Keyboard-visible mode shows a `DONE` control to hide the keyboard.
 - Pressing Enter/Done does not auto-focus the next field.
-- Shows watch connection status as a compact amber/red watch marker beside the `SET UP GAME` title.
-- Shows Voice Announcements. Target MVP choices are Off, Phone, Watch, Tablet, Watch > Phone, Watch > Tablet, and Phone > Tablet.
+- Connection status pills appear below the `SET UP GAME` title.
+- Voice Announcements dropdown appears in the right column.
+- Score Preview Card in the right column shows "WE SERVE FIRST" / "OPP SERVE FIRST" / "TAP A TEAM" with team-colored background, tappable to toggle starting team.
 
 ## Phone Score Screen
 
@@ -55,12 +63,14 @@ Landscape layout:
 
 ```text
 ---------------------------------------------------------------
-| WATCH CONNECTED                                             |
+| WATCH CONNECTED | TABLET S... |                    [Setup]   |
 ---------------------------------------------------------------
-| [blue]  dots | TEAM A P1 & P2             | score [white]  |
-| [green] dots | TEAM B P1 & P2             | score [white]  |
+| [blue]  dots | P1 & P2 (or P2 & P1)       | score [white]  |
+|              | P1 underlined if serving    |                |
+| [green] dots | P3 & P4 (or P4 & P3)       | score [white]  |
+|              | P4 underlined if serving    |                |
 ---------------------------------------------------------------
-| CALL serving - receiving - server | UNDO | END              |
+| CALL 8 - 6 - 2      P1 SERVES      UNDO | END              |
 ---------------------------------------------------------------
 ```
 
@@ -68,14 +78,16 @@ Interaction:
 
 - Team A row has a blue background; Team B row has a green background.
   Text and serving dots are white.
+- Player names are court-ordered: swapped on odd scores (e.g., P2 & P1 on Team A odd score).
+- The serving player name is underlined in the team name display.
 - Tap Team A score to record Team A won rally.
 - Tap Team B score to record Team B won rally.
 - One serving dot means Server 1.
 - Two serving dots means Server 2.
 - Only the serving team row shows dots.
 - Call bar uses dark-navy background (#111827). CALL label is white (28sp).
-  Score call text is 52sp, team-colored.
-- Watch connection status shown as a full-width bar at top of screen.
+  Score call text is 56sp. Below score call, serving player name shown with team color (e.g., "P1 SERVES").
+- Watch and tablet connection status bars shown at top of screen, with a "Setup" button to return to the setup screen.
 - Undo reverses last rally.
 - End opens a confirmation dialog.
 - Phone speaker announces the confirmed score after rally input or undo when enabled.

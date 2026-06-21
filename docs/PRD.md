@@ -182,6 +182,18 @@ Future synced mode:
 - The phone app uses team-colored score rows: blue background for Team A,
   green background for Team B, with white text and serving dots.
 - Setup defaults are P1, P2, P3, and P4, with My Team selected to serve first by default.
+- GameSettings stores individual player names (teamAPlayer1, teamAPlayer2, teamBPlayer1, teamBPlayer2).
+- The phone setup screen is always landscape with a side-by-side layout: team name cards on the left, voice controls and score preview card on the right.
+- A swap teams button (⇅) sits between My Team and Opponent Team cards.
+- The score preview card shows "WE SERVE FIRST" / "OPP SERVE FIRST" / "TAP A TEAM" with team-colored background, tappable to toggle starting team.
+- Player names on the scoreboard are court-ordered (swap on odd scores to reflect switched court positions).
+- The serving player name is underlined on the scoreboard.
+- The call bar shows the serving player name below the score call (e.g., "P1 SERVES").
+- A "Setup" button on the scoreboard returns to the setup screen to edit names without ending the match.
+- Buttons are "START NEW GAME" and "RESUME GAME" in red-orange (#D84315), no confirmation dialogs.
+- TabletDisplayState includes servingPlayerName, teamACourtOrderedName, and teamBCourtOrderedName (wire protocol bumped to 16 fields).
+- Player names and server indices are persisted in SharedPreferences for match restore after app relaunch.
+- Server rotation uses a simplified fixed-position model: P1/P4 are always right-side starters (Server 1), P2/P3 are left-side (Server 2). First-server exception makes Server 2 act as Server 1 at game start.
 - The Wear app currently supports standalone prototype scoring with watch-side score calls. This is a temporary implementation mismatch with the target architecture; future watch work should evolve it into a command-only controller.
 - Watch-to-phone synchronization is implemented in initial form and continues to be hardened.
 - My Team / Team A is blue; Opponent Team / Team B is green.

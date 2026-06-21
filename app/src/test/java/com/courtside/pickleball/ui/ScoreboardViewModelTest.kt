@@ -18,6 +18,10 @@ class ScoreboardViewModelTest {
         viewModel.startMatch(
             teamAName = "Team A",
             teamBName = "Team B",
+            teamAPlayer1 = "P1",
+            teamAPlayer2 = "P2",
+            teamBPlayer1 = "P3",
+            teamBPlayer2 = "P4",
             startingTeam = Team.A
         )
 
@@ -33,6 +37,10 @@ class ScoreboardViewModelTest {
         viewModel.startMatch(
             teamAName = "Team A",
             teamBName = "Team B",
+            teamAPlayer1 = "P1",
+            teamAPlayer2 = "P2",
+            teamBPlayer1 = "P3",
+            teamBPlayer2 = "P4",
             startingTeam = Team.A
         )
         val started = viewModel.state.value
@@ -50,6 +58,10 @@ class ScoreboardViewModelTest {
         viewModel.startMatch(
             teamAName = "Team A",
             teamBName = "Team B",
+            teamAPlayer1 = "P1",
+            teamAPlayer2 = "P2",
+            teamBPlayer1 = "P3",
+            teamBPlayer2 = "P4",
             startingTeam = Team.A
         )
         viewModel.recordRallyWinner(Team.A)
@@ -57,6 +69,10 @@ class ScoreboardViewModelTest {
         viewModel.startMatch(
             teamAName = "Chang & Fung",
             teamBName = "Lee & Wong",
+            teamAPlayer1 = "Chang",
+            teamAPlayer2 = "Fung",
+            teamBPlayer1 = "Lee",
+            teamBPlayer2 = "Wong",
             startingTeam = Team.B
         )
 
@@ -87,6 +103,10 @@ class ScoreboardViewModelTest {
         viewModel.startMatch(
             teamAName = "Team A",
             teamBName = "Team B",
+            teamAPlayer1 = "P1",
+            teamAPlayer2 = "P2",
+            teamBPlayer1 = "P3",
+            teamBPlayer2 = "P4",
             startingTeam = Team.A
         )
         viewModel.recordRallyWinner(Team.A)
@@ -105,6 +125,10 @@ class ScoreboardViewModelTest {
         viewModel.startMatch(
             teamAName = "Team A",
             teamBName = "Team B",
+            teamAPlayer1 = "P1",
+            teamAPlayer2 = "P2",
+            teamBPlayer1 = "P3",
+            teamBPlayer2 = "P4",
             startingTeam = Team.A
         )
 
@@ -123,6 +147,10 @@ class ScoreboardViewModelTest {
         viewModel.startMatch(
             teamAName = "Team A",
             teamBName = "Team B",
+            teamAPlayer1 = "P1",
+            teamAPlayer2 = "P2",
+            teamBPlayer1 = "P3",
+            teamBPlayer2 = "P4",
             startingTeam = Team.A
         )
         val beforeRally = viewModel.state.value

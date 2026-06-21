@@ -18,6 +18,7 @@ object WearSyncContract {
     const val KEY_TEAM_B_NAME = "team_b_name"
     const val KEY_SCORE_CALL = "score_call"
     const val KEY_SPOKEN_SCORE_CALL = "spoken_score_call"
+    const val KEY_SERVING_PLAYER_NAME = "serving_player_name"
     const val KEY_UPDATED_AT = "updated_at"
     const val KEY_MATCH_ACTIVE = "match_active"
     const val KEY_CAN_UNDO = "can_undo"

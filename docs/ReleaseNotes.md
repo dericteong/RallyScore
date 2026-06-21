@@ -97,6 +97,18 @@ Status: In development.
 - Connected tablet mode is command-only: it does not predict or independently
   mutate phone-owned score state before confirmation.
 - The blocking waiting-for-phone tablet screen was removed from the primary routing.
+- GameSettings now stores individual player names (teamAPlayer1, teamAPlayer2, teamBPlayer1, teamBPlayer2).
+- GameState supports `servingPlayerName()` using a fixed-position server model (P1/P4 always right-side Server 1, P2/P3 left-side Server 2).
+- GameState supports `courtOrderedTeamName()` returning player names in court-position order (swaps on odd scores).
+- Phone setup screen is now always landscape (`SCREEN_ORIENTATION_SENSOR_LANDSCAPE`) with side-by-side layout.
+- Setup screen has app title "RallyScore", swap teams button (⇅), solid team-colored cards, `imePadding()`, and always scrollable form column.
+- Score preview card simplified to "WE SERVE FIRST" / "OPP SERVE FIRST" / "TAP A TEAM" with team-colored background, tappable.
+- Scoreboard shows dynamic court-ordered team names, serving player underlined, call bar shows serving player (e.g., "P1 SERVES").
+- "Setup" button on scoreboard returns to setup screen to edit names mid-match.
+- "START NEW GAME" and "RESUME GAME" buttons use red-orange (#D84315), no confirmation dialogs.
+- TabletDisplayState includes `servingPlayerName`, `teamACourtOrderedName`, and `teamBCourtOrderedName`; wire protocol bumped to 16 fields.
+- Player names and server indices persisted in SharedPreferences for match restore.
+- Phone call score text enlarged to 56sp.
 
 ### Known Gaps
 

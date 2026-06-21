@@ -42,12 +42,26 @@ Verify:
 - Score call always shows serving score first.
 - Score can continue above 11 for timed play.
 - Undo restores complete prior state.
+- `servingPlayerName()` returns P1 at game start (first-server exception, Team A).
+- `servingPlayerName()` returns P4 when Team B serves with Server One and no exception.
+- `servingPlayerName()` returns P2 when Team A serves with Server Two and no exception.
+- `servingPlayerName()` returns P3 when Team B serves with Server Two and no exception.
+- `courtOrderedTeamName(Team.A)` swaps to P2 & P1 when Team A score is odd.
+- `courtOrderedTeamName(Team.B)` swaps to P4 & P3 when Team B score is odd.
+- Side out to Team B from Team A Server Two gives P4 as Server 1.
+- Side out to Team A from Team B Server Two gives P1 as Server 1.
 
 ## Phone Setup Manual Test
 
 Use a real phone when possible.
 
-- App launches in landscape.
+- App launches into landscape setup when no match is active.
+- Setup screen shows side-by-side layout: team cards on left, score preview on right.
+- App title "RallyScore" with blue square badge at top left.
+- Swap teams button (⇅) appears between My Team and Opponent Team cards.
+- Team cards use solid blue (My Team) and solid green (Opponent Team) backgrounds.
+- Score preview card shows "TAP A TEAM" when no team selected, "WE SERVE FIRST" or "OPP SERVE FIRST" when selected, with team-colored background.
+- Tapping score preview card toggles starting team.
 - Team A Player 1 and Player 2 fields accept more than two characters.
 - Team B Player 1 and Player 2 fields accept more than two characters.
 - Player fields default to P1, P2, P3, and P4.
@@ -55,26 +69,31 @@ Use a real phone when possible.
 - Defaults can be edited normally.
 - Delete/backspace works.
 - Names are uppercased.
-- My Team and Opponent Team setup sections are same visual height.
-- Watch connection status appears beside the `SET UP GAME` title and does not consume a separate row.
-- Player 1 and Player 2 fields fit side by side in each team section.
+- Watch and tablet connection pills fit side by side below the `SET UP GAME` title.
+- Voice Announcements appears in the right column with dropdown.
+- Player 1 and Player 2 fields fit side by side in each team card.
+- `imePadding()` prevents keyboard from cropping content.
+- Team form column is always vertically scrollable.
 - Keyboard does not crop entered text.
 - Pressing Enter/Done does not crash or jump focus to another field.
 - Keyboard-visible `DONE` hides the keyboard and returns to the full setup layout.
-- User can select starting server by tapping the full-width My Team or Opponent Team label band.
-- Focusing a player field also selects that team as the starting server.
-- Start button enables only after all four player names and starting server are set.
+- User can select starting server by tapping the team label band or focusing a player field.
+- Start button ("START NEW GAME") is red-orange (#D84315), enabled only when all four player names and starting server are set.
+- When editing from match, "RESUME GAME" button appears instead (also red-orange).
+- No confirmation dialog on Start or Resume.
 - Voice Announcements setting is visible and usable.
 - Voice Announcements includes Off, Phone, Watch, Tablet, Watch > Phone, Watch > Tablet, and Phone > Tablet.
 
 ## Phone Score / Display Manual Test
 
+- Phone uses landscape for score display.
 - Scores are large and readable.
 - Scoreboard uses high-contrast colors suitable for outdoor play.
 - Scores, score call, serving dots, and phone controls are readable for older players.
 - Team A row uses blue.
 - Team B row uses green.
-- Team rows show player names joined with `&`.
+- Team rows show player names in court-ordered format (swaps on odd scores).
+- Serving player name is underlined in the team name display.
 - Table dividers are neutral.
 - Serving team row shows one or two dots.
 - Tap Team A score records Team A rally winner.
@@ -82,6 +101,8 @@ Use a real phone when possible.
 - No manual score controls are visible.
 - No manual server controls are visible.
 - Call bar uses team colors for the relevant numbers.
+- Call bar shows serving player below score call (e.g., "P1 SERVES").
+- "Setup" button in top bar returns to setup screen for editing names mid-match.
 - TTS announces after rally input.
 - Voice Announcements defaults appropriately for Phone Only mode.
 - Voice Announcements can be set to Off.
@@ -94,6 +115,7 @@ Use a real phone when possible.
 - Display remains readable when mirrored or shown on the intended phone/tablet/monitor display.
 - Direct phone scoring remains usable as first-class Phone Only mode.
 - Watch connection status indicator is visible.
+- Tablet connection status indicator is visible.
 - Phone Only mode works as a first-class experience without a watch.
 
 ## Watch Only Manual Test
@@ -161,9 +183,10 @@ Initial implementation exists. Required before the connected Watch + Phone produ
 ## Shared Display Manual Test
 
 - Phone display mirroring is readable in landscape.
-- Shared display uses large score numbers and high contrast.
+- Shared display shows court-ordered team names (swapped on odd scores).
 - Shared display shows serving team and server number.
-- Mirrored normal score screen shows Team A score, Team B score, serving team, server number, player names, CALL, Undo, End, and the small watch connection rail.
+- Shared display shows serving player name underlined.
+- Mirrored normal score screen shows Team A score, Team B score, serving team, server number, player names, CALL, Undo, End, and "Setup" button.
 - Mirrored normal score screen does not show large Team A Won or Team B Won buttons.
 - Tablet or portable monitor does not own independent scoring logic.
 
@@ -174,12 +197,13 @@ Initial implementation exists. Required before the connected Watch + Phone produ
 - Tablet player fields default to P1, P2, P3, and P4.
 - Tablet allows first-server selection.
 - Tablet can start a match at `0 - 0 - 2`.
-- Tablet score screen shows both player-name groups.
+- Tablet score screen shows player names in court-ordered format.
+- Tablet score screen shows serving player name underlined.
 - Tablet score screen shows very large Team A and Team B scores.
-- Tablet score screen shows serving side and server number.
-- Tablet score screen shows CALL score.
+- Tablet score screen shows serving side and server number with horizontal dots.
+- Tablet score screen shows CALL score with serving player below (e.g., "P1 SERVES").
 - Tablet scoring controls are large, readable, and easy to tap.
-- Tapping ME WON or OPP WON records the rally winner through the shared scoring engine.
+- Tapping team score panel records the rally winner through the shared scoring engine.
 - Undo restores the previous rally.
 - Correction mode is available if already implemented for the shared phone/tablet UI.
 - Tablet voice announcement setting is visible and usable.
@@ -225,6 +249,15 @@ Initial implementation exists. Required before the connected Watch + Phone produ
 - Closing and reopening the tablet app reconnects automatically.
 - Closing and reopening the phone app restores the active phone-owned score and keeps accepting tablet reconnects.
 - Rebooting the tablet reconnects automatically after RallyScore is opened.
+
+## Persistence Manual Test
+
+- Start a match on the phone, change some scores, then kill the app.
+- Reopen the app: the match should resume with the same scores, serving team, server number.
+- Player names (teamAPlayer1, teamAPlayer2, teamBPlayer1, teamBPlayer2) should be restored.
+- Court-ordered names should reflect current score parity.
+- Serving player name should reflect current server state.
+- Undo history is NOT persisted (only current match state restores).
 
 ## Future Phone + Tablet Sync Manual Test
 

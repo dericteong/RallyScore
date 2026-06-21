@@ -58,6 +58,19 @@ Current product behavior allows scores to continue beyond 11 because many social
 
 The domain model has a `targetScore` and `winBy` setting plus `GameStatus.Complete`, but the current engine does not automatically end the game when a score reaches 11.
 
+## Serving Player
+
+`GameState.servingPlayerName()` returns the name of the player currently serving based on a simplified fixed-position model:
+
+- **Team A (right side):** P1 is the right-side player (Server 1), P2 is the left-side player (Server 2).
+- **Team B (left side):** P3 is the left-side player (Server 2), P4 is the right-side player (Server 1).
+
+Server 1 is always the right-side player. Server 2 is always the left-side player. The first-server exception makes Server 2 act as Server 1 at game start, so the effective server is Server 1 when `isFirstServerException` is true.
+
+## Court-Ordered Team Names
+
+`GameState.courtOrderedTeamName(team)` returns player names in order matching current court positions. On even scores the names are shown in default order (P1 & P2 for Team A, P3 & P4 for Team B). On odd scores the names are swapped (P2 & P1, P4 & P3) to reflect the switched court positions after a point.
+
 ## Undo
 
 Undo reverses the complete previous rally state, including:

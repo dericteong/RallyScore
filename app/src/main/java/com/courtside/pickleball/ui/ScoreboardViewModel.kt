@@ -23,8 +23,16 @@ class ScoreboardViewModel(
     val remoteTabletDisplayState: StateFlow<TabletDisplayState?> = TabletDisplaySync.remoteDisplayState
     val tabletConnectionState: StateFlow<TabletConnectionState> = TabletDisplaySync.connectionState
 
-    fun startMatch(teamAName: String, teamBName: String, startingTeam: Team) {
-        store.startMatch(teamAName, teamBName, startingTeam)
+    fun startMatch(
+        teamAName: String,
+        teamBName: String,
+        teamAPlayer1: String,
+        teamAPlayer2: String,
+        teamBPlayer1: String,
+        teamBPlayer2: String,
+        startingTeam: Team
+    ) {
+        store.startMatch(teamAName, teamBName, teamAPlayer1, teamAPlayer2, teamBPlayer1, teamBPlayer2, startingTeam)
     }
 
     fun recordRallyWinner(team: Team): GameState {
@@ -44,6 +52,17 @@ class ScoreboardViewModel(
 
     fun endMatch() {
         store.endMatch()
+    }
+
+    fun updateTeamNames(
+        teamAName: String,
+        teamBName: String,
+        teamAPlayer1: String,
+        teamAPlayer2: String,
+        teamBPlayer1: String,
+        teamBPlayer2: String
+    ) {
+        store.updateTeamNames(teamAName, teamBName, teamAPlayer1, teamAPlayer2, teamBPlayer1, teamBPlayer2)
     }
 
     fun sendTabletCommand(command: TabletCommand) {

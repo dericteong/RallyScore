@@ -37,10 +37,13 @@ import kotlinx.coroutines.launch
 data class TabletDisplayState(
     val teamAName: String,
     val teamBName: String,
+    val teamACourtOrderedName: String,
+    val teamBCourtOrderedName: String,
     val teamAScore: Int,
     val teamBScore: Int,
     val servingTeam: Team,
     val serverNumber: Int,
+    val servingPlayerName: String,
     val scoreCall: String,
     val spokenScoreCall: String,
     val voiceAnnouncementMode: VoiceAnnouncementMode,
@@ -1025,14 +1028,19 @@ object TabletDisplaySync {
             serverNumber.displayValue.toString(),
             scoreCall.toWireField(),
             spokenScoreCall().toWireField(),
-            voiceAnnouncementMode.wireValue
+            voiceAnnouncementMode.wireValue,
+            servingPlayerName().toWireField(),
+            courtOrderedTeamName(Team.A).toWireField(),
+            courtOrderedTeamName(Team.B).toWireField()
         ).joinToString("|")
 
     private fun String.toTabletDisplayState(): TabletDisplayState? {
         val fields = split("|")
-        if ((fields.size != 10 && fields.size != 11 && fields.size != 13) || fields[0] != PROTOCOL) return null
-        val hasCanUndo = fields.size == 11 || fields.size == 13
-        val hasVoiceFields = fields.size == 13
+        if ((fields.size != 10 && fields.size != 11 && fields.size != 13 && fields.size != 14 && fields.size != 16) || fields[0] != PROTOCOL) return null
+        val hasCanUndo = fields.size == 11 || fields.size == 13 || fields.size == 14 || fields.size == 16
+        val hasVoiceFields = fields.size == 13 || fields.size == 14 || fields.size == 16
+        val hasServingPlayerName = fields.size == 14 || fields.size == 16
+        val hasCourtNames = fields.size == 16
         val offset = if (hasCanUndo) 1 else 0
         val scoreCall = fields[9 + offset].fromWireField()
 
@@ -1042,6 +1050,8 @@ object TabletDisplaySync {
             canUndo = if (hasCanUndo) fields[3].toBooleanStrictOrNull() ?: false else false,
             teamAName = fields[3 + offset].fromWireField(),
             teamBName = fields[4 + offset].fromWireField(),
+            teamACourtOrderedName = if (hasCourtNames) fields[14 + offset].fromWireField() else fields[3 + offset].fromWireField(),
+            teamBCourtOrderedName = if (hasCourtNames) fields[15 + offset].fromWireField() else fields[4 + offset].fromWireField(),
             teamAScore = fields[5 + offset].toIntOrNull() ?: return null,
             teamBScore = fields[6 + offset].toIntOrNull() ?: return null,
             servingTeam = fields[7 + offset].toTeam(),
@@ -1050,7 +1060,8 @@ object TabletDisplaySync {
             spokenScoreCall = if (hasVoiceFields) fields[10 + offset].fromWireField() else scoreCall,
             voiceAnnouncementMode = VoiceAnnouncementMode.fromWireValue(
                 if (hasVoiceFields) fields[11 + offset] else null
-            )
+            ),
+            servingPlayerName = if (hasServingPlayerName) fields[12 + offset].fromWireField() else ""
         )
     }
 

@@ -30,8 +30,8 @@ Contains:
 - `Team`
 - `ServerNumber`
 - `GameStatus`
-- `GameSettings`
-- `GameState`
+- `GameSettings` (team names, individual player names `teamAPlayer1`/`teamAPlayer2`/`teamBPlayer1`/`teamBPlayer2`, target, winBy)
+- `GameState` (score, serving, `courtOrderedTeamName()`, `servingPlayerName()`)
 - `PickleballScoringEngine`
 
 Responsibilities:
@@ -55,7 +55,8 @@ Contains:
 Responsibilities:
 
 - Keep screen awake.
-- Preserve landscape orientation for phone and tablet display readability.
+- Use portrait orientation for phone setup.
+- Preserve landscape orientation for phone score/display screens and tablet score/display readability.
 - Act as scoring hub, rules executor, and display source.
 - Manage match setup state.
 - Expose game state to Compose.
@@ -260,7 +261,7 @@ Connected tablet mode renders phone-owned display snapshots:
 - Team scores.
 - Serving side.
 - Server number.
-- Player names.
+- Player names (including court-ordered names and serving player name).
 - CALL score.
 - Match-active timestamp.
 
@@ -304,6 +305,8 @@ instead of showing a blocking waiting screen.
 
 `GameState` is immutable. Each rally creates a new state.
 
+`GameState` includes `courtOrderedTeamName(team)` which returns player-name pairs in current court position order (swaps on odd scores), and `servingPlayerName()` which returns the name of the current serving player under a fixed-position model (P1/P4 always right-side Server 1, P2/P3 always left-side Server 2).
+
 Undo is implemented by keeping prior `GameState` values in a list for the current match. Undo is unlimited within the in-memory match session.
 
 ## Text Input Notes
@@ -329,4 +332,4 @@ Current behavior: pressing Enter/Done does not auto-focus the next field.
 - Tablet Only mode is not fully implemented yet.
 - Phone + Tablet synced scoring is future work and needs conflict handling.
 - Tablet display WebSocket sync is an initial prototype and still needs venue/hotspot hardening if retained.
-- Phone app restores active match score state after app relaunch, but undo history is not persisted yet.
+- Phone app restores active match score state and player names after app relaunch, but undo history is not persisted yet.

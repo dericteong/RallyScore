@@ -26,6 +26,10 @@ object RallyScorePhoneHub {
     private const val KEY_MATCH_ACTIVE = "match_active"
     private const val KEY_TEAM_A_NAME = "team_a_name"
     private const val KEY_TEAM_B_NAME = "team_b_name"
+    private const val KEY_TEAM_A_PLAYER1 = "team_a_player1"
+    private const val KEY_TEAM_A_PLAYER2 = "team_a_player2"
+    private const val KEY_TEAM_B_PLAYER1 = "team_b_player1"
+    private const val KEY_TEAM_B_PLAYER2 = "team_b_player2"
     private const val KEY_TEAM_A_SCORE = "team_a_score"
     private const val KEY_TEAM_B_SCORE = "team_b_score"
     private const val KEY_SERVING_TEAM = "serving_team"
@@ -182,6 +186,7 @@ object RallyScorePhoneHub {
             dataMap.putString(WearSyncContract.KEY_TEAM_B_NAME, state.settings.teamBName)
             dataMap.putString(WearSyncContract.KEY_SCORE_CALL, state.scoreCall)
             dataMap.putString(WearSyncContract.KEY_SPOKEN_SCORE_CALL, state.spokenScoreCall())
+            dataMap.putString(WearSyncContract.KEY_SERVING_PLAYER_NAME, state.servingPlayerName())
             dataMap.putLong(WearSyncContract.KEY_UPDATED_AT, System.currentTimeMillis())
             dataMap.putBoolean(WearSyncContract.KEY_MATCH_ACTIVE, store.matchActive.value)
             dataMap.putBoolean(WearSyncContract.KEY_CAN_UNDO, store.canUndo())
@@ -221,7 +226,11 @@ object RallyScorePhoneHub {
             isFirstServerException = prefs.getBoolean(KEY_FIRST_SERVER_EXCEPTION, true),
             settings = GameSettings(
                 teamAName = prefs.getString(KEY_TEAM_A_NAME, null) ?: "Team A",
-                teamBName = prefs.getString(KEY_TEAM_B_NAME, null) ?: "Team B"
+                teamBName = prefs.getString(KEY_TEAM_B_NAME, null) ?: "Team B",
+                teamAPlayer1 = prefs.getString(KEY_TEAM_A_PLAYER1, null) ?: "P1",
+                teamAPlayer2 = prefs.getString(KEY_TEAM_A_PLAYER2, null) ?: "P2",
+                teamBPlayer1 = prefs.getString(KEY_TEAM_B_PLAYER1, null) ?: "P3",
+                teamBPlayer2 = prefs.getString(KEY_TEAM_B_PLAYER2, null) ?: "P4"
             )
         )
         store.restore(state = state, matchActive = true)
@@ -234,6 +243,10 @@ object RallyScorePhoneHub {
             .putBoolean(KEY_MATCH_ACTIVE, matchActive)
             .putString(KEY_TEAM_A_NAME, state.settings.teamAName)
             .putString(KEY_TEAM_B_NAME, state.settings.teamBName)
+            .putString(KEY_TEAM_A_PLAYER1, state.settings.teamAPlayer1)
+            .putString(KEY_TEAM_A_PLAYER2, state.settings.teamAPlayer2)
+            .putString(KEY_TEAM_B_PLAYER1, state.settings.teamBPlayer1)
+            .putString(KEY_TEAM_B_PLAYER2, state.settings.teamBPlayer2)
             .putInt(KEY_TEAM_A_SCORE, state.teamAScore)
             .putInt(KEY_TEAM_B_SCORE, state.teamBScore)
             .putString(KEY_SERVING_TEAM, state.servingTeam.name)

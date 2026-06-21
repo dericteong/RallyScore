@@ -173,4 +173,136 @@ class PickleballScoringEngineTest {
             VoiceAnnouncementMode.fromWireValue("future-mode")
         )
     }
+
+    @Test
+    fun servingPlayerAtGameStartIsP1() {
+        val state = GameState()
+
+        assertEquals("P1", state.servingPlayerName())
+    }
+
+    @Test
+    fun servingPlayerAfterTeamAScoresStillP1() {
+        val state = GameState(
+            teamAScore = 1,
+            teamBScore = 0,
+            servingTeam = Team.A,
+            serverNumber = ServerNumber.Two,
+            isFirstServerException = true
+        )
+
+        assertEquals("P1", state.servingPlayerName())
+    }
+
+    @Test
+    fun servingPlayerAfterSideOutToTeamBIsP4() {
+        val state = GameState(
+            teamAScore = 3,
+            teamBScore = 4,
+            servingTeam = Team.B,
+            serverNumber = ServerNumber.One,
+            isFirstServerException = false
+        )
+
+        assertEquals("P4", state.servingPlayerName())
+    }
+
+    @Test
+    fun servingPlayerTeamBContinuesAfterScoring() {
+        val state = GameState(
+            teamAScore = 0,
+            teamBScore = 1,
+            servingTeam = Team.B,
+            serverNumber = ServerNumber.One,
+            isFirstServerException = false
+        )
+
+        assertEquals("P4", state.servingPlayerName())
+    }
+
+    @Test
+    fun serverOneTeamAIsP1() {
+        val state = GameState(
+            teamAScore = 8,
+            teamBScore = 6,
+            servingTeam = Team.A,
+            serverNumber = ServerNumber.One,
+            isFirstServerException = false
+        )
+
+        assertEquals("P1", state.servingPlayerName())
+    }
+
+    @Test
+    fun serverTwoTeamAIsP2() {
+        val state = GameState(
+            teamAScore = 8,
+            teamBScore = 6,
+            servingTeam = Team.A,
+            serverNumber = ServerNumber.Two,
+            isFirstServerException = false
+        )
+
+        assertEquals("P2", state.servingPlayerName())
+    }
+
+    @Test
+    fun serverOneTeamBIsP4() {
+        val state = GameState(
+            teamAScore = 6,
+            teamBScore = 8,
+            servingTeam = Team.B,
+            serverNumber = ServerNumber.One,
+            isFirstServerException = false
+        )
+
+        assertEquals("P4", state.servingPlayerName())
+    }
+
+    @Test
+    fun serverTwoTeamBIsP3() {
+        val state = GameState(
+            teamAScore = 6,
+            teamBScore = 8,
+            servingTeam = Team.B,
+            serverNumber = ServerNumber.Two,
+            isFirstServerException = false
+        )
+
+        assertEquals("P3", state.servingPlayerName())
+    }
+
+    @Test
+    fun sideOutToTeamBGivesP4AsServer1() {
+        val state = GameState(
+            teamAScore = 8,
+            teamBScore = 6,
+            servingTeam = Team.A,
+            serverNumber = ServerNumber.Two,
+            isFirstServerException = false
+        )
+
+        val next = engine.recordRallyWinner(state, Team.B)
+
+        assertEquals(Team.B, next.servingTeam)
+        assertEquals(ServerNumber.One, next.serverNumber)
+        assertEquals("P4", next.servingPlayerName())
+    }
+
+    @Test
+    fun sideOutToTeamAGivesP1AsServer1() {
+        val state = GameState(
+            teamAScore = 3,
+            teamBScore = 4,
+            servingTeam = Team.B,
+            serverNumber = ServerNumber.Two,
+            isFirstServerException = false
+        )
+
+        val next = engine.recordRallyWinner(state, Team.A)
+
+        assertEquals(Team.A, next.servingTeam)
+        assertEquals(ServerNumber.One, next.serverNumber)
+        assertEquals("P1", next.servingPlayerName())
+    }
 }

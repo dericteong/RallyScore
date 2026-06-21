@@ -111,7 +111,7 @@ The shared display surface can still be the normal phone score screen mirrored d
 
 Initial wireless tablet display sync is display-only and local-network only. The phone hosts a lightweight local WebSocket publisher for display-ready score snapshots. Tablet-sized Android screens can connect to the phone over external Wi-Fi or the phone's own hotspot and render the latest confirmed phone-owned snapshot. No Internet connection is required. The tablet can also scan its local subnet for the phone WebSocket so the connection is initiated from the tablet on networks that block inbound phone-to-tablet delivery. Discovery uses live IPv4 network interfaces, remembered endpoints, gateway probing, UDP broadcasts, and the earlier TCP endpoint path as fallback aids. Users should not need to know or enter IP addresses.
 
-Snapshots contain display-ready match state only: team names, scores, serving team, server number, score call, active flag, undo availability, and timestamp. The connected tablet renders confirmed phone-owned snapshots and does not run scoring rules.
+Snapshots contain display-ready match state only: team names, court-ordered team names, scores, serving team, server number, serving player name, score call, voice announcement mode, active flag, undo availability, and timestamp. The connected tablet renders confirmed phone-owned snapshots and does not run scoring rules.
 
 The same WebSocket carries tablet-to-phone commands. Tablet commands are:
 
@@ -162,8 +162,8 @@ Key objects:
 
 - `Team`: A or B.
 - `ServerNumber`: One or Two.
-- `GameSettings`: names and target/win settings.
-- `GameState`: immutable score and serving state.
+- `GameSettings`: team names, individual player names (`teamAPlayer1`, `teamAPlayer2`, `teamBPlayer1`, `teamBPlayer2`), and target/win settings.
+- `GameState`: immutable score, serving state, `courtOrderedTeamName(team)` for court-position-ordered names, `servingPlayerName()` for the current serving player.
 - `PickleballScoringEngine`: applies rally-winner rules.
 
 The domain model is intentionally small. The app should prefer adding tests to shared domain before extending score logic.
@@ -269,7 +269,7 @@ Future sync dependencies should live in Android modules or a dedicated Android-f
 
 ## Persistence
 
-Current phone-owned match score state is persisted lightly so an active match can be restored after phone app relaunch. Undo history is still in memory only.
+Current phone-owned match score state and player names are persisted in SharedPreferences so an active match can be restored after phone app relaunch. Undo history is still in memory only.
 
 Future persistence options:
 
