@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -34,6 +35,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -490,7 +492,7 @@ private fun MatchSetupScreen(
         ) {
             Column(
                 modifier = Modifier
-                    .weight(1.3f)
+                    .weight(1.38f)
                     .verticalScroll(setupScrollState),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
@@ -500,6 +502,7 @@ private fun MatchSetupScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(
+                        modifier = Modifier.weight(1f),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
@@ -515,6 +518,22 @@ private fun MatchSetupScreen(
                             maxLines = 1
                         )
                     }
+                    if (!keyboardVisible) {
+                        Row(
+                            modifier = Modifier.padding(start = 12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            WatchConnectionStatusBar(
+                                modifier = Modifier.widthIn(min = 138.dp),
+                                connected = watchConnected
+                            )
+                            PhoneTabletStatusBar(
+                                modifier = Modifier.widthIn(min = 148.dp),
+                                connectionState = tabletConnectionState
+                            )
+                        }
+                    }
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -528,30 +547,15 @@ private fun MatchSetupScreen(
                         fontWeight = FontWeight.Black,
                         maxLines = 1
                     )
-                }
-                if (!keyboardVisible) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        WatchConnectionStatusBar(
-                            modifier = Modifier.weight(1f),
-                            connected = watchConnected
-                        )
-                        PhoneTabletStatusBar(
-                            modifier = Modifier.weight(1f),
-                            connectionState = tabletConnectionState
+                    if (!keyboardVisible) {
+                        Text(
+                            text = "Enter names by player position",
+                            color = Color(0xFF4D5963),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1
                         )
                     }
-                }
-                if (!keyboardVisible) {
-                    Text(
-                        text = "Enter names, then tap who serves first.",
-                        color = Color(0xFF4D5963),
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1
-                    )
                 }
                 if (myTeamOnTop) {
                     SetupTeamNameFields(
@@ -564,7 +568,11 @@ private fun MatchSetupScreen(
                         onPlayer1Change = onTeamAPlayer1Change,
                         onPlayer2Change = onTeamAPlayer2Change,
                         onKeyboardAction = hideKeyboard,
-                        onSelect = { onStartingTeamChange(Team.A) }
+                        onSelect = if (editingFromMatch) {
+                            {}
+                        } else {
+                            { onStartingTeamChange(Team.A) }
+                        }
                     )
                     SwapTeamsButton(onSwap = onSwapTeams)
                     SetupTeamNameFields(
@@ -577,7 +585,11 @@ private fun MatchSetupScreen(
                         onPlayer1Change = onTeamBPlayer1Change,
                         onPlayer2Change = onTeamBPlayer2Change,
                         onKeyboardAction = hideKeyboard,
-                        onSelect = { onStartingTeamChange(Team.B) }
+                        onSelect = if (editingFromMatch) {
+                            {}
+                        } else {
+                            { onStartingTeamChange(Team.B) }
+                        }
                     )
                 } else {
                     SetupTeamNameFields(
@@ -590,7 +602,11 @@ private fun MatchSetupScreen(
                         onPlayer1Change = onTeamBPlayer1Change,
                         onPlayer2Change = onTeamBPlayer2Change,
                         onKeyboardAction = hideKeyboard,
-                        onSelect = { onStartingTeamChange(Team.B) }
+                        onSelect = if (editingFromMatch) {
+                            {}
+                        } else {
+                            { onStartingTeamChange(Team.B) }
+                        }
                     )
                     SwapTeamsButton(onSwap = onSwapTeams)
                     SetupTeamNameFields(
@@ -603,31 +619,37 @@ private fun MatchSetupScreen(
                         onPlayer1Change = onTeamAPlayer1Change,
                         onPlayer2Change = onTeamAPlayer2Change,
                         onKeyboardAction = hideKeyboard,
-                        onSelect = { onStartingTeamChange(Team.A) }
+                        onSelect = if (editingFromMatch) {
+                            {}
+                        } else {
+                            { onStartingTeamChange(Team.A) }
+                        }
                     )
                 }
             }
 
             Column(
-                modifier = Modifier.weight(0.7f),
+                modifier = Modifier.weight(0.62f),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(if (keyboardVisible) 8.dp else 8.dp)
             ) {
                 if (!keyboardVisible) {
-                    VoiceAnnouncementControls(
-                        selectedMode = voiceAnnouncementMode,
-                        onModeChange = onVoiceAnnouncementModeChange
-                    )
+                    Spacer(modifier = Modifier.height(38.dp))
                 }
-                ScorePreviewCard(startingTeam, compact = keyboardVisible, onTap = {
-                    onStartingTeamChange(
-                        when (startingTeam) {
-                            Team.A -> Team.B
-                            Team.B -> Team.A
-                            null -> Team.A
-                        }
-                    )
-                })
+                ScorePreviewCard(
+                    startingTeam = startingTeam,
+                    compact = keyboardVisible,
+                    enabled = !editingFromMatch,
+                    onTap = {
+                        onStartingTeamChange(
+                            when (startingTeam) {
+                                Team.A -> Team.B
+                                Team.B -> Team.A
+                                null -> Team.A
+                            }
+                        )
+                    }
+                )
                 if (editingFromMatch) {
                     Button(
                         modifier = Modifier
@@ -639,12 +661,37 @@ private fun MatchSetupScreen(
                     ) {
                         Text(
                             text = "RESUME GAME",
-                            fontSize = 24.sp,
+                            fontSize = 20.sp,
                             fontWeight = FontWeight.Black,
                             textAlign = TextAlign.Center,
                             maxLines = 1
                         )
                     }
+                } else if (!keyboardVisible) {
+                    Button(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp),
+                        onClick = onStart,
+                        enabled = canStart,
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD84315))
+                    ) {
+                        Text(
+                            text = "START NEW GAME",
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Black,
+                            textAlign = TextAlign.Center,
+                            maxLines = 2
+                        )
+                    }
+                }
+                if (!keyboardVisible) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    VoiceAnnouncementControls(
+                        selectedMode = voiceAnnouncementMode,
+                        onModeChange = onVoiceAnnouncementModeChange
+                    )
                 }
                 if (keyboardVisible) {
                     OutlinedButton(
@@ -662,24 +709,6 @@ private fun MatchSetupScreen(
                             fontWeight = FontWeight.Black,
                             textAlign = TextAlign.Center,
                             maxLines = 1
-                        )
-                    }
-                } else if (!editingFromMatch) {
-                    Button(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(56.dp),
-                        onClick = onStart,
-                        enabled = canStart,
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD84315))
-                    ) {
-                        Text(
-                            text = "START NEW GAME",
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Black,
-                            textAlign = TextAlign.Center,
-                            maxLines = 2
                         )
                     }
                 }
@@ -859,7 +888,12 @@ private fun SetupPlayerInput(
 }
 
 @Composable
-private fun ScorePreviewCard(startingTeam: Team?, compact: Boolean = false, onTap: () -> Unit = {}) {
+private fun ScorePreviewCard(
+    startingTeam: Team?,
+    compact: Boolean = false,
+    enabled: Boolean = true,
+    onTap: () -> Unit = {}
+) {
     val bgColor = when (startingTeam) {
         Team.A -> TeamABlue
         Team.B -> TeamBGreen
@@ -870,7 +904,7 @@ private fun ScorePreviewCard(startingTeam: Team?, compact: Boolean = false, onTa
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
             .background(bgColor)
-            .clickable(onClick = onTap)
+            .clickable(enabled = enabled, onClick = onTap)
             .padding(horizontal = 16.dp, vertical = if (compact) 14.dp else 14.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 6.dp)
@@ -882,7 +916,7 @@ private fun ScorePreviewCard(startingTeam: Team?, compact: Boolean = false, onTa
                 null -> "TAP A TEAM"
             },
             color = Color.White,
-            fontSize = if (compact) 18.sp else 22.sp,
+            fontSize = if (compact) 18.sp else 19.sp,
             fontWeight = FontWeight.Black,
             textAlign = TextAlign.Center,
             maxLines = 1
@@ -1539,11 +1573,11 @@ private fun WatchConnectionStatusBar(
         Text(
             text = label,
             color = Color.White,
-            fontSize = 12.sp,
+            fontSize = 10.sp,
             fontWeight = FontWeight.Black,
             textAlign = TextAlign.Center,
             maxLines = 1,
-            modifier = Modifier.padding(start = 8.dp)
+            modifier = Modifier.padding(start = 6.dp)
         )
     }
 }
@@ -1573,11 +1607,11 @@ private fun PhoneTabletStatusBar(
         Text(
             text = label,
             color = Color.White,
-            fontSize = 12.sp,
+            fontSize = 10.sp,
             fontWeight = FontWeight.Black,
             textAlign = TextAlign.Center,
             maxLines = 1,
-            modifier = Modifier.padding(start = 8.dp)
+            modifier = Modifier.padding(start = 6.dp)
         )
     }
 }
