@@ -15,7 +15,9 @@ import android.view.KeyEvent
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
@@ -62,6 +64,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -78,6 +81,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.courtside.pickleball.R
 import com.courtside.pickleball.domain.GameState
 import com.courtside.pickleball.domain.GameStatus
 import com.courtside.pickleball.domain.ServerNumber
@@ -108,7 +112,7 @@ private val SetupTeamCardHeight = 104.dp
 private val SetupTeamCardCompactHeight = 98.dp
 private val SetupPlayerInputHeight = 50.dp
 private val SetupPlayerInputCompactHeight = 48.dp
-private val ScoreCellWidth = 180.dp
+private val ScoreCellWidth = 156.dp
 private val ServeCellWidth = 96.dp
 private val ScoreControlButtonWidth = 92.dp
 private const val SecondaryVoiceDelayMs = 2_000L
@@ -409,7 +413,7 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
         if (showEndMatchDialog) {
             AlertDialog(
                 onDismissRequest = { showEndMatchDialog = false },
-                title = { Text("End game?") },
+                title = { Text("End Game?") },
                 text = { Text("This clears the current game and returns to player setup.") },
                 confirmButton = {
                     Button(
@@ -419,7 +423,7 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Warning)
                     ) {
-                        Text("End game")
+                        Text("End Game")
                     }
                 },
                 dismissButton = {
@@ -506,9 +510,10 @@ private fun MatchSetupScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Box(
-                            modifier = Modifier.size(18.dp)
-                                .background(TeamABlue, RoundedCornerShape(4.dp))
+                        Image(
+                            painter = painterResource(id = R.drawable.ic_launcher_foreground),
+                            contentDescription = "RallyScore icon",
+                            modifier = Modifier.size(22.dp)
                         )
                         Text(
                             text = "RallyScore",
@@ -549,9 +554,9 @@ private fun MatchSetupScreen(
                     )
                     if (!keyboardVisible) {
                         Text(
-                            text = "Enter names by player position",
-                            color = Color(0xFF4D5963),
-                            fontSize = 12.sp,
+                            text = "Enter names by player standing position",
+                            color = Ink.copy(alpha = 0.78f),
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1
                         )
@@ -723,17 +728,21 @@ private fun SwapTeamsButton(onSwap: () -> Unit) {
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.Center
     ) {
-        Box(
-            modifier = Modifier.size(24.dp)
-                .clip(CircleShape)
-                .background(Color(0xFF374151))
-                .clickable(onClick = onSwap),
-            contentAlignment = Alignment.Center
+        OutlinedButton(
+            onClick = onSwap,
+            shape = RoundedCornerShape(8.dp),
+            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
+            border = BorderStroke(2.dp, Color(0xFF374151)),
+            colors = ButtonDefaults.outlinedButtonColors(
+                containerColor = Color.White,
+                contentColor = Ink
+            ),
+            modifier = Modifier.height(34.dp)
         ) {
             Text(
-                text = "\u21C5",
-                color = Color.White,
-                fontSize = 14.sp,
+                text = "\u21C5 SWAP SIDE",
+                color = Ink,
+                fontSize = 13.sp,
                 fontWeight = FontWeight.Black,
                 textAlign = TextAlign.Center,
                 maxLines = 1
@@ -1381,6 +1390,7 @@ private fun TeamScoreTableRow(
                 modifier = Modifier.padding(horizontal = 16.dp),
                 name = name,
                 color = Color.White,
+                highlightColor = color,
                 servingPlayerName = servingPlayerName
             )
         }
@@ -1401,24 +1411,75 @@ private fun TeamNameDisplay(
     modifier: Modifier,
     name: String,
     color: Color,
+    highlightColor: Color,
     servingPlayerName: String = ""
 ) {
     val parts = name.uppercase().split(" & ", limit = 2)
     val serving = servingPlayerName.uppercase().trim()
-    if (parts.size == 2 && serving.isNotEmpty()) {
-        val annotated = buildAnnotatedString {
-            if (parts[0] == serving) {
-                withStyle(SpanStyle(textDecoration = TextDecoration.Underline)) { append(parts[0]) }
-            } else { append(parts[0]) }
-            append(" & ")
-            if (parts[1] == serving) {
-                withStyle(SpanStyle(textDecoration = TextDecoration.Underline)) { append(parts[1]) }
-            } else { append(parts[1]) }
+    val playerOne = parts.getOrNull(0)?.trim().orEmpty()
+    val playerTwo = parts.getOrNull(1)?.trim().orEmpty()
+
+    if (playerTwo.isNotEmpty()) {
+        Row(
+            modifier = modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            PositionedPlayerName(
+                modifier = Modifier.weight(1f),
+                name = playerOne,
+                color = color,
+                highlightColor = highlightColor,
+                isServing = playerOne == serving
+            )
+            Text(
+                text = "|",
+                color = Color.White.copy(alpha = 0.9f),
+                fontSize = 34.sp,
+                fontWeight = FontWeight.Black,
+                maxLines = 1
+            )
+            PositionedPlayerName(
+                modifier = Modifier.weight(1f),
+                name = playerTwo,
+                color = color,
+                highlightColor = highlightColor,
+                isServing = playerTwo == serving
+            )
         }
-        Text(modifier = modifier, text = annotated, color = color, fontSize = 38.sp, fontWeight = FontWeight.Black, lineHeight = 42.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     } else {
-        Text(modifier = modifier, text = name.uppercase(), color = color, fontSize = 38.sp, fontWeight = FontWeight.Black, lineHeight = 42.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        PositionedPlayerName(
+            modifier = modifier,
+            name = name.uppercase(),
+            color = color,
+            highlightColor = highlightColor,
+            isServing = name.uppercase().trim() == serving
+        )
     }
+}
+
+@Composable
+private fun PositionedPlayerName(
+    modifier: Modifier,
+    name: String,
+    color: Color,
+    highlightColor: Color,
+    isServing: Boolean
+) {
+    Text(
+        modifier = modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(if (isServing) Color.White else Color.Transparent)
+            .padding(horizontal = if (isServing) 8.dp else 0.dp, vertical = if (isServing) 4.dp else 0.dp),
+        text = name,
+        color = if (isServing) highlightColor else color,
+        fontSize = if (isServing) 40.sp else 34.sp,
+        fontWeight = FontWeight.Black,
+        lineHeight = if (isServing) 42.sp else 38.sp,
+        textDecoration = TextDecoration.None,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis
+    )
 }
 
 @Composable
@@ -1668,76 +1729,58 @@ private fun ControlBar(
     onUndo: () -> Unit,
     onEndMatchRequested: () -> Unit
 ) {
-    val status = state.status
-
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .height(100.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .height(108.dp)
+            .background(CallBackground, RoundedCornerShape(8.dp))
+            .padding(horizontal = 18.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.Center
     ) {
         Box(
             modifier = Modifier
-                .weight(1f)
+                .fillMaxWidth()
                 .fillMaxHeight()
-                .background(CallBackground, RoundedCornerShape(8.dp))
-                .padding(horizontal = 18.dp, vertical = 6.dp),
         ) {
             Text(
-                modifier = Modifier.align(Alignment.TopStart),
-                text = "CALL",
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .fillMaxWidth(),
+                text = state.scoreOnlyCallBarText(state.status),
                 color = Color.White,
-                fontSize = 22.sp,
+                fontSize = 84.sp,
                 fontWeight = FontWeight.Black,
-                maxLines = 1
+                lineHeight = 86.sp,
+                maxLines = 1,
+                textAlign = TextAlign.Center
             )
             Column(
-                modifier = Modifier.align(Alignment.Center),
-                horizontalAlignment = Alignment.CenterHorizontally
+                modifier = Modifier.align(Alignment.CenterEnd),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalAlignment = Alignment.End
             ) {
-                Text(
-                    text = state.scoreOnlyCallBarText(status),
-                    color = Color.White,
-                    fontSize = 56.sp,
-                    fontWeight = FontWeight.Black,
-                    lineHeight = 58.sp,
-                    maxLines = 1,
-                    textAlign = TextAlign.Center
-                )
-                if (status is GameStatus.InProgress) {
-                    Text(
-                        text = "${state.servingPlayerName()} SERVES",
-                        color = state.teamColor(state.servingTeam),
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Black,
-                        maxLines = 1,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(top = 2.dp)
-                    )
+                OutlinedButton(
+                    modifier = Modifier
+                        .height(38.dp)
+                        .width(82.dp),
+                    onClick = onUndo,
+                    enabled = canUndo,
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                ) {
+                    Text("UNDO", fontSize = 14.sp, fontWeight = FontWeight.Black, maxLines = 1)
+                }
+                OutlinedButton(
+                    modifier = Modifier
+                        .height(38.dp)
+                        .width(82.dp),
+                    onClick = onEndMatchRequested,
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                ) {
+                    Text("END", fontSize = 14.sp, fontWeight = FontWeight.Black, maxLines = 1)
                 }
             }
-        }
-        OutlinedButton(
-            modifier = Modifier
-                .fillMaxHeight()
-                .width(ScoreControlButtonWidth),
-            onClick = onUndo,
-            enabled = canUndo,
-            shape = RoundedCornerShape(8.dp),
-            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
-        ) {
-            Text("UNDO", fontSize = 18.sp, fontWeight = FontWeight.Black, maxLines = 1)
-        }
-        OutlinedButton(
-            modifier = Modifier
-                .fillMaxHeight()
-                .width(ScoreControlButtonWidth),
-            onClick = onEndMatchRequested,
-            shape = RoundedCornerShape(8.dp),
-            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
-        ) {
-            Text("END", fontSize = 18.sp, fontWeight = FontWeight.Black, maxLines = 1)
         }
     }
 }
