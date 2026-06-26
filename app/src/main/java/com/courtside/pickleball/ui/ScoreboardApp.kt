@@ -340,6 +340,7 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
                 } else {
                     ScoreboardScreen(
                         state = state,
+                        myTeamOnTop = myTeamOnTop,
                         canUndo = viewModel.canUndo(),
                         watchConnected = watchConnected,
                         tabletConnectionState = tabletConnectionState,
@@ -1240,6 +1241,7 @@ private fun TabletDisplayCallBar(
 @Composable
 private fun ScoreboardScreen(
     state: GameState,
+    myTeamOnTop: Boolean,
     canUndo: Boolean,
     watchConnected: Boolean,
     tabletConnectionState: TabletConnectionState,
@@ -1276,14 +1278,16 @@ private fun ScoreboardScreen(
                     connectionState = tabletConnectionState
                 )
                 Button(
-                    modifier = Modifier.height(36.dp),
+                    modifier = Modifier
+                        .height(38.dp)
+                        .width(138.dp),
                     onClick = onNavigateToSetup,
                     shape = RoundedCornerShape(6.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF374151)),
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
                 ) {
                     Text(
-                        text = "Setup",
+                        text = "SETUP",
                         color = Color.White,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
@@ -1291,17 +1295,18 @@ private fun ScoreboardScreen(
                     )
                 }
             }
-            ScoreboardBody(
-                modifier = Modifier.weight(1f),
-                state = state,
-                onTeamARally = onTeamARally,
-                onTeamBRally = onTeamBRally
-            )
             ControlBar(
                 state = state,
                 canUndo = canUndo,
                 onUndo = onUndo,
                 onEndMatchRequested = onEndMatchRequested
+            )
+            ScoreboardBody(
+                modifier = Modifier.weight(1f),
+                state = state,
+                myTeamOnTop = myTeamOnTop,
+                onTeamARally = onTeamARally,
+                onTeamBRally = onTeamBRally
             )
         }
     }
@@ -1311,10 +1316,12 @@ private fun ScoreboardScreen(
 private fun ScoreboardBody(
     modifier: Modifier,
     state: GameState,
+    myTeamOnTop: Boolean,
     onTeamARally: () -> Unit,
     onTeamBRally: () -> Unit
 ) {
     val gameOver = state.status is GameStatus.Complete
+    val orderedTeams = if (myTeamOnTop) listOf(Team.A, Team.B) else listOf(Team.B, Team.A)
 
     Column(
         modifier = modifier
@@ -1322,28 +1329,19 @@ private fun ScoreboardBody(
             .clip(RoundedCornerShape(10.dp)),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        TeamScoreTableRow(
-            modifier = Modifier.weight(1f),
-            name = state.courtOrderedTeamName(Team.A),
-            score = state.teamAScore,
-            color = TeamABlue,
-            isServing = state.servingTeam == Team.A,
-            serverNumber = state.serverNumber,
-            enabled = !gameOver,
-            onScoreClick = onTeamARally,
-            servingPlayerName = if (state.servingTeam == Team.A) state.servingPlayerName() else ""
-        )
-        TeamScoreTableRow(
-            modifier = Modifier.weight(1f),
-            name = state.courtOrderedTeamName(Team.B),
-            score = state.teamBScore,
-            color = TeamBGreen,
-            isServing = state.servingTeam == Team.B,
-            serverNumber = state.serverNumber,
-            enabled = !gameOver,
-            onScoreClick = onTeamBRally,
-            servingPlayerName = if (state.servingTeam == Team.B) state.servingPlayerName() else ""
-        )
+        orderedTeams.forEach { team ->
+            TeamScoreTableRow(
+                modifier = Modifier.weight(1f),
+                name = state.courtOrderedTeamName(team),
+                score = if (team == Team.A) state.teamAScore else state.teamBScore,
+                color = if (team == Team.A) TeamABlue else TeamBGreen,
+                isServing = state.servingTeam == team,
+                serverNumber = state.serverNumber,
+                enabled = !gameOver,
+                onScoreClick = if (team == Team.A) onTeamARally else onTeamBRally,
+                servingPlayerName = if (state.servingTeam == team) state.servingPlayerName() else ""
+            )
+        }
     }
 }
 
@@ -1745,7 +1743,8 @@ private fun ControlBar(
             Text(
                 modifier = Modifier
                     .align(Alignment.Center)
-                    .fillMaxWidth(),
+                    .fillMaxWidth()
+                    .padding(end = 44.dp),
                 text = state.scoreOnlyCallBarText(state.status),
                 color = Color.White,
                 fontSize = 84.sp,
