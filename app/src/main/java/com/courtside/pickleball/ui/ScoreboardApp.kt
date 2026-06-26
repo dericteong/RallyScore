@@ -356,7 +356,7 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
             } else {
                 MatchSetupScreen(
                     editingFromMatch = editingSetupFromMatch,
-                    isTabletLayout = true,
+                    isTabletLayout = useTabletDisplayLayout,
                     myTeamOnTop = myTeamOnTop,
                     teamAPlayer1 = setupTeamAPlayer1,
                     teamAPlayer2 = setupTeamAPlayer2,
@@ -462,8 +462,24 @@ private fun MatchSetupScreen(
 ) {
     val density = LocalDensity.current
     val keyboardVisible = WindowInsets.ime.getBottom(density) > 0
-    val outerPadding = if (keyboardVisible) 10.dp else 18.dp
-    val columnSpacing = if (keyboardVisible) 6.dp else 10.dp
+    val outerHorizontalPadding = when {
+        keyboardVisible -> 18.dp
+        isTabletLayout -> 28.dp
+        else -> 18.dp
+    }
+    val outerVerticalPadding = when {
+        keyboardVisible -> 6.dp
+        isTabletLayout -> 12.dp
+        else -> 4.dp
+    }
+    val headerSpacing = if (isTabletLayout) 12.dp else 8.dp
+    val teamColumnWeight = if (isTabletLayout) 1.18f else 1.34f
+    val controlColumnWeight = if (isTabletLayout) 0.82f else 0.66f
+    val helperText = if (isTabletLayout) {
+        "Enter names by player standing position"
+    } else {
+        "Enter names by player standing position"
+    }
     val setupScrollState = rememberScrollState()
     val context = LocalContext.current
     val view = LocalView.current
@@ -491,15 +507,15 @@ private fun MatchSetupScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .safeDrawingPadding()
-                .padding(horizontal = 18.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                .padding(horizontal = outerHorizontalPadding, vertical = outerVerticalPadding),
+            horizontalArrangement = Arrangement.spacedBy(if (isTabletLayout) 14.dp else 8.dp),
             verticalAlignment = if (keyboardVisible) Alignment.Top else Alignment.CenterVertically
         ) {
             Column(
                 modifier = Modifier
-                    .weight(1.38f)
+                    .weight(teamColumnWeight)
                     .verticalScroll(setupScrollState),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+                verticalArrangement = Arrangement.spacedBy(if (isTabletLayout) 10.dp else 6.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -519,7 +535,7 @@ private fun MatchSetupScreen(
                         Text(
                             text = "RallyScore",
                             color = Ink,
-                            fontSize = 18.sp,
+                            fontSize = if (isTabletLayout) 20.sp else 18.sp,
                             fontWeight = FontWeight.Black,
                             maxLines = 1
                         )
@@ -527,15 +543,15 @@ private fun MatchSetupScreen(
                     if (!keyboardVisible) {
                         Row(
                             modifier = Modifier.padding(start = 12.dp),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(if (isTabletLayout) 8.dp else 6.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             WatchConnectionStatusBar(
-                                modifier = Modifier.widthIn(min = 138.dp),
+                                modifier = Modifier.widthIn(min = if (isTabletLayout) 150.dp else 138.dp),
                                 connected = watchConnected
                             )
                             PhoneTabletStatusBar(
-                                modifier = Modifier.widthIn(min = 148.dp),
+                                modifier = Modifier.widthIn(min = if (isTabletLayout) 160.dp else 148.dp),
                                 connectionState = tabletConnectionState
                             )
                         }
@@ -549,15 +565,19 @@ private fun MatchSetupScreen(
                     Text(
                         text = "SET UP GAME",
                         color = Ink,
-                        fontSize = if (keyboardVisible) 20.sp else 24.sp,
+                        fontSize = when {
+                            keyboardVisible -> 20.sp
+                            isTabletLayout -> 28.sp
+                            else -> 24.sp
+                        },
                         fontWeight = FontWeight.Black,
                         maxLines = 1
                     )
                     if (!keyboardVisible) {
                         Text(
-                            text = "Enter names by player standing position",
+                            text = helperText,
                             color = Ink.copy(alpha = 0.78f),
-                            fontSize = 13.sp,
+                            fontSize = if (isTabletLayout) 14.sp else 13.sp,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1
                         )
@@ -635,12 +655,12 @@ private fun MatchSetupScreen(
             }
 
             Column(
-                modifier = Modifier.weight(0.62f),
+                modifier = Modifier.weight(controlColumnWeight),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(if (keyboardVisible) 8.dp else 8.dp)
+                verticalArrangement = Arrangement.spacedBy(if (keyboardVisible) 8.dp else headerSpacing)
             ) {
                 if (!keyboardVisible) {
-                    Spacer(modifier = Modifier.height(38.dp))
+                    Spacer(modifier = Modifier.height(if (isTabletLayout) 44.dp else 38.dp))
                 }
                 ScorePreviewCard(
                     startingTeam = startingTeam,
@@ -660,14 +680,14 @@ private fun MatchSetupScreen(
                     Button(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(56.dp),
+                            .height(if (isTabletLayout) 60.dp else 56.dp),
                         onClick = onResumeMatch,
                         shape = RoundedCornerShape(8.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD84315))
                     ) {
                         Text(
                             text = "RESUME GAME",
-                            fontSize = 20.sp,
+                            fontSize = if (isTabletLayout) 22.sp else 20.sp,
                             fontWeight = FontWeight.Black,
                             textAlign = TextAlign.Center,
                             maxLines = 1
@@ -677,7 +697,7 @@ private fun MatchSetupScreen(
                     Button(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(56.dp),
+                            .height(if (isTabletLayout) 60.dp else 56.dp),
                         onClick = onStart,
                         enabled = canStart,
                         shape = RoundedCornerShape(8.dp),
@@ -685,7 +705,7 @@ private fun MatchSetupScreen(
                     ) {
                         Text(
                             text = "START NEW GAME",
-                            fontSize = 20.sp,
+                            fontSize = if (isTabletLayout) 22.sp else 20.sp,
                             fontWeight = FontWeight.Black,
                             textAlign = TextAlign.Center,
                             maxLines = 2
@@ -693,7 +713,7 @@ private fun MatchSetupScreen(
                     }
                 }
                 if (!keyboardVisible) {
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(if (isTabletLayout) 10.dp else 8.dp))
                     VoiceAnnouncementControls(
                         selectedMode = voiceAnnouncementMode,
                         onModeChange = onVoiceAnnouncementModeChange
@@ -944,8 +964,8 @@ private fun TabletDisplayScreen(
     onUndo: (() -> Unit)? = null,
     onEndMatchRequested: (() -> Unit)? = null
 ) {
-    val serverNumberEnum = state.serverNumber.toServerNumber()
     val isController = onUndo != null
+    val isConnectedController = connectionState == TabletConnectionState.Connected
 
     Surface(
         modifier = Modifier
@@ -957,124 +977,142 @@ private fun TabletDisplayScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .safeDrawingPadding()
-                .padding(horizontal = 34.dp, vertical = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(horizontal = 28.dp, vertical = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             ConnectionStatusBar(
                 connectionState = connectionState
             )
-            TabletDisplayCallBar(
+            TabletControlBar(
                 state = state,
                 canUndo = canUndo,
                 onUndo = onUndo,
                 onEndMatchRequested = onEndMatchRequested
             )
-            Row(
+            TabletScoreboardBody(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(24.dp)
-            ) {
-                TabletTeamScorePanel(
-                    modifier = Modifier.weight(1f),
-                    name = state.teamAName,
-                    score = state.teamAScore,
-                    color = TeamABlue,
-                    isServing = state.servingTeam == Team.A,
-                    serverNumber = serverNumberEnum,
-                    onTap = if (isController) onTeamARally else null
-                )
-                TabletTeamScorePanel(
-                    modifier = Modifier.weight(1f),
-                    name = state.teamBName,
-                    score = state.teamBScore,
-                    color = TeamBGreen,
-                    isServing = state.servingTeam == Team.B,
-                    serverNumber = serverNumberEnum,
-                    onTap = if (isController) onTeamBRally else null
-                )
-            }
+                state = state,
+                enabled = !isConnectedController || isController,
+                onTeamARally = onTeamARally,
+                onTeamBRally = onTeamBRally
+            )
         }
     }
 }
 
 @Composable
-private fun TabletTeamScorePanel(
+private fun TabletScoreboardBody(
+    modifier: Modifier,
+    state: TabletDisplayState,
+    enabled: Boolean,
+    onTeamARally: (() -> Unit)?,
+    onTeamBRally: (() -> Unit)?
+) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(10.dp)),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        TabletTeamScoreTableRow(
+            modifier = Modifier.weight(1f),
+            name = state.teamACourtOrderedName,
+            score = state.teamAScore,
+            color = TeamABlue,
+            isServing = state.servingTeam == Team.A,
+            serverNumber = state.serverNumber.toServerNumber(),
+            enabled = enabled,
+            onScoreClick = onTeamARally,
+            servingPlayerName = if (state.servingTeam == Team.A) state.servingPlayerName else ""
+        )
+        TabletTeamScoreTableRow(
+            modifier = Modifier.weight(1f),
+            name = state.teamBCourtOrderedName,
+            score = state.teamBScore,
+            color = TeamBGreen,
+            isServing = state.servingTeam == Team.B,
+            serverNumber = state.serverNumber.toServerNumber(),
+            enabled = enabled,
+            onScoreClick = onTeamBRally,
+            servingPlayerName = if (state.servingTeam == Team.B) state.servingPlayerName else ""
+        )
+    }
+}
+
+@Composable
+private fun TabletTeamScoreTableRow(
     modifier: Modifier,
     name: String,
     score: Int,
     color: Color,
     isServing: Boolean,
     serverNumber: ServerNumber,
-    isTablet: Boolean = true,
-    enabled: Boolean = true,
-    onTap: (() -> Unit)? = null
+    enabled: Boolean,
+    onScoreClick: (() -> Unit)?,
+    servingPlayerName: String = ""
 ) {
-    val nameFontSize = if (isTablet) 42.sp else 28.sp
-    val nameLineHeight = if (isTablet) 44.sp else 32.sp
-    val scoreFontSize = if (isTablet) 152.sp else 100.sp
-    val scoreLineHeight = if (isTablet) 156.sp else 104.sp
-    val dotSize = if (isTablet) 34.dp else 20.dp
-    val dotSpacing = if (isTablet) 40.dp else 28.dp
-    Box(
+    Row(
         modifier = modifier
-            .fillMaxHeight()
-            .clip(RoundedCornerShape(10.dp))
-            .background(color)
-            .then(
-                if (onTap != null) {
-                    Modifier.clickable(enabled = enabled, onClick = onTap)
-                } else {
-                    Modifier
-                }
-            )
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(color),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(0.dp)
     ) {
-        Column(
+        TableCell(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = if (isTablet) 20.dp else 14.dp, vertical = if (isTablet) 12.dp else 12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween
+                .width(132.dp)
+                .fillMaxHeight(),
+            contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = name.uppercase(),
+            TabletServeDots(
                 color = Color.White,
-                fontSize = nameFontSize,
-                fontWeight = FontWeight.Black,
-                lineHeight = nameLineHeight,
-                textAlign = TextAlign.Center,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
+                isServing = isServing,
+                serverNumber = serverNumber
             )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (isServing) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        repeat(serverNumber.displayValue) {
-                            Box(
-                                modifier = Modifier
-                                    .size(dotSize)
-                                    .background(Color.White, CircleShape)
-                            )
-                        }
-                    }
-                } else {
-                    Box(modifier = Modifier.size(dotSize))
-                }
-                Box(modifier = Modifier.width(dotSpacing))
-                Text(
-                    text = score.toString(),
-                    color = Color.White,
-                    fontSize = scoreFontSize,
-                    fontWeight = FontWeight.Black,
-                    lineHeight = scoreLineHeight,
-                    textAlign = TextAlign.Center,
-                    maxLines = 1
+        }
+        TableDivider()
+        TableCell(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight(),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            TeamNameDisplay(
+                modifier = Modifier.padding(horizontal = 24.dp),
+                name = name,
+                color = Color.White,
+                highlightColor = color,
+                servingPlayerName = servingPlayerName,
+                isTablet = true
+            )
+        }
+        TableDivider()
+        TabletScoreTapTarget(
+            modifier = Modifier.fillMaxHeight(),
+            score = score,
+            color = Color.White,
+            enabled = enabled,
+            onClick = onScoreClick
+        )
+    }
+}
+
+@Composable
+private fun TabletServeDots(color: Color, isServing: Boolean, serverNumber: ServerNumber) {
+    Row(
+        modifier = Modifier.size(width = 110.dp, height = 46.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (isServing) {
+            repeat(serverNumber.displayValue) {
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .background(color, CircleShape)
                 )
-                Box(modifier = Modifier.width(dotSize + dotSpacing))
             }
         }
     }
@@ -1156,7 +1194,7 @@ private fun TabletDisplayState.coloredScoreCall() = buildAnnotatedString {
 }
 
 @Composable
-private fun TabletDisplayCallBar(
+private fun TabletControlBar(
     state: TabletDisplayState,
     canUndo: Boolean = false,
     onUndo: (() -> Unit)? = null,
@@ -1164,77 +1202,88 @@ private fun TabletDisplayCallBar(
 ) {
     val showControls = onUndo != null && onEndMatchRequested != null
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
+            .height(176.dp)
             .clip(RoundedCornerShape(10.dp))
             .background(CallBackground)
-            .padding(horizontal = 32.dp, vertical = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            .padding(horizontal = 22.dp, vertical = 12.dp)
     ) {
-        Box(
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(
-                text = "CALL",
-                color = Color.White,
-                fontSize = 34.sp,
-                fontWeight = FontWeight.Black,
-                lineHeight = 36.sp,
-                maxLines = 1,
-                modifier = Modifier.align(Alignment.CenterStart)
-            )
-            Text(
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .fillMaxWidth(),
-                text = state.coloredScoreCall(),
-                color = Color.White,
-                fontSize = 212.sp,
-                fontWeight = FontWeight.Black,
-                lineHeight = 204.sp,
-                textAlign = TextAlign.Center,
-                maxLines = 1
-            )
-        }
-        Box(
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(
-                modifier = Modifier.align(Alignment.Center),
-                text = "${state.servingName().uppercase()} SERVES  •  SERVER ${state.serverNumber}",
-                color = Color.White,
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Black,
-                textAlign = TextAlign.Center,
-                maxLines = 1
-            )
-            if (showControls) {
-                Row(
-                    modifier = Modifier.align(Alignment.CenterEnd),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
-                    verticalAlignment = Alignment.CenterVertically
+        Text(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .fillMaxWidth()
+                .padding(end = if (showControls) 118.dp else 0.dp, start = 12.dp),
+            text = state.coloredScoreCall(),
+            color = Color.White,
+            fontSize = 142.sp,
+            fontWeight = FontWeight.Black,
+            lineHeight = 146.sp,
+            textAlign = TextAlign.Center,
+            maxLines = 1
+        )
+        if (showControls) {
+            Column(
+                modifier = Modifier.align(Alignment.CenterEnd),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalAlignment = Alignment.End
+            ) {
+                OutlinedButton(
+                    modifier = Modifier
+                        .height(52.dp)
+                        .width(104.dp),
+                    onClick = onUndo!!,
+                    enabled = canUndo,
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
                 ) {
-                    OutlinedButton(
-                        modifier = Modifier.height(56.dp).width(120.dp),
-                        onClick = onUndo!!,
-                        enabled = canUndo,
-                        shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
-                    ) {
-                        Text("UNDO", fontSize = 20.sp, fontWeight = FontWeight.Black, maxLines = 1)
-                    }
-                    OutlinedButton(
-                        modifier = Modifier.height(56.dp).width(120.dp),
-                        onClick = onEndMatchRequested!!,
-                        shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
-                    ) {
-                        Text("END", fontSize = 20.sp, fontWeight = FontWeight.Black, maxLines = 1)
-                    }
+                    Text("UNDO", fontSize = 18.sp, fontWeight = FontWeight.Black, maxLines = 1)
+                }
+                OutlinedButton(
+                    modifier = Modifier
+                        .height(52.dp)
+                        .width(104.dp),
+                    onClick = onEndMatchRequested!!,
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                ) {
+                    Text("END", fontSize = 18.sp, fontWeight = FontWeight.Black, maxLines = 1)
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun TabletScoreTapTarget(
+    modifier: Modifier,
+    score: Int,
+    color: Color,
+    enabled: Boolean,
+    onClick: (() -> Unit)?
+) {
+    Box(
+        modifier = modifier
+            .width(210.dp)
+            .then(
+                if (onClick != null) {
+                    Modifier.clickable(enabled = enabled, onClick = onClick)
+                } else {
+                    Modifier
+                }
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = score.toString(),
+            color = color,
+            fontSize = 122.sp,
+            fontWeight = FontWeight.Black,
+            textAlign = TextAlign.Center,
+            lineHeight = 126.sp,
+            maxLines = 1
+        )
     }
 }
 
@@ -1410,7 +1459,8 @@ private fun TeamNameDisplay(
     name: String,
     color: Color,
     highlightColor: Color,
-    servingPlayerName: String = ""
+    servingPlayerName: String = "",
+    isTablet: Boolean = false
 ) {
     val parts = name.uppercase().split(" & ", limit = 2)
     val serving = servingPlayerName.uppercase().trim()
@@ -1428,12 +1478,13 @@ private fun TeamNameDisplay(
                 name = playerOne,
                 color = color,
                 highlightColor = highlightColor,
-                isServing = playerOne == serving
+                isServing = playerOne == serving,
+                isTablet = isTablet
             )
             Text(
                 text = "|",
                 color = Color.White.copy(alpha = 0.9f),
-                fontSize = 34.sp,
+                fontSize = if (isTablet) 42.sp else 34.sp,
                 fontWeight = FontWeight.Black,
                 maxLines = 1
             )
@@ -1442,7 +1493,8 @@ private fun TeamNameDisplay(
                 name = playerTwo,
                 color = color,
                 highlightColor = highlightColor,
-                isServing = playerTwo == serving
+                isServing = playerTwo == serving,
+                isTablet = isTablet
             )
         }
     } else {
@@ -1451,7 +1503,8 @@ private fun TeamNameDisplay(
             name = name.uppercase(),
             color = color,
             highlightColor = highlightColor,
-            isServing = name.uppercase().trim() == serving
+            isServing = name.uppercase().trim() == serving,
+            isTablet = isTablet
         )
     }
 }
@@ -1462,18 +1515,40 @@ private fun PositionedPlayerName(
     name: String,
     color: Color,
     highlightColor: Color,
-    isServing: Boolean
+    isServing: Boolean,
+    isTablet: Boolean = false
 ) {
     Text(
         modifier = modifier
             .clip(RoundedCornerShape(6.dp))
             .background(if (isServing) Color.White else Color.Transparent)
-            .padding(horizontal = if (isServing) 8.dp else 0.dp, vertical = if (isServing) 4.dp else 0.dp),
+            .padding(
+                horizontal = if (isServing) {
+                    if (isTablet) 10.dp else 8.dp
+                } else {
+                    0.dp
+                },
+                vertical = if (isServing) {
+                    if (isTablet) 5.dp else 4.dp
+                } else {
+                    0.dp
+                }
+            ),
         text = name,
         color = if (isServing) highlightColor else color,
-        fontSize = if (isServing) 40.sp else 34.sp,
+        fontSize = when {
+            isTablet && isServing -> 52.sp
+            isTablet -> 44.sp
+            isServing -> 40.sp
+            else -> 34.sp
+        },
         fontWeight = FontWeight.Black,
-        lineHeight = if (isServing) 42.sp else 38.sp,
+        lineHeight = when {
+            isTablet && isServing -> 54.sp
+            isTablet -> 48.sp
+            isServing -> 42.sp
+            else -> 38.sp
+        },
         textDecoration = TextDecoration.None,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis
