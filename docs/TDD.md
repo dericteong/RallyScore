@@ -55,7 +55,7 @@ Contains:
 Responsibilities:
 
 - Keep screen awake.
-- Use portrait orientation for phone setup.
+- Use landscape orientation for phone setup.
 - Preserve landscape orientation for phone score/display screens and tablet score/display readability.
 - Act as scoring hub, rules executor, and display source.
 - Manage match setup state.
