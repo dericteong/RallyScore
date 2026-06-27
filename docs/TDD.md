@@ -288,8 +288,18 @@ identities:
 The phone accepts connected tablet commands only when the command session ID
 matches the current phone-owned match session. The tablet ignores snapshots
 from non-paired host IDs and updates its remembered session ID when the paired
-phone rotates to a new match. This is an MVP guardrail for multi-court use on
-one hotspot or shared Wi-Fi, not yet a full user-visible pairing flow.
+phone rotates to a new match.
+
+This is now exposed as an explicit MVP pairing flow for multi-court use on one
+hotspot or shared Wi-Fi:
+
+- The phone shows a compact local court code derived from its persisted host ID.
+- An unpaired tablet stays usable in normal setup mode while it discovers nearby
+  phones.
+- The tablet lists discovered courts and joins only after the user selects the
+  intended phone.
+- After a successful join, the tablet remembers that host and reconnects to it
+  automatically until the pairing is intentionally cleared.
 
 Connection robustness requirements for the display client:
 
@@ -303,6 +313,8 @@ Connection robustness requirements for the display client:
 - Tablet detects heartbeat/read timeout and enters Reconnecting.
 - Tablet keeps the last received score visible while reconnecting.
 - After Wi-Fi returns, tablet reconnects automatically and restores the current phone-owned score.
+- Tablet should not auto-attach to an arbitrary newly discovered phone when no
+  explicit court selection has been made yet.
 
 Future synced tablet controller mode should evolve beyond command/state sync
 into conflict-handled bidirectional peer control. Until that exists, Tablet

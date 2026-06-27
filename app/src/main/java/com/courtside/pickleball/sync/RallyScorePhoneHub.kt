@@ -21,6 +21,22 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
+data class PhoneUiSyncRequest(
+    val requestId: Long,
+    val action: Action,
+    val teamAPlayer1: String,
+    val teamAPlayer2: String,
+    val teamBPlayer1: String,
+    val teamBPlayer2: String,
+    val startingTeam: Team?,
+    val myTeamOnTop: Boolean
+) {
+    enum class Action {
+        StartMatch,
+        ResumeMatch
+    }
+}
+
 object RallyScorePhoneHub {
     private const val TAG = "RallyScorePhoneHub"
     private const val PREFS_NAME = "rallyscore_phone_match"
@@ -44,8 +60,10 @@ object RallyScorePhoneHub {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val _watchConnected = MutableStateFlow(false)
     private val _voiceAnnouncementMode = MutableStateFlow(VoiceAnnouncementMode.PhoneOnly)
+    private val _phoneUiSyncRequest = MutableStateFlow<PhoneUiSyncRequest?>(null)
     val watchConnected: StateFlow<Boolean> = _watchConnected.asStateFlow()
     val voiceAnnouncementMode: StateFlow<VoiceAnnouncementMode> = _voiceAnnouncementMode.asStateFlow()
+    val phoneUiSyncRequest: StateFlow<PhoneUiSyncRequest?> = _phoneUiSyncRequest.asStateFlow()
 
     private var appContext: Context? = null
     private var initialized = false
@@ -96,6 +114,8 @@ object RallyScorePhoneHub {
         _voiceAnnouncementMode.value = mode
     }
 
+    fun courtCode(): String = hostId.toCourtCode()
+
     fun startMatch(
         teamAName: String,
         teamBName: String,
@@ -123,6 +143,24 @@ object RallyScorePhoneHub {
     ): GameState {
         rotateSessionId()
         return store.reset(settings = settings, startingTeam = startingTeam)
+    }
+
+    fun updateTeamNames(
+        teamAName: String,
+        teamBName: String,
+        teamAPlayer1: String,
+        teamAPlayer2: String,
+        teamBPlayer1: String,
+        teamBPlayer2: String
+    ) {
+        store.updateTeamNames(
+            teamAName = teamAName,
+            teamBName = teamBName,
+            teamAPlayer1 = teamAPlayer1,
+            teamAPlayer2 = teamAPlayer2,
+            teamBPlayer1 = teamBPlayer1,
+            teamBPlayer2 = teamBPlayer2
+        )
     }
 
     fun endMatch(): GameState {
@@ -189,15 +227,18 @@ object RallyScorePhoneHub {
         publishScoreState(next)
     }
 
-    private fun handleTabletCommand(command: TabletCommand) {
+    private fun handleTabletCommand(message: TabletCommandMessage) {
         scope.launch {
-            if (!store.matchActive.value) {
-                Log.w(TAG, "Ignored tablet command while no phone match is active: ${command.wireValue}")
+            if (!store.matchActive.value &&
+                message.command != TabletCommand.StartMatch &&
+                message.command != TabletCommand.ResumeMatch
+            ) {
+                Log.w(TAG, "Ignored tablet command while no phone match is active: ${message.command.wireValue}")
                 publishScoreState(store.state.value)
                 return@launch
             }
 
-            val next = when (command) {
+            val next = when (message.command) {
                 TabletCommand.TeamAWonRally -> {
                     Log.d(TAG, "Tablet command: TABLET_ME_WON_RALLY")
                     store.recordRallyWinner(Team.A)
@@ -214,10 +255,95 @@ object RallyScorePhoneHub {
                     Log.d(TAG, "Tablet command: TABLET_END_MATCH")
                     endMatch()
                 }
+                TabletCommand.StartMatch -> {
+                    val payload = message.toSetupPayload() ?: run {
+                        Log.w(TAG, "Ignored malformed tablet start-match payload")
+                        publishScoreState(store.state.value)
+                        return@launch
+                    }
+                    Log.d(TAG, "Tablet command: TABLET_START_MATCH")
+                    val next = startMatch(
+                        teamAName = payload.teamAName,
+                        teamBName = payload.teamBName,
+                        teamAPlayer1 = payload.teamAPlayer1,
+                        teamAPlayer2 = payload.teamAPlayer2,
+                        teamBPlayer1 = payload.teamBPlayer1,
+                        teamBPlayer2 = payload.teamBPlayer2,
+                        startingTeam = payload.startingTeam ?: Team.A
+                    )
+                    publishPhoneUiSync(
+                        action = PhoneUiSyncRequest.Action.StartMatch,
+                        payload = payload
+                    )
+                    next
+                }
+                TabletCommand.ResumeMatch -> {
+                    val payload = message.toSetupPayload() ?: run {
+                        Log.w(TAG, "Ignored malformed tablet resume-match payload")
+                        publishScoreState(store.state.value)
+                        return@launch
+                    }
+                    Log.d(TAG, "Tablet command: TABLET_RESUME_MATCH")
+                    updateTeamNames(
+                        teamAName = payload.teamAName,
+                        teamBName = payload.teamBName,
+                        teamAPlayer1 = payload.teamAPlayer1,
+                        teamAPlayer2 = payload.teamAPlayer2,
+                        teamBPlayer1 = payload.teamBPlayer1,
+                        teamBPlayer2 = payload.teamBPlayer2
+                    )
+                    publishPhoneUiSync(
+                        action = PhoneUiSyncRequest.Action.ResumeMatch,
+                        payload = payload
+                    )
+                    store.state.value
+                }
             }
             publishScoreState(next)
         }
     }
+
+    private fun publishPhoneUiSync(
+        action: PhoneUiSyncRequest.Action,
+        payload: TabletSetupPayload
+    ) {
+        _phoneUiSyncRequest.value = PhoneUiSyncRequest(
+            requestId = System.currentTimeMillis(),
+            action = action,
+            teamAPlayer1 = payload.teamAPlayer1,
+            teamAPlayer2 = payload.teamAPlayer2,
+            teamBPlayer1 = payload.teamBPlayer1,
+            teamBPlayer2 = payload.teamBPlayer2,
+            startingTeam = payload.startingTeam,
+            myTeamOnTop = payload.myTeamOnTop
+        )
+    }
+
+    private fun TabletCommandMessage.toSetupPayload(): TabletSetupPayload? {
+        if (args.size < 8) return null
+        return TabletSetupPayload(
+            teamAName = args[0].fromWireField(),
+            teamBName = args[1].fromWireField(),
+            teamAPlayer1 = args[2].fromWireField(),
+            teamAPlayer2 = args[3].fromWireField(),
+            teamBPlayer1 = args[4].fromWireField(),
+            teamBPlayer2 = args[5].fromWireField(),
+            startingTeam = args[6].fromWireField().toTeamOrNull(),
+            myTeamOnTop = args[7].toBooleanStrictOrNull() ?: true
+        )
+    }
+
+    private fun String.toTeamOrNull(): Team? = when (this) {
+        WearSyncContract.TEAM_A,
+        Team.A.name -> Team.A
+        WearSyncContract.TEAM_B,
+        Team.B.name -> Team.B
+        else -> null
+    }
+
+    private fun String.fromWireField(): String =
+        replace("%7C", "|")
+            .replace("%25", "%")
 
     private fun publishScoreState(state: GameState) {
         val context = appContext ?: return
@@ -324,5 +450,11 @@ object RallyScorePhoneHub {
     private fun generateHostId(): String = "phone-${UUID.randomUUID()}"
 
     private fun generateSessionId(): String = UUID.randomUUID().toString().substring(0, 8)
+
+    private fun String.toCourtCode(): String =
+        filter { it.isLetterOrDigit() }
+            .takeLast(4)
+            .uppercase()
+            .ifBlank { "0000" }
 
 }

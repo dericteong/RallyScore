@@ -6,11 +6,14 @@ import com.courtside.pickleball.domain.GameState
 import com.courtside.pickleball.domain.Team
 import com.courtside.pickleball.domain.VoiceAnnouncementMode
 import com.courtside.pickleball.sync.RallyScorePhoneHub
+import com.courtside.pickleball.sync.PhoneUiSyncRequest
 import com.courtside.pickleball.sync.ScoreboardStore
 import com.courtside.pickleball.sync.TabletConnectionState
 import com.courtside.pickleball.sync.TabletCommand
 import com.courtside.pickleball.sync.TabletDisplayState
 import com.courtside.pickleball.sync.TabletDisplaySync
+import com.courtside.pickleball.sync.TabletPhoneCandidate
+import com.courtside.pickleball.sync.TabletSetupPayload
 import kotlinx.coroutines.flow.StateFlow
 
 class ScoreboardViewModel(
@@ -24,6 +27,9 @@ class ScoreboardViewModel(
     val voiceAnnouncementMode: StateFlow<VoiceAnnouncementMode> = RallyScorePhoneHub.voiceAnnouncementMode
     val remoteTabletDisplayState: StateFlow<TabletDisplayState?> = TabletDisplaySync.remoteDisplayState
     val tabletConnectionState: StateFlow<TabletConnectionState> = TabletDisplaySync.connectionState
+    val discoveredTabletPhones: StateFlow<List<TabletPhoneCandidate>> = TabletDisplaySync.discoveredPhones
+    val pairedTabletPhoneHost: StateFlow<String?> = TabletDisplaySync.pairedPhoneHost
+    val phoneUiSyncRequest: StateFlow<PhoneUiSyncRequest?> = RallyScorePhoneHub.phoneUiSyncRequest
 
     fun startMatch(
         teamAName: String,
@@ -99,9 +105,20 @@ class ScoreboardViewModel(
         TabletDisplaySync.sendTabletCommand(command)
     }
 
+    fun sendTabletSetupCommand(
+        hostId: String?,
+        command: TabletCommand,
+        payload: TabletSetupPayload
+    ): Boolean = TabletDisplaySync.sendTabletSetupCommand(hostId, command, payload)
+
     fun forgetPairedTabletPhone() {
         TabletDisplaySync.forgetPairedPhone()
     }
+
+    fun pairTabletToPhone(hostId: String): Boolean =
+        TabletDisplaySync.pairToDiscoveredPhone(hostId)
+
+    fun localCourtCode(): String = RallyScorePhoneHub.courtCode()
 
     fun setVoiceAnnouncementMode(mode: VoiceAnnouncementMode) {
         RallyScorePhoneHub.setVoiceAnnouncementMode(mode)

@@ -135,7 +135,9 @@ This is the first safeguard against multiple courts sharing the same network.
 
 The tablet display client tracks explicit connection states: Searching for phone, Reconnecting, and Connected. It remembers the last phone WebSocket endpoint, retries that endpoint after app relaunch, treats incoming score snapshots as heartbeat, detects stale connections with a read timeout, and keeps the last received score visible while reconnecting. The phone accepts reconnecting tablet clients and immediately sends the latest phone-owned snapshot when one is available. This transport should be agnostic to whether the local network is a router-backed Wi-Fi network or the phone hotspot.
 
-This command/state sync path is an early prototype, not the final conflict-handled synced tablet controller transport. Real Wi-Fi networks may block local-device discovery or direct delivery. Hardened pairing and conflict handling remain future work.
+To reduce cross-court confusion on shared hotspot or Wi-Fi networks, tablet discovery is now explicit instead of silently auto-attaching to the first phone that answers. The phone setup screen exposes a compact court code derived from the stable `hostId`. An unpaired tablet stays on its normal setup screen, shows a list of discovered phones with court codes, and joins only after the user picks the intended court. After the first join, the tablet remembers that host and reconnects to it automatically until the user chooses Change Phone / forget pairing.
+
+This command/state sync path is still an MVP synced-controller transport, not the final conflict-handled phone/tablet peer model. Real Wi-Fi networks may block local-device discovery or direct delivery. Deterministic multi-controller conflict handling remains future work, but explicit tablet court selection is now the first user-visible safeguard for multiple RallyScore courts sharing one network.
 
 Tablet screen routing uses the following priority:
 

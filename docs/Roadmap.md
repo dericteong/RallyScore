@@ -123,7 +123,7 @@ Status: Not started.
 
 Goals:
 
-- Add explicit phone-tablet pairing/discovery.
+- Build on the new explicit phone-tablet pairing/discovery foundation.
 - Share one canonical match state between phone and tablet.
 - Evolve current tablet-to-phone command sync into full synced controller mode.
 - Allow either phone or tablet to send rally, undo, and correction intent with conflict handling.

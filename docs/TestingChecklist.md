@@ -233,11 +233,16 @@ Treat Phase 2 as complete enough to move focus to Phase 3 only when all of the f
 - Disconnected tablet can set up, score, undo, and end a standalone match.
 - Starting a match on the phone opens the passive tablet display layout after sync connects.
 - Tablet display shows player names, scores, serving side, server number, and CALL.
-- When phone and tablet are on the same local network or the tablet is connected to the phone hotspot, tablet discovery/WebSocket logs show a phone display endpoint.
+- When phone and tablet are on the same local network or the tablet is connected to the phone hotspot, tablet discovery/WebSocket logs show one or more phone display endpoints.
 - With no external Wi-Fi available, turn on the phone hotspot, join the tablet to that hotspot, and verify the tablet finds the phone without manual IP entry.
 - With Internet disabled or unavailable, verify phone-to-tablet display sync still works over the phone hotspot.
 - With both devices on normal external Wi-Fi, verify the same discovery/reconnect behavior still works.
 - If phone-to-tablet delivery is blocked, tablet-side same-subnet discovery attempts to find the phone WebSocket by initiating the connection from the tablet.
+- On an unpaired tablet, verify the normal setup screen remains usable while nearby phones are discovered.
+- Verify the phone setup screen shows a local court code badge.
+- Verify the tablet setup screen lists discovered phones using court codes and readable labels.
+- Verify the tablet does not auto-join a discovered phone until the user explicitly selects that court.
+- After selecting a discovered phone, verify the tablet connects to that same phone and remembers the pairing across app relaunch.
 - Starting a phone match publishes phone-owned tablet display snapshots over the local WebSocket.
 - If the network allows local-device delivery and the phone has an active match, the tablet switches from setup to connected tablet controller display.
 - If the tablet remains on setup while the phone has an active match, collect logs for blocked local WebSocket/discovery delivery and verify whether the network has client isolation or inbound-device blocking.
@@ -251,6 +256,7 @@ Treat Phase 2 as complete enough to move focus to Phase 3 only when all of the f
 - Connected tablet END sends a command to the phone and all connected displays leave the active match after confirmed phone state.
 - Tablet remembers the phone host identity after first successful connected sync.
 - Tablet can intentionally forget the remembered phone host and re-enter discovery without clearing app data.
+- After forgetting the phone host, verify the tablet returns to setup discovery state and requires a fresh explicit court selection.
 - When the phone starts a new phone-owned match, the connected tablet receives the new session identity before sending later commands.
 - Tablet-to-phone commands include the current phone-owned match session identity.
 - Phone ignores connected tablet commands whose session identity does not match the current phone-owned match.

@@ -91,9 +91,12 @@ import com.courtside.pickleball.domain.Team
 import com.courtside.pickleball.domain.VoiceAnnouncementMode
 import com.courtside.pickleball.domain.displayValue
 import com.courtside.pickleball.domain.spokenScoreCall
+import com.courtside.pickleball.sync.PhoneUiSyncRequest
 import com.courtside.pickleball.sync.TabletConnectionState
 import com.courtside.pickleball.sync.TabletCommand
 import com.courtside.pickleball.sync.TabletDisplayState
+import com.courtside.pickleball.sync.TabletPhoneCandidate
+import com.courtside.pickleball.sync.TabletSetupPayload
 import com.courtside.pickleball.sync.TabletDisplaySync
 import java.util.Locale
 import kotlinx.coroutines.delay
@@ -131,8 +134,18 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
     val voiceAnnouncementMode by viewModel.voiceAnnouncementMode.collectAsStateWithLifecycle()
     val remoteTabletDisplayState by viewModel.remoteTabletDisplayState.collectAsStateWithLifecycle()
     val tabletConnectionState by viewModel.tabletConnectionState.collectAsStateWithLifecycle()
+    val discoveredTabletPhones by viewModel.discoveredTabletPhones.collectAsStateWithLifecycle()
+    val pairedTabletPhoneHost by viewModel.pairedTabletPhoneHost.collectAsStateWithLifecycle()
+    val phoneUiSyncRequest by viewModel.phoneUiSyncRequest.collectAsStateWithLifecycle()
+    val pairedTabletCourtCode = remember(pairedTabletPhoneHost) { pairedTabletPhoneHost?.toCourtCode() }
+    val singleTabletPhoneHostId = remember(discoveredTabletPhones) {
+        discoveredTabletPhones.singleOrNull()?.hostId
+    }
     val configuration = LocalConfiguration.current
     val useTabletDisplayLayout = configuration.smallestScreenWidthDp >= TabletSmallestWidthDp
+    val localCourtCode = remember(useTabletDisplayLayout) {
+        if (useTabletDisplayLayout) null else viewModel.localCourtCode()
+    }
     val activeRemoteTabletState = remoteTabletDisplayState?.takeIf { it.matchActive }
     val activeRemoteTabletVoiceSignature = activeRemoteTabletState?.voiceSignature()
     val showRemoteTabletMatch = useTabletDisplayLayout && activeRemoteTabletState != null
@@ -142,7 +155,6 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
     var setupTeamBPlayer2 by remember { mutableStateOf("P4") }
     var startingTeam by remember { mutableStateOf<Team?>(Team.A) }
     var showEndMatchDialog by remember { mutableStateOf(false) }
-    var showChangePhoneDialog by remember { mutableStateOf(false) }
     var myTeamOnTop by remember { mutableStateOf(true) }
     var editingSetupFromMatch by remember { mutableStateOf(false) }
     var voiceModeManuallySelected by remember { mutableStateOf(false) }
@@ -303,6 +315,23 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
         TabletDisplaySync.setTabletDisplayAvailable(useTabletDisplayLayout)
     }
 
+    LaunchedEffect(myTeamOnTop) {
+        TabletDisplaySync.setMyTeamOnTop(myTeamOnTop)
+    }
+
+    LaunchedEffect(phoneUiSyncRequest?.requestId, useTabletDisplayLayout) {
+        val request = phoneUiSyncRequest ?: return@LaunchedEffect
+        if (useTabletDisplayLayout) return@LaunchedEffect
+
+        setupTeamAPlayer1 = request.teamAPlayer1
+        setupTeamAPlayer2 = request.teamAPlayer2
+        setupTeamBPlayer1 = request.teamBPlayer1
+        setupTeamBPlayer2 = request.teamBPlayer2
+        request.startingTeam?.let { startingTeam = it }
+        myTeamOnTop = request.myTeamOnTop
+        editingSetupFromMatch = false
+    }
+
     DisposableEffect(tts) {
         onDispose {
             tts.stop()
@@ -319,12 +348,13 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
                 TabletDisplayScreen(
                     state = activeRemoteTabletState!!,
                     connectionState = tabletConnectionState,
+                    pairedCourtCode = pairedTabletCourtCode,
+                    myTeamOnTop = activeRemoteTabletState.myTeamOnTop,
                     canUndo = activeRemoteTabletState.canUndo,
                     onTeamARally = { viewModel.sendTabletCommand(TabletCommand.TeamAWonRally) },
                     onTeamBRally = { viewModel.sendTabletCommand(TabletCommand.TeamBWonRally) },
                     onUndo = { viewModel.sendTabletCommand(TabletCommand.Undo) },
                     onEndMatchRequested = { viewModel.sendTabletCommand(TabletCommand.EndMatch) },
-                    onChangePhoneRequested = { showChangePhoneDialog = true },
                     onNavigateToSetup = {
                         editingSetupFromMatch = true
                     }
@@ -333,17 +363,19 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
                 if (useTabletDisplayLayout) {
                     TabletDisplayScreen(
                         state = state.toTabletDisplayState(
+                            myTeamOnTop = myTeamOnTop,
                             matchActive = true,
                             canUndo = viewModel.canUndo(),
                             voiceAnnouncementMode = voiceAnnouncementMode
                         ),
                         connectionState = tabletConnectionState,
+                        pairedCourtCode = pairedTabletCourtCode,
+                        myTeamOnTop = myTeamOnTop,
                         canUndo = viewModel.canUndo(),
                         onTeamARally = { viewModel.recordRallyWinner(Team.A) },
                         onTeamBRally = { viewModel.recordRallyWinner(Team.B) },
                         onUndo = viewModel::undo,
                         onEndMatchRequested = { showEndMatchDialog = true },
-                        onChangePhoneRequested = { showChangePhoneDialog = true },
                         onNavigateToSetup = {
                             editingSetupFromMatch = true
                         }
@@ -352,6 +384,7 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
                     ScoreboardScreen(
                         state = state,
                         myTeamOnTop = myTeamOnTop,
+                        localCourtCode = localCourtCode,
                         canUndo = viewModel.canUndo(),
                         watchConnected = watchConnected,
                         tabletConnectionState = tabletConnectionState,
@@ -394,29 +427,73 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
                         voiceModeManuallySelected = true
                         viewModel.setVoiceAnnouncementMode(it)
                     },
-                    onChangePhoneRequested = { showChangePhoneDialog = true },
+                    localCourtCode = localCourtCode,
+                    discoveredPhones = discoveredTabletPhones,
+                    selectedPhoneHostId = pairedTabletPhoneHost,
+                    selectedCourtCode = pairedTabletCourtCode,
+                    onJoinPhoneRequested = { hostId ->
+                        viewModel.pairTabletToPhone(hostId)
+                    },
                     onStart = {
                         val server = startingTeam ?: Team.A
-                        viewModel.startMatch(
+                        val startPayload = TabletSetupPayload(
                             teamAName = formatTeamName(setupTeamAPlayer1, setupTeamAPlayer2, Team.A),
                             teamBName = formatTeamName(setupTeamBPlayer1, setupTeamBPlayer2, Team.B),
                             teamAPlayer1 = setupTeamAPlayer1,
                             teamAPlayer2 = setupTeamAPlayer2,
                             teamBPlayer1 = setupTeamBPlayer1,
                             teamBPlayer2 = setupTeamBPlayer2,
-                            startingTeam = server
+                            startingTeam = server,
+                            myTeamOnTop = myTeamOnTop
                         )
+                        val sentToPhone = useTabletDisplayLayout &&
+                            singleTabletPhoneHostId != null &&
+                            viewModel.sendTabletSetupCommand(
+                                hostId = singleTabletPhoneHostId,
+                                command = TabletCommand.StartMatch,
+                                payload = startPayload
+                            )
+                        if (!sentToPhone) {
+                            viewModel.startMatch(
+                                teamAName = startPayload.teamAName,
+                                teamBName = startPayload.teamBName,
+                                teamAPlayer1 = startPayload.teamAPlayer1,
+                                teamAPlayer2 = startPayload.teamAPlayer2,
+                                teamBPlayer1 = startPayload.teamBPlayer1,
+                                teamBPlayer2 = startPayload.teamBPlayer2,
+                                startingTeam = server
+                            )
+                        }
                         editingSetupFromMatch = false
                     },
                     onResumeMatch = {
-                        viewModel.updateTeamNames(
+                        val resumePayload = TabletSetupPayload(
                             teamAName = formatTeamName(setupTeamAPlayer1, setupTeamAPlayer2, Team.A),
                             teamBName = formatTeamName(setupTeamBPlayer1, setupTeamBPlayer2, Team.B),
                             teamAPlayer1 = setupTeamAPlayer1,
                             teamAPlayer2 = setupTeamAPlayer2,
                             teamBPlayer1 = setupTeamBPlayer1,
-                            teamBPlayer2 = setupTeamBPlayer2
+                            teamBPlayer2 = setupTeamBPlayer2,
+                            startingTeam = startingTeam,
+                            myTeamOnTop = myTeamOnTop
                         )
+                        val sentToPhone = useTabletDisplayLayout &&
+                            singleTabletPhoneHostId != null &&
+                            viewModel.sendTabletSetupCommand(
+                                hostId = singleTabletPhoneHostId,
+                                command = TabletCommand.ResumeMatch,
+                                payload = resumePayload
+                            )
+                        if (!sentToPhone) {
+                            viewModel.updateTeamNames(
+                                teamAName = resumePayload.teamAName,
+                                teamBName = resumePayload.teamBName,
+                                teamAPlayer1 = resumePayload.teamAPlayer1,
+                                teamAPlayer2 = resumePayload.teamAPlayer2,
+                                teamBPlayer1 = resumePayload.teamBPlayer1,
+                                teamBPlayer2 = resumePayload.teamBPlayer2
+                            )
+                        }
                         editingSetupFromMatch = false
                     }
                 )
@@ -446,31 +523,6 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
                 }
             )
         }
-        if (useTabletDisplayLayout && showChangePhoneDialog) {
-            AlertDialog(
-                onDismissRequest = { showChangePhoneDialog = false },
-                title = { Text("Change Phone?") },
-                text = {
-                    Text("Disconnect this tablet from the current phone and search for another RallyScore phone.")
-                },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            viewModel.forgetPairedTabletPhone()
-                            showChangePhoneDialog = false
-                            editingSetupFromMatch = false
-                        }
-                    ) {
-                        Text("Change Phone")
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showChangePhoneDialog = false }) {
-                        Text("Cancel")
-                    }
-                }
-            )
-        }
     }
 }
 
@@ -494,7 +546,11 @@ private fun MatchSetupScreen(
     tabletConnectionState: TabletConnectionState,
     voiceAnnouncementMode: VoiceAnnouncementMode,
     onVoiceAnnouncementModeChange: (VoiceAnnouncementMode) -> Unit,
-    onChangePhoneRequested: () -> Unit = {},
+    localCourtCode: String? = null,
+    discoveredPhones: List<TabletPhoneCandidate> = emptyList(),
+    selectedPhoneHostId: String? = null,
+    selectedCourtCode: String? = null,
+    onJoinPhoneRequested: (String) -> Unit = {},
     onStart: () -> Unit,
     onResumeMatch: () -> Unit = {}
 ) {
@@ -561,7 +617,7 @@ private fun MatchSetupScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.weight(if (isTabletLayout) 1f else 0.84f),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
@@ -595,10 +651,22 @@ private fun MatchSetupScreen(
                                 )
                             }
                         } else {
-                            WatchConnectionStatusBar(
-                                modifier = Modifier.widthIn(min = 138.dp),
-                                connected = watchConnected
-                            )
+                            Row(
+                                modifier = Modifier.weight(1.18f),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                CourtCodeBadge(
+                                    modifier = Modifier.weight(1f),
+                                    code = localCourtCode ?: "0000",
+                                    compact = true
+                                )
+                                WatchConnectionStatusBar(
+                                    modifier = Modifier.weight(1f),
+                                    connected = watchConnected,
+                                    compact = true
+                                )
+                            }
                         }
                     }
                 }
@@ -710,88 +778,79 @@ private fun MatchSetupScreen(
                     } else {
                         PhoneTabletStatusBar(
                             modifier = Modifier.fillMaxWidth(),
-                            connectionState = tabletConnectionState
+                            connectionState = tabletConnectionState,
+                            compact = true
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                     }
                 }
-                ScorePreviewCard(
-                    startingTeam = startingTeam,
-                    compact = keyboardVisible,
-                    isTabletLayout = isTabletLayout,
-                    enabled = !editingFromMatch,
-                    onTap = {
-                        onStartingTeamChange(
-                            when (startingTeam) {
-                                Team.A -> Team.B
-                                Team.B -> Team.A
-                                null -> Team.A
-                            }
-                        )
-                    }
-                )
-                if (editingFromMatch) {
-                    Button(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(if (isTabletLayout) 60.dp else 56.dp),
-                        onClick = onResumeMatch,
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD84315))
-                    ) {
-                        Text(
-                            text = "RESUME GAME",
-                            fontSize = if (isTabletLayout) 22.sp else 20.sp,
-                            fontWeight = FontWeight.Black,
-                            textAlign = TextAlign.Center,
-                            maxLines = 1
-                        )
-                    }
-                } else if (!keyboardVisible) {
-                    Button(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(if (isTabletLayout) 60.dp else 56.dp),
-                        onClick = onStart,
-                        enabled = canStart,
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD84315))
-                    ) {
-                        Text(
-                            text = "START NEW GAME",
-                            fontSize = if (isTabletLayout) 22.sp else 20.sp,
-                            fontWeight = FontWeight.Black,
-                            textAlign = TextAlign.Center,
-                            maxLines = 2
-                        )
-                    }
-                }
                 if (!keyboardVisible) {
-                    Spacer(modifier = Modifier.height(if (isTabletLayout) 10.dp else 8.dp))
-                    VoiceAnnouncementControls(
-                        selectedMode = voiceAnnouncementMode,
-                        onModeChange = onVoiceAnnouncementModeChange
-                    )
-                    if (isTabletLayout) {
+                    if (isTabletLayout && discoveredPhones.isNotEmpty()) {
+                        AvailablePhonesCard(
+                            phones = discoveredPhones,
+                            selectedPhoneHostId = selectedPhoneHostId,
+                            selectedCourtCode = selectedCourtCode,
+                            connectionState = tabletConnectionState,
+                            onJoinPhoneRequested = onJoinPhoneRequested
+                        )
                         Spacer(modifier = Modifier.height(10.dp))
-                        OutlinedButton(
+                    }
+                    ScorePreviewCard(
+                        startingTeam = startingTeam,
+                        compact = keyboardVisible,
+                        isTabletLayout = isTabletLayout,
+                        enabled = !editingFromMatch,
+                        onTap = {
+                            onStartingTeamChange(
+                                when (startingTeam) {
+                                    Team.A -> Team.B
+                                    Team.B -> Team.A
+                                    null -> Team.A
+                                }
+                            )
+                        }
+                    )
+                    if (editingFromMatch) {
+                        Button(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(52.dp),
-                            onClick = onChangePhoneRequested,
+                                .height(if (isTabletLayout) 60.dp else 56.dp),
+                            onClick = onResumeMatch,
                             shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD84315))
                         ) {
                             Text(
-                                text = "CHANGE PHONE",
-                                color = Ink,
-                                fontSize = 18.sp,
+                                text = "RESUME GAME",
+                                fontSize = if (isTabletLayout) 22.sp else 20.sp,
                                 fontWeight = FontWeight.Black,
                                 textAlign = TextAlign.Center,
                                 maxLines = 1
                             )
                         }
+                    } else {
+                        Button(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(if (isTabletLayout) 60.dp else 56.dp),
+                            onClick = onStart,
+                            enabled = canStart,
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD84315))
+                        ) {
+                            Text(
+                                text = "START NEW GAME",
+                                fontSize = if (isTabletLayout) 22.sp else 20.sp,
+                                fontWeight = FontWeight.Black,
+                                textAlign = TextAlign.Center,
+                                maxLines = 2
+                            )
+                        }
                     }
+                    Spacer(modifier = Modifier.height(if (isTabletLayout) 10.dp else 8.dp))
+                    VoiceAnnouncementControls(
+                        selectedMode = voiceAnnouncementMode,
+                        onModeChange = onVoiceAnnouncementModeChange
+                    )
                 }
                 if (keyboardVisible) {
                     OutlinedButton(
@@ -1038,12 +1097,13 @@ private fun ScorePreviewCard(
 private fun TabletDisplayScreen(
     state: TabletDisplayState,
     connectionState: TabletConnectionState = TabletConnectionState.Connected,
+    pairedCourtCode: String? = null,
+    myTeamOnTop: Boolean = true,
     canUndo: Boolean = false,
     onTeamARally: (() -> Unit)? = null,
     onTeamBRally: (() -> Unit)? = null,
     onUndo: (() -> Unit)? = null,
     onEndMatchRequested: (() -> Unit)? = null,
-    onChangePhoneRequested: (() -> Unit)? = null,
     onNavigateToSetup: (() -> Unit)? = null
 ) {
     val isController = onUndo != null
@@ -1063,14 +1123,14 @@ private fun TabletDisplayScreen(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             ConnectionStatusBar(
-                connectionState = connectionState
+                connectionState = connectionState,
+                pairedCourtCode = pairedCourtCode
             )
             TabletControlBar(
                 state = state,
                 canUndo = canUndo,
                 onUndo = onUndo,
                 onEndMatchRequested = onEndMatchRequested,
-                onChangePhoneRequested = onChangePhoneRequested,
                 onNavigateToSetup = onNavigateToSetup
             )
             TabletScoreboardBody(
@@ -1078,6 +1138,7 @@ private fun TabletDisplayScreen(
                     .weight(1f)
                     .fillMaxWidth(),
                 state = state,
+                myTeamOnTop = myTeamOnTop,
                 enabled = !isConnectedController || isController,
                 onTeamARally = onTeamARally,
                 onTeamBRally = onTeamBRally
@@ -1090,37 +1151,31 @@ private fun TabletDisplayScreen(
 private fun TabletScoreboardBody(
     modifier: Modifier,
     state: TabletDisplayState,
+    myTeamOnTop: Boolean,
     enabled: Boolean,
     onTeamARally: (() -> Unit)?,
     onTeamBRally: (() -> Unit)?
 ) {
+    val orderedTeams = if (myTeamOnTop) listOf(Team.A, Team.B) else listOf(Team.B, Team.A)
+
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(10.dp)),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        TabletTeamScoreTableRow(
-            modifier = Modifier.weight(1f),
-            name = state.teamACourtOrderedName,
-            score = state.teamAScore,
-            color = TeamABlue,
-            isServing = state.servingTeam == Team.A,
-            serverNumber = state.serverNumber.toServerNumber(),
-            enabled = enabled,
-            onScoreClick = onTeamARally,
-            servingPlayerName = if (state.servingTeam == Team.A) state.servingPlayerName else ""
-        )
-        TabletTeamScoreTableRow(
-            modifier = Modifier.weight(1f),
-            name = state.teamBCourtOrderedName,
-            score = state.teamBScore,
-            color = TeamBGreen,
-            isServing = state.servingTeam == Team.B,
-            serverNumber = state.serverNumber.toServerNumber(),
-            enabled = enabled,
-            onScoreClick = onTeamBRally,
-            servingPlayerName = if (state.servingTeam == Team.B) state.servingPlayerName else ""
-        )
+        orderedTeams.forEach { team ->
+            TabletTeamScoreTableRow(
+                modifier = Modifier.weight(1f),
+                name = if (team == Team.A) state.teamACourtOrderedName else state.teamBCourtOrderedName,
+                score = if (team == Team.A) state.teamAScore else state.teamBScore,
+                color = if (team == Team.A) TeamABlue else TeamBGreen,
+                isServing = state.servingTeam == team,
+                serverNumber = state.serverNumber.toServerNumber(),
+                enabled = enabled,
+                onScoreClick = if (team == Team.A) onTeamARally else onTeamBRally,
+                servingPlayerName = if (state.servingTeam == team) state.servingPlayerName else ""
+            )
+        }
     }
 }
 
@@ -1207,16 +1262,16 @@ private fun Int.toServerNumber(): ServerNumber = when (this) {
     else -> ServerNumber.Two
 }
 
-private fun TabletConnectionState.displayLabel(): String = when (this) {
-    TabletConnectionState.Searching -> "SEARCHING FOR PHONE"
-    TabletConnectionState.Reconnecting -> "PHONE RECONNECTING"
-    TabletConnectionState.Connected -> "PHONE CONNECTED"
+private fun TabletConnectionState.displayLabel(pairedCourtCode: String?): String = when (this) {
+    TabletConnectionState.Searching -> pairedCourtCode?.let { "JOINING COURT $it" } ?: "SEARCHING COURTS"
+    TabletConnectionState.Reconnecting -> pairedCourtCode?.let { "RECONNECTING COURT $it" } ?: "PHONE RECONNECTING"
+    TabletConnectionState.Connected -> pairedCourtCode?.let { "CONNECTED TO COURT $it" } ?: "PHONE CONNECTED"
 }
 
 private fun TabletConnectionState.phoneDisplayLabel(): String = when (this) {
-    TabletConnectionState.Searching -> "SEARCHING FOR TABLET"
-    TabletConnectionState.Reconnecting -> "TABLET RECONNECTING"
-    TabletConnectionState.Connected -> "TABLET CONNECTED"
+    TabletConnectionState.Searching -> "SEARCHING FOR PHONE"
+    TabletConnectionState.Reconnecting -> "PHONE RECONNECTING"
+    TabletConnectionState.Connected -> "PHONE CONNECTED"
 }
 
 private fun TabletConnectionState.displayColor(): Color = when (this) {
@@ -1227,7 +1282,8 @@ private fun TabletConnectionState.displayColor(): Color = when (this) {
 
 @Composable
 private fun ConnectionStatusBar(
-    connectionState: TabletConnectionState
+    connectionState: TabletConnectionState,
+    pairedCourtCode: String? = null
 ) {
     Row(
         modifier = Modifier
@@ -1245,7 +1301,7 @@ private fun ConnectionStatusBar(
                 .background(connectionState.displayColor())
         )
         Text(
-            text = connectionState.displayLabel(),
+            text = connectionState.displayLabel(pairedCourtCode),
             color = Color.White,
             fontSize = 22.sp,
             fontWeight = FontWeight.Black,
@@ -1277,13 +1333,18 @@ private fun TabletDisplayState.coloredScoreCall() = buildAnnotatedString {
     }
 }
 
+private fun String.toCourtCode(): String =
+    filter { it.isLetterOrDigit() }
+        .takeLast(4)
+        .uppercase()
+        .ifBlank { "0000" }
+
 @Composable
 private fun TabletControlBar(
     state: TabletDisplayState,
     canUndo: Boolean = false,
     onUndo: (() -> Unit)? = null,
     onEndMatchRequested: (() -> Unit)? = null,
-    onChangePhoneRequested: (() -> Unit)? = null,
     onNavigateToSetup: (() -> Unit)? = null
 ) {
     val showControls = onUndo != null && onEndMatchRequested != null
@@ -1326,18 +1387,6 @@ private fun TabletControlBar(
                         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
                     ) {
                         Text("SETUP", fontSize = 18.sp, fontWeight = FontWeight.Black, maxLines = 1)
-                    }
-                }
-                if (onChangePhoneRequested != null) {
-                    OutlinedButton(
-                        modifier = Modifier
-                            .height(52.dp)
-                            .width(104.dp),
-                        onClick = onChangePhoneRequested,
-                        shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
-                    ) {
-                        Text("PHONE", fontSize = 16.sp, fontWeight = FontWeight.Black, maxLines = 1)
                     }
                 }
                 OutlinedButton(
@@ -1402,6 +1451,7 @@ private fun TabletScoreTapTarget(
 private fun ScoreboardScreen(
     state: GameState,
     myTeamOnTop: Boolean,
+    localCourtCode: String? = null,
     canUndo: Boolean,
     watchConnected: Boolean,
     tabletConnectionState: TabletConnectionState,
@@ -1430,6 +1480,10 @@ private fun ScoreboardScreen(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                CourtCodeBadge(
+                    modifier = Modifier.weight(1f),
+                    code = localCourtCode ?: "0000"
+                )
                 WatchConnectionStatusBar(
                     modifier = Modifier.weight(1f),
                     connected = watchConnected
@@ -1438,27 +1492,11 @@ private fun ScoreboardScreen(
                     modifier = Modifier.weight(1f),
                     connectionState = tabletConnectionState
                 )
-                Button(
-                    modifier = Modifier
-                        .height(38.dp)
-                        .width(138.dp),
-                    onClick = onNavigateToSetup,
-                    shape = RoundedCornerShape(6.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF374151)),
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
-                ) {
-                    Text(
-                        text = "SETUP",
-                        color = Color.White,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1
-                    )
-                }
             }
             ControlBar(
                 state = state,
                 canUndo = canUndo,
+                onNavigateToSetup = onNavigateToSetup,
                 onUndo = onUndo,
                 onEndMatchRequested = onEndMatchRequested
             )
@@ -1798,7 +1836,8 @@ private fun VoiceAnnouncementMode.setupLabel(): String = when (this) {
 @Composable
 private fun WatchConnectionStatusBar(
     modifier: Modifier = Modifier,
-    connected: Boolean
+    connected: Boolean,
+    compact: Boolean = false
 ) {
     val color = if (connected) ConnectedAmber else ProblemRed
     val label = if (connected) "WATCH CONNECTED" else "WATCH OFFLINE"
@@ -1820,7 +1859,7 @@ private fun WatchConnectionStatusBar(
         Text(
             text = label,
             color = Color.White,
-            fontSize = 10.sp,
+            fontSize = if (compact) 8.sp else 10.sp,
             fontWeight = FontWeight.Black,
             textAlign = TextAlign.Center,
             maxLines = 1,
@@ -1832,7 +1871,8 @@ private fun WatchConnectionStatusBar(
 @Composable
 private fun PhoneTabletStatusBar(
     modifier: Modifier = Modifier,
-    connectionState: TabletConnectionState
+    connectionState: TabletConnectionState,
+    compact: Boolean = false
 ) {
     val color = connectionState.displayColor()
     val label = connectionState.phoneDisplayLabel()
@@ -1854,12 +1894,118 @@ private fun PhoneTabletStatusBar(
         Text(
             text = label,
             color = Color.White,
-            fontSize = 10.sp,
+            fontSize = if (compact) 8.sp else 10.sp,
             fontWeight = FontWeight.Black,
             textAlign = TextAlign.Center,
             maxLines = 1,
             modifier = Modifier.padding(start = 6.dp)
         )
+    }
+}
+
+@Composable
+private fun CourtCodeBadge(
+    modifier: Modifier = Modifier,
+    code: String,
+    compact: Boolean = false
+) {
+    Row(
+        modifier = modifier
+            .height(24.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(CallBackground),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .size(width = 8.dp, height = 16.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .background(ConnectedAmber)
+        )
+        Text(
+            text = "COURT $code",
+            color = Color.White,
+            fontSize = if (compact) 8.sp else 10.sp,
+            fontWeight = FontWeight.Black,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            modifier = Modifier.padding(start = 6.dp)
+        )
+    }
+}
+
+@Composable
+private fun AvailablePhonesCard(
+    phones: List<TabletPhoneCandidate>,
+    selectedPhoneHostId: String?,
+    selectedCourtCode: String?,
+    connectionState: TabletConnectionState,
+    onJoinPhoneRequested: (String) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(CallBackground)
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = "AVAILABLE PHONES",
+            color = Color.White,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Black
+        )
+        phones.forEach { phone ->
+            val isSelected = phone.hostId == selectedPhoneHostId
+            val selectionSuffix = when {
+                !isSelected -> null
+                connectionState == TabletConnectionState.Connected -> "CONNECTED"
+                selectedCourtCode != null -> "JOINING"
+                else -> "SELECTED"
+            }
+            OutlinedButton(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(58.dp),
+                onClick = { onJoinPhoneRequested(phone.hostId) },
+                shape = RoundedCornerShape(8.dp),
+                border = androidx.compose.foundation.BorderStroke(
+                    width = if (isSelected) 2.dp else 1.dp,
+                    color = if (isSelected) ConnectedAmber else Color.White.copy(alpha = 0.35f)
+                ),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    containerColor = if (isSelected) ConnectedAmber.copy(alpha = 0.16f) else Color.Transparent
+                ),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.Start,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = "COURT ${phone.courtCode}",
+                        color = if (isSelected) ConnectedAmber else Color.White,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Black,
+                        maxLines = 1
+                    )
+                    Text(
+                        text = if (selectionSuffix != null) {
+                            "${phone.label}  $selectionSuffix"
+                        } else {
+                            phone.label
+                        },
+                        color = if (isSelected) ConnectedAmber else Color.White.copy(alpha = 0.82f),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -1918,6 +2064,7 @@ private fun ScoreTapTarget(
 private fun ControlBar(
     state: GameState,
     canUndo: Boolean,
+    onNavigateToSetup: () -> Unit,
     onUndo: () -> Unit,
     onEndMatchRequested: () -> Unit
 ) {
@@ -1938,7 +2085,7 @@ private fun ControlBar(
                 modifier = Modifier
                     .align(Alignment.Center)
                     .fillMaxWidth()
-                    .padding(end = 44.dp),
+                    .padding(start = 92.dp, end = 92.dp),
                 text = state.scoreOnlyCallBarText(state.status),
                 color = Color.White,
                 fontSize = 78.sp,
@@ -1947,6 +2094,22 @@ private fun ControlBar(
                 maxLines = 1,
                 textAlign = TextAlign.Center
             )
+            Column(
+                modifier = Modifier.align(Alignment.CenterStart),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalAlignment = Alignment.Start
+            ) {
+                OutlinedButton(
+                    modifier = Modifier
+                        .height(38.dp)
+                        .width(82.dp),
+                    onClick = onNavigateToSetup,
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                ) {
+                    Text("SETUP", fontSize = 14.sp, fontWeight = FontWeight.Black, maxLines = 1)
+                }
+            }
             Column(
                 modifier = Modifier.align(Alignment.CenterEnd),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -2040,6 +2203,7 @@ private fun GameState.servingSummary(): String {
 }
 
 private fun GameState.toTabletDisplayState(
+    myTeamOnTop: Boolean,
     matchActive: Boolean,
     canUndo: Boolean,
     voiceAnnouncementMode: VoiceAnnouncementMode
@@ -2047,6 +2211,7 @@ private fun GameState.toTabletDisplayState(
     TabletDisplayState(
         hostId = "",
         sessionId = "",
+        myTeamOnTop = myTeamOnTop,
         teamAName = settings.teamAName,
         teamBName = settings.teamBName,
         teamACourtOrderedName = courtOrderedTeamName(Team.A),
