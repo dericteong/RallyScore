@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
@@ -64,6 +65,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -312,7 +314,7 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
         CompositionLocalProvider(
             LocalDensity provides Density(density.density, fontScale = 1f)
         ) {
-            if (showRemoteTabletMatch) {
+            if (showRemoteTabletMatch && !editingSetupFromMatch) {
                 TabletDisplayScreen(
                     state = activeRemoteTabletState!!,
                     connectionState = tabletConnectionState,
@@ -320,7 +322,10 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
                     onTeamARally = { viewModel.sendTabletCommand(TabletCommand.TeamAWonRally) },
                     onTeamBRally = { viewModel.sendTabletCommand(TabletCommand.TeamBWonRally) },
                     onUndo = { viewModel.sendTabletCommand(TabletCommand.Undo) },
-                    onEndMatchRequested = { viewModel.sendTabletCommand(TabletCommand.EndMatch) }
+                    onEndMatchRequested = { viewModel.sendTabletCommand(TabletCommand.EndMatch) },
+                    onNavigateToSetup = {
+                        editingSetupFromMatch = true
+                    }
                 )
             } else if (matchStarted && !editingSetupFromMatch) {
                 if (useTabletDisplayLayout) {
@@ -335,7 +340,10 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
                         onTeamARally = { viewModel.recordRallyWinner(Team.A) },
                         onTeamBRally = { viewModel.recordRallyWinner(Team.B) },
                         onUndo = viewModel::undo,
-                        onEndMatchRequested = { showEndMatchDialog = true }
+                        onEndMatchRequested = { showEndMatchDialog = true },
+                        onNavigateToSetup = {
+                            editingSetupFromMatch = true
+                        }
                     )
                 } else {
                     ScoreboardScreen(
@@ -478,7 +486,7 @@ private fun MatchSetupScreen(
     val helperText = if (isTabletLayout) {
         "Enter names by player standing position"
     } else {
-        "Enter names by player standing position"
+        "Enter names by standing position"
     }
     val setupScrollState = rememberScrollState()
     val context = LocalContext.current
@@ -509,7 +517,7 @@ private fun MatchSetupScreen(
                 .safeDrawingPadding()
                 .padding(horizontal = outerHorizontalPadding, vertical = outerVerticalPadding),
             horizontalArrangement = Arrangement.spacedBy(if (isTabletLayout) 14.dp else 8.dp),
-            verticalAlignment = if (keyboardVisible) Alignment.Top else Alignment.CenterVertically
+            verticalAlignment = Alignment.Top
         ) {
             Column(
                 modifier = Modifier
@@ -519,7 +527,7 @@ private fun MatchSetupScreen(
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(
@@ -535,24 +543,31 @@ private fun MatchSetupScreen(
                         Text(
                             text = "RallyScore",
                             color = Ink,
-                            fontSize = if (isTabletLayout) 20.sp else 18.sp,
+                            fontSize = if (isTabletLayout) 20.sp else 17.sp,
                             fontWeight = FontWeight.Black,
                             maxLines = 1
                         )
                     }
                     if (!keyboardVisible) {
-                        Row(
-                            modifier = Modifier.padding(start = 12.dp),
-                            horizontalArrangement = Arrangement.spacedBy(if (isTabletLayout) 8.dp else 6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
+                        if (isTabletLayout) {
+                            Row(
+                                modifier = Modifier.padding(start = 12.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                WatchConnectionStatusBar(
+                                    modifier = Modifier.widthIn(min = 150.dp),
+                                    connected = watchConnected
+                                )
+                                PhoneTabletStatusBar(
+                                    modifier = Modifier.widthIn(min = 160.dp),
+                                    connectionState = tabletConnectionState
+                                )
+                            }
+                        } else {
                             WatchConnectionStatusBar(
-                                modifier = Modifier.widthIn(min = if (isTabletLayout) 150.dp else 138.dp),
+                                modifier = Modifier.widthIn(min = 138.dp),
                                 connected = watchConnected
-                            )
-                            PhoneTabletStatusBar(
-                                modifier = Modifier.widthIn(min = if (isTabletLayout) 160.dp else 148.dp),
-                                connectionState = tabletConnectionState
                             )
                         }
                     }
@@ -660,11 +675,20 @@ private fun MatchSetupScreen(
                 verticalArrangement = Arrangement.spacedBy(if (keyboardVisible) 8.dp else headerSpacing)
             ) {
                 if (!keyboardVisible) {
-                    Spacer(modifier = Modifier.height(if (isTabletLayout) 44.dp else 38.dp))
+                    if (isTabletLayout) {
+                        Spacer(modifier = Modifier.height(44.dp))
+                    } else {
+                        PhoneTabletStatusBar(
+                            modifier = Modifier.fillMaxWidth(),
+                            connectionState = tabletConnectionState
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
                 }
                 ScorePreviewCard(
                     startingTeam = startingTeam,
                     compact = keyboardVisible,
+                    isTabletLayout = isTabletLayout,
                     enabled = !editingFromMatch,
                     onTap = {
                         onStartingTeamChange(
@@ -921,6 +945,7 @@ private fun SetupPlayerInput(
 private fun ScorePreviewCard(
     startingTeam: Team?,
     compact: Boolean = false,
+    isTabletLayout: Boolean = true,
     enabled: Boolean = true,
     onTap: () -> Unit = {}
 ) {
@@ -946,8 +971,13 @@ private fun ScorePreviewCard(
                 null -> "TAP A TEAM"
             },
             color = Color.White,
-            fontSize = if (compact) 18.sp else 19.sp,
+            fontSize = when {
+                compact -> 18.sp
+                isTabletLayout -> 19.sp
+                else -> 16.sp
+            },
             fontWeight = FontWeight.Black,
+            lineHeight = if (isTabletLayout || compact) 20.sp else 17.sp,
             textAlign = TextAlign.Center,
             maxLines = 1
         )
@@ -962,7 +992,8 @@ private fun TabletDisplayScreen(
     onTeamARally: (() -> Unit)? = null,
     onTeamBRally: (() -> Unit)? = null,
     onUndo: (() -> Unit)? = null,
-    onEndMatchRequested: (() -> Unit)? = null
+    onEndMatchRequested: (() -> Unit)? = null,
+    onNavigateToSetup: (() -> Unit)? = null
 ) {
     val isController = onUndo != null
     val isConnectedController = connectionState == TabletConnectionState.Connected
@@ -987,7 +1018,8 @@ private fun TabletDisplayScreen(
                 state = state,
                 canUndo = canUndo,
                 onUndo = onUndo,
-                onEndMatchRequested = onEndMatchRequested
+                onEndMatchRequested = onEndMatchRequested,
+                onNavigateToSetup = onNavigateToSetup
             )
             TabletScoreboardBody(
                 modifier = Modifier
@@ -1198,37 +1230,51 @@ private fun TabletControlBar(
     state: TabletDisplayState,
     canUndo: Boolean = false,
     onUndo: (() -> Unit)? = null,
-    onEndMatchRequested: (() -> Unit)? = null
+    onEndMatchRequested: (() -> Unit)? = null,
+    onNavigateToSetup: (() -> Unit)? = null
 ) {
     val showControls = onUndo != null && onEndMatchRequested != null
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(176.dp)
+            .fillMaxHeight(0.48f)
             .clip(RoundedCornerShape(10.dp))
             .background(CallBackground)
-            .padding(horizontal = 22.dp, vertical = 12.dp)
+            .padding(horizontal = 24.dp, vertical = 14.dp)
     ) {
         Text(
             modifier = Modifier
                 .align(Alignment.Center)
                 .fillMaxWidth()
-                .padding(end = if (showControls) 118.dp else 0.dp, start = 12.dp),
+                .padding(end = if (showControls) 138.dp else 0.dp, start = 12.dp),
             text = state.coloredScoreCall(),
             color = Color.White,
-            fontSize = 142.sp,
+            fontSize = 168.sp,
             fontWeight = FontWeight.Black,
-            lineHeight = 146.sp,
+            lineHeight = 172.sp,
             textAlign = TextAlign.Center,
             maxLines = 1
         )
         if (showControls) {
             Column(
-                modifier = Modifier.align(Alignment.CenterEnd),
+                modifier = Modifier
+                    .align(Alignment.CenterEnd),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
                 horizontalAlignment = Alignment.End
             ) {
+                if (onNavigateToSetup != null) {
+                    OutlinedButton(
+                        modifier = Modifier
+                            .height(52.dp)
+                            .width(104.dp),
+                        onClick = onNavigateToSetup,
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                    ) {
+                        Text("SETUP", fontSize = 18.sp, fontWeight = FontWeight.Black, maxLines = 1)
+                    }
+                }
                 OutlinedButton(
                     modifier = Modifier
                         .height(52.dp)
@@ -1310,6 +1356,7 @@ private fun ScoreboardScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .safeDrawingPadding()
+                .navigationBarsPadding()
                 .padding(horizontal = 22.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
@@ -1375,8 +1422,9 @@ private fun ScoreboardBody(
     Column(
         modifier = modifier
             .fillMaxWidth()
+            .padding(top = 0.dp, bottom = 4.dp)
             .clip(RoundedCornerShape(10.dp)),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         orderedTeams.forEach { team ->
             TeamScoreTableRow(
@@ -1784,12 +1832,18 @@ private fun ScoreTapTarget(
         contentAlignment = Alignment.Center
     ) {
         Text(
+            modifier = Modifier.layout { measurable, constraints ->
+                val placeable = measurable.measure(constraints)
+                layout(placeable.width, placeable.height) {
+                    placeable.placeRelative(0, -4)
+                }
+            },
             text = score.toString(),
             color = color,
-            fontSize = 72.sp,
+            fontSize = 62.sp,
             fontWeight = FontWeight.Black,
             textAlign = TextAlign.Center,
-            lineHeight = 76.sp,
+            lineHeight = 62.sp,
             maxLines = 1
         )
     }
@@ -1805,7 +1859,7 @@ private fun ControlBar(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .height(108.dp)
+            .height(98.dp)
             .background(CallBackground, RoundedCornerShape(8.dp))
             .padding(horizontal = 18.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.Center
@@ -1822,9 +1876,9 @@ private fun ControlBar(
                     .padding(end = 44.dp),
                 text = state.scoreOnlyCallBarText(state.status),
                 color = Color.White,
-                fontSize = 84.sp,
+                fontSize = 78.sp,
                 fontWeight = FontWeight.Black,
-                lineHeight = 86.sp,
+                lineHeight = 80.sp,
                 maxLines = 1,
                 textAlign = TextAlign.Center
             )
