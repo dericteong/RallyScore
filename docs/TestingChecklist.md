@@ -180,6 +180,18 @@ Initial implementation exists. Required before the connected Watch + Phone produ
 - External display shows team scores, serving team, and server number with no live-match controls.
 - Debug logs show command send/receive and score-state publish/receive.
 
+### Phase 2 Exit Checks
+
+Treat Phase 2 as complete enough to move focus to Phase 3 only when all of the following pass on real hardware:
+
+- Connected watch remains on the phone-owned scoreboard during an idle active match and does not flicker back to start.
+- From connected idle state, `START ON PHONE` on the watch moves the watch to the connected scoreboard without bouncing back to start.
+- From connected scoreboard state, watch rally input updates the phone and remains on the connected scoreboard.
+- From connected scoreboard state, watch `UNDO` updates the phone and remains on the connected scoreboard.
+- From connected scoreboard state, watch `END` with confirmation ends the phone-owned match and returns the watch to the idle/start screen.
+- Short connection hiccups do not force the watch out of the connected scoreboard while the phone-owned match is still active.
+- Watch Only standalone start, scoring, undo, and end still work after connected-mode hardening.
+
 ## Shared Display Manual Test
 
 - Phone display mirroring is readable in landscape.
@@ -237,6 +249,12 @@ Initial implementation exists. Required before the connected Watch + Phone produ
 - Phone broadcasts connected tablet score changes back to the tablet and to the watch if connected.
 - Connected tablet UNDO sends a command to the phone and all connected displays update from confirmed phone state.
 - Connected tablet END sends a command to the phone and all connected displays leave the active match after confirmed phone state.
+- Tablet remembers the phone host identity after first successful connected sync.
+- Tablet can intentionally forget the remembered phone host and re-enter discovery without clearing app data.
+- When the phone starts a new phone-owned match, the connected tablet receives the new session identity before sending later commands.
+- Tablet-to-phone commands include the current phone-owned match session identity.
+- Phone ignores connected tablet commands whose session identity does not match the current phone-owned match.
+- Tablet ignores phone-owned score snapshots from a different phone host once it has paired to one host.
 - Stopping phone broadcasts clears stale tablet display state after a short timeout.
 - Tablet shows Searching for phone before discovering a phone endpoint.
 - Tablet shows Connected after receiving confirmed phone-owned score snapshots.

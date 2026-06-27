@@ -39,8 +39,8 @@ class ScoreboardStore(
                 teamBPlayer2 = teamBPlayer2.trim().ifEmpty { "P4" }
             )
         )
-        _state.value = next
         _matchActive.value = true
+        _state.value = next
         return next
     }
 
@@ -91,8 +91,8 @@ class ScoreboardStore(
     ): GameState {
         history.clear()
         val next = GameState(settings = settings, servingTeam = startingTeam)
-        _state.value = next
         _matchActive.value = true
+        _state.value = next
         return next
     }
 
@@ -106,7 +106,7 @@ class ScoreboardStore(
 
     fun restore(state: GameState, matchActive: Boolean) {
         history.clear()
-        _state.value = state
         _matchActive.value = matchActive
+        _state.value = state
     }
 }

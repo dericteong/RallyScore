@@ -111,7 +111,12 @@ The shared display surface can still be the normal phone score screen mirrored d
 
 Initial wireless tablet display sync is display-only and local-network only. The phone hosts a lightweight local WebSocket publisher for display-ready score snapshots. Tablet-sized Android screens can connect to the phone over external Wi-Fi or the phone's own hotspot and render the latest confirmed phone-owned snapshot. No Internet connection is required. The tablet can also scan its local subnet for the phone WebSocket so the connection is initiated from the tablet on networks that block inbound phone-to-tablet delivery. Discovery uses live IPv4 network interfaces, remembered endpoints, gateway probing, UDP broadcasts, and the earlier TCP endpoint path as fallback aids. Users should not need to know or enter IP addresses.
 
-Snapshots contain display-ready match state only: team names, court-ordered team names, scores, serving team, server number, serving player name, score call, voice announcement mode, active flag, undo availability, and timestamp. The connected tablet renders confirmed phone-owned snapshots and does not run scoring rules.
+Phone-tablet sync now carries two identities:
+
+- `hostId`: stable per phone installation and used to keep a tablet paired to one court host.
+- `sessionId`: rotates for each new phone-owned match and is required on tablet-to-phone commands.
+
+Snapshots contain display-ready match state only: host ID, session ID, team names, court-ordered team names, scores, serving team, server number, serving player name, score call, voice announcement mode, active flag, undo availability, and timestamp. The connected tablet renders confirmed phone-owned snapshots and does not run scoring rules.
 
 The same WebSocket carries tablet-to-phone commands. Tablet commands are:
 
@@ -123,6 +128,10 @@ The same WebSocket carries tablet-to-phone commands. Tablet commands are:
 Commands are intent only. The phone applies them through `ScoreboardStore`
 and the shared scoring engine, then broadcasts the confirmed result back to
 tablet clients and Wear OS watches.
+
+The phone ignores tablet commands whose session ID does not match the current
+phone-owned match. The tablet ignores score snapshots from non-paired host IDs.
+This is the first safeguard against multiple courts sharing the same network.
 
 The tablet display client tracks explicit connection states: Searching for phone, Reconnecting, and Connected. It remembers the last phone WebSocket endpoint, retries that endpoint after app relaunch, treats incoming score snapshots as heartbeat, detects stale connections with a read timeout, and keeps the last received score visible while reconnecting. The phone accepts reconnecting tablet clients and immediately sends the latest phone-owned snapshot when one is available. This transport should be agnostic to whether the local network is a router-backed Wi-Fi network or the phone hotspot.
 

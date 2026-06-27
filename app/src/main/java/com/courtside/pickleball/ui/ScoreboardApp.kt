@@ -142,6 +142,7 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
     var setupTeamBPlayer2 by remember { mutableStateOf("P4") }
     var startingTeam by remember { mutableStateOf<Team?>(Team.A) }
     var showEndMatchDialog by remember { mutableStateOf(false) }
+    var showChangePhoneDialog by remember { mutableStateOf(false) }
     var myTeamOnTop by remember { mutableStateOf(true) }
     var editingSetupFromMatch by remember { mutableStateOf(false) }
     var voiceModeManuallySelected by remember { mutableStateOf(false) }
@@ -323,6 +324,7 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
                     onTeamBRally = { viewModel.sendTabletCommand(TabletCommand.TeamBWonRally) },
                     onUndo = { viewModel.sendTabletCommand(TabletCommand.Undo) },
                     onEndMatchRequested = { viewModel.sendTabletCommand(TabletCommand.EndMatch) },
+                    onChangePhoneRequested = { showChangePhoneDialog = true },
                     onNavigateToSetup = {
                         editingSetupFromMatch = true
                     }
@@ -341,6 +343,7 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
                         onTeamBRally = { viewModel.recordRallyWinner(Team.B) },
                         onUndo = viewModel::undo,
                         onEndMatchRequested = { showEndMatchDialog = true },
+                        onChangePhoneRequested = { showChangePhoneDialog = true },
                         onNavigateToSetup = {
                             editingSetupFromMatch = true
                         }
@@ -391,6 +394,7 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
                         voiceModeManuallySelected = true
                         viewModel.setVoiceAnnouncementMode(it)
                     },
+                    onChangePhoneRequested = { showChangePhoneDialog = true },
                     onStart = {
                         val server = startingTeam ?: Team.A
                         viewModel.startMatch(
@@ -442,6 +446,31 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
                 }
             )
         }
+        if (useTabletDisplayLayout && showChangePhoneDialog) {
+            AlertDialog(
+                onDismissRequest = { showChangePhoneDialog = false },
+                title = { Text("Change Phone?") },
+                text = {
+                    Text("Disconnect this tablet from the current phone and search for another RallyScore phone.")
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            viewModel.forgetPairedTabletPhone()
+                            showChangePhoneDialog = false
+                            editingSetupFromMatch = false
+                        }
+                    ) {
+                        Text("Change Phone")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showChangePhoneDialog = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
     }
 }
 
@@ -465,6 +494,7 @@ private fun MatchSetupScreen(
     tabletConnectionState: TabletConnectionState,
     voiceAnnouncementMode: VoiceAnnouncementMode,
     onVoiceAnnouncementModeChange: (VoiceAnnouncementMode) -> Unit,
+    onChangePhoneRequested: () -> Unit = {},
     onStart: () -> Unit,
     onResumeMatch: () -> Unit = {}
 ) {
@@ -742,6 +772,26 @@ private fun MatchSetupScreen(
                         selectedMode = voiceAnnouncementMode,
                         onModeChange = onVoiceAnnouncementModeChange
                     )
+                    if (isTabletLayout) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        OutlinedButton(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(52.dp),
+                            onClick = onChangePhoneRequested,
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                        ) {
+                            Text(
+                                text = "CHANGE PHONE",
+                                color = Ink,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Black,
+                                textAlign = TextAlign.Center,
+                                maxLines = 1
+                            )
+                        }
+                    }
                 }
                 if (keyboardVisible) {
                     OutlinedButton(
@@ -993,6 +1043,7 @@ private fun TabletDisplayScreen(
     onTeamBRally: (() -> Unit)? = null,
     onUndo: (() -> Unit)? = null,
     onEndMatchRequested: (() -> Unit)? = null,
+    onChangePhoneRequested: (() -> Unit)? = null,
     onNavigateToSetup: (() -> Unit)? = null
 ) {
     val isController = onUndo != null
@@ -1019,6 +1070,7 @@ private fun TabletDisplayScreen(
                 canUndo = canUndo,
                 onUndo = onUndo,
                 onEndMatchRequested = onEndMatchRequested,
+                onChangePhoneRequested = onChangePhoneRequested,
                 onNavigateToSetup = onNavigateToSetup
             )
             TabletScoreboardBody(
@@ -1231,6 +1283,7 @@ private fun TabletControlBar(
     canUndo: Boolean = false,
     onUndo: (() -> Unit)? = null,
     onEndMatchRequested: (() -> Unit)? = null,
+    onChangePhoneRequested: (() -> Unit)? = null,
     onNavigateToSetup: (() -> Unit)? = null
 ) {
     val showControls = onUndo != null && onEndMatchRequested != null
@@ -1273,6 +1326,18 @@ private fun TabletControlBar(
                         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
                     ) {
                         Text("SETUP", fontSize = 18.sp, fontWeight = FontWeight.Black, maxLines = 1)
+                    }
+                }
+                if (onChangePhoneRequested != null) {
+                    OutlinedButton(
+                        modifier = Modifier
+                            .height(52.dp)
+                            .width(104.dp),
+                        onClick = onChangePhoneRequested,
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                    ) {
+                        Text("PHONE", fontSize = 16.sp, fontWeight = FontWeight.Black, maxLines = 1)
                     }
                 }
                 OutlinedButton(
@@ -1980,6 +2045,8 @@ private fun GameState.toTabletDisplayState(
     voiceAnnouncementMode: VoiceAnnouncementMode
 ): TabletDisplayState =
     TabletDisplayState(
+        hostId = "",
+        sessionId = "",
         teamAName = settings.teamAName,
         teamBName = settings.teamBName,
         teamACourtOrderedName = courtOrderedTeamName(Team.A),

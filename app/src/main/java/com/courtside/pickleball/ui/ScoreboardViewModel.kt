@@ -16,6 +16,8 @@ import kotlinx.coroutines.flow.StateFlow
 class ScoreboardViewModel(
     private val store: ScoreboardStore = RallyScorePhoneHub.store
 ) : ViewModel() {
+    private val usesPhoneHub: Boolean = store === RallyScorePhoneHub.store
+
     val state: StateFlow<GameState> = store.state
     val matchActive: StateFlow<Boolean> = store.matchActive
     val watchConnected: StateFlow<Boolean> = RallyScorePhoneHub.watchConnected
@@ -32,7 +34,27 @@ class ScoreboardViewModel(
         teamBPlayer2: String,
         startingTeam: Team
     ) {
-        store.startMatch(teamAName, teamBName, teamAPlayer1, teamAPlayer2, teamBPlayer1, teamBPlayer2, startingTeam)
+        if (usesPhoneHub) {
+            RallyScorePhoneHub.startMatch(
+                teamAName,
+                teamBName,
+                teamAPlayer1,
+                teamAPlayer2,
+                teamBPlayer1,
+                teamBPlayer2,
+                startingTeam
+            )
+        } else {
+            store.startMatch(
+                teamAName,
+                teamBName,
+                teamAPlayer1,
+                teamAPlayer2,
+                teamBPlayer1,
+                teamBPlayer2,
+                startingTeam
+            )
+        }
     }
 
     fun recordRallyWinner(team: Team): GameState {
@@ -47,11 +69,19 @@ class ScoreboardViewModel(
         settings: GameSettings = state.value.settings,
         startingTeam: Team = Team.A
     ) {
-        store.reset(settings, startingTeam)
+        if (usesPhoneHub) {
+            RallyScorePhoneHub.reset(settings, startingTeam)
+        } else {
+            store.reset(settings, startingTeam)
+        }
     }
 
     fun endMatch() {
-        store.endMatch()
+        if (usesPhoneHub) {
+            RallyScorePhoneHub.endMatch()
+        } else {
+            store.endMatch()
+        }
     }
 
     fun updateTeamNames(
@@ -67,6 +97,10 @@ class ScoreboardViewModel(
 
     fun sendTabletCommand(command: TabletCommand) {
         TabletDisplaySync.sendTabletCommand(command)
+    }
+
+    fun forgetPairedTabletPhone() {
+        TabletDisplaySync.forgetPairedPhone()
     }
 
     fun setVoiceAnnouncementMode(mode: VoiceAnnouncementMode) {

@@ -93,6 +93,9 @@ private const val WatchActionDebounceMs = 700L
 private const val PhoneConfirmationTimeoutMs = 2_200L
 private const val FeedbackVisibleMs = 900L
 private const val PhoneRefreshIntervalMs = 5_000L
+private const val CommandRefreshBurstCount = 6
+private const val CommandRefreshBurstDelayMs = 400L
+private const val ConnectedUiGraceMs = 15_000L
 private const val ScoreSpeechRate = 0.9f
 private val WatchStandaloneDefaults = GameSettings(
     teamAName = "P1 & P2",
@@ -125,10 +128,13 @@ fun WearScoreboardApp() {
     var baselinePhoneUpdateAt by remember { mutableStateOf<Long?>(null) }
     var watchCommandFeedback by remember { mutableStateOf<WatchCommandFeedback?>(null) }
     var lastConnectedScoreSignature by remember { mutableStateOf<String?>(null) }
+    var lastStablePhoneMatchState by remember { mutableStateOf<PhoneScoreState?>(null) }
+    var lastStablePhoneMatchSeenAt by remember { mutableStateOf(0L) }
     var showEndConfirmation by remember { mutableStateOf(false) }
     var connectedEndRequest by remember { mutableStateOf(false) }
     var pendingEndCommand by remember { mutableStateOf(false) }
     var connectedStartTarget by remember { mutableStateOf(ConnectedStartTarget.Phone) }
+    var uiElapsedRealtime by remember { mutableStateOf(SystemClock.elapsedRealtime()) }
     val context = LocalContext.current
     val haptics = LocalHapticFeedback.current
     val tts = remember(context) {
@@ -226,9 +232,9 @@ fun WearScoreboardApp() {
         }
     }
 
-    LaunchedEffect(phoneConnected, phoneScoreState?.updatedAt) {
+    LaunchedEffect(phoneConnected, phoneScoreState?.updatedAt, phoneScoreState?.matchActive) {
         val scoreState = phoneScoreState
-        if (pendingEndCommand && phoneConnected && scoreState?.matchActive == false) {
+        if (pendingEndCommand && scoreState?.matchActive == false) {
             pendingEndCommand = false
             awaitingPhoneConfirmation = false
             watchCommandFeedback = null
@@ -267,6 +273,16 @@ fun WearScoreboardApp() {
         }
     }
 
+    LaunchedEffect(commandSentAt, awaitingPhoneConfirmation) {
+        if (!awaitingPhoneConfirmation) return@LaunchedEffect
+        val pendingCommandSentAt = commandSentAt
+        repeat(CommandRefreshBurstCount) {
+            if (!awaitingPhoneConfirmation || commandSentAt != pendingCommandSentAt) return@LaunchedEffect
+            WearPhoneSync.refreshPhoneState()
+            delay(CommandRefreshBurstDelayMs)
+        }
+    }
+
     DisposableEffect(tts) {
         onDispose {
             tts.stop()
@@ -281,9 +297,33 @@ fun WearScoreboardApp() {
         }
     }
 
+    LaunchedEffect(Unit) {
+        while (true) {
+            uiElapsedRealtime = SystemClock.elapsedRealtime()
+            delay(1_000L)
+        }
+    }
+
     LaunchedEffect(phoneConnected, phoneScoreState?.matchActive, state) {
         if (!phoneConnected || phoneScoreState?.matchActive == true || state != null) {
             connectedStartTarget = ConnectedStartTarget.Phone
+        }
+    }
+
+    LaunchedEffect(phoneConnected, phoneScoreState?.updatedAt, phoneScoreState?.matchActive, uiElapsedRealtime, state) {
+        when {
+            phoneConnected && phoneScoreState?.matchActive == true -> {
+                lastStablePhoneMatchState = phoneScoreState
+                lastStablePhoneMatchSeenAt = SystemClock.elapsedRealtime()
+            }
+            phoneScoreState?.matchActive == false -> {
+                lastStablePhoneMatchState = null
+                lastStablePhoneMatchSeenAt = 0L
+            }
+            state != null -> {
+                lastStablePhoneMatchState = null
+                lastStablePhoneMatchSeenAt = 0L
+            }
         }
     }
 
@@ -293,7 +333,18 @@ fun WearScoreboardApp() {
             color = WatchBackground
         ) {
             val current = state
-            val connectedScoreState = phoneScoreState.takeIf { phoneConnected }
+            val liveConnectedScoreState = phoneScoreState
+            val graceConnectedScoreState = lastStablePhoneMatchState?.takeIf {
+                state == null &&
+                    phoneScoreState?.matchActive != false &&
+                    uiElapsedRealtime - lastStablePhoneMatchSeenAt <= ConnectedUiGraceMs
+            }
+            val connectedScoreState = when {
+                liveConnectedScoreState?.matchActive == true -> liveConnectedScoreState
+                graceConnectedScoreState != null -> graceConnectedScoreState
+                phoneConnected -> liveConnectedScoreState
+                else -> null
+            }
             fun startStandaloneMatch(servingTeam: Team) {
                 val next = GameState(
                     servingTeam = servingTeam,
@@ -438,7 +489,7 @@ fun WearScoreboardApp() {
                     containerColor = UndoButtonBackground,
                     title = {
                         Text(
-                            text = "End game?",
+                            text = "End Game ?",
                             color = MainText,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Black

@@ -277,6 +277,20 @@ The same WebSocket also carries tablet-to-phone commands:
 Commands represent intent only. The tablet does not run connected scoring
 logic or update its connected score optimistically.
 
+Connected phone-tablet command/state sync now carries two lightweight
+identities:
+
+- `hostId`: persisted per phone installation so one tablet can stay attached
+  to one court host on a shared network.
+- `sessionId`: rotated for each phone-owned match start/reset/end boundary so
+  stale commands from an earlier match cannot mutate the current match.
+
+The phone accepts connected tablet commands only when the command session ID
+matches the current phone-owned match session. The tablet ignores snapshots
+from non-paired host IDs and updates its remembered session ID when the paired
+phone rotates to a new match. This is an MVP guardrail for multi-court use on
+one hotspot or shared Wi-Fi, not yet a full user-visible pairing flow.
+
 Connection robustness requirements for the display client:
 
 - Tablet remembers the last successful phone WebSocket endpoint.

@@ -1,6 +1,7 @@
 package com.courtside.pickleball.wear
 
 import android.content.Context
+import android.os.SystemClock
 import android.util.Log
 import com.courtside.pickleball.domain.Team
 import com.courtside.pickleball.domain.VoiceAnnouncementMode
@@ -31,6 +32,7 @@ data class PhoneScoreState(
 
 object WearPhoneSync {
     private const val TAG = "WearPhoneSync"
+    private const val ConnectionGraceMs = 12_000L
 
     private val _phoneScoreState = MutableStateFlow<PhoneScoreState?>(null)
     val phoneScoreState: StateFlow<PhoneScoreState?> = _phoneScoreState.asStateFlow()
@@ -40,6 +42,7 @@ object WearPhoneSync {
 
     private var appContext: Context? = null
     private var initialized = false
+    @Volatile private var lastPhoneSeenAtElapsed: Long = 0L
 
     fun initialize(context: Context) {
         if (initialized) return
@@ -54,11 +57,15 @@ object WearPhoneSync {
         Wearable.getNodeClient(context).connectedNodes
             .addOnSuccessListener { nodes ->
                 val connected = nodes.isNotEmpty()
-                _phoneConnected.value = connected
+                if (connected) {
+                    markPhoneSeen()
+                } else {
+                    updatePhoneConnectedWithGrace("connected node refresh returned no nodes")
+                }
                 Log.d(TAG, "Connected phone nodes: ${nodes.size}")
             }
             .addOnFailureListener { error ->
-                _phoneConnected.value = false
+                updatePhoneConnectedWithGrace("connected node refresh failed")
                 Log.w(TAG, "Unable to refresh connected phone nodes", error)
             }
     }
@@ -70,7 +77,7 @@ object WearPhoneSync {
 
     fun handlePeerConnected(peer: Node) {
         Log.d(TAG, "Phone peer connected: ${peer.displayName}")
-        _phoneConnected.value = true
+        markPhoneSeen()
         refreshLatestScoreState()
     }
 
@@ -85,7 +92,7 @@ object WearPhoneSync {
             .addOnSuccessListener { nodes ->
                 if (nodes.isEmpty()) {
                     Log.w(TAG, "No phone node available for command: $commandPath")
-                    _phoneConnected.value = false
+                    updatePhoneConnectedWithGrace("command send found no phone nodes")
                     return@addOnSuccessListener
                 }
 
@@ -93,16 +100,17 @@ object WearPhoneSync {
                     Wearable.getMessageClient(appContext)
                         .sendMessage(node.id, commandPath, ByteArray(0))
                         .addOnSuccessListener {
+                            markPhoneSeen()
                             Log.d(TAG, "Sent command $commandPath to ${node.displayName}")
                         }
                         .addOnFailureListener { error ->
-                            _phoneConnected.value = false
+                            updatePhoneConnectedWithGrace("command send failed for ${node.displayName}")
                             Log.w(TAG, "Failed command $commandPath to ${node.displayName}", error)
                         }
                 }
             }
             .addOnFailureListener { error ->
-                _phoneConnected.value = false
+                updatePhoneConnectedWithGrace("unable to locate phone nodes for command")
                 Log.w(TAG, "Unable to find phone nodes for command: $commandPath", error)
             }
     }
@@ -122,11 +130,19 @@ object WearPhoneSync {
         Wearable.getDataClient(context).dataItems
             .addOnSuccessListener { dataItems ->
                 try {
+                    var latestDataMap: DataMap? = null
+                    var latestUpdatedAt = Long.MIN_VALUE
                     dataItems.forEach { item ->
                         if (item.uri.path == WearSyncContract.SCORE_STATE_PATH) {
-                            updatePhoneScoreState(DataMapItem.fromDataItem(item).dataMap)
+                            val dataMap = DataMapItem.fromDataItem(item).dataMap
+                            val updatedAt = dataMap.getLong(WearSyncContract.KEY_UPDATED_AT)
+                            if (latestDataMap == null || updatedAt >= latestUpdatedAt) {
+                                latestDataMap = dataMap
+                                latestUpdatedAt = updatedAt
+                            }
                         }
                     }
+                    latestDataMap?.let(::updatePhoneScoreState)
                 } finally {
                     dataItems.release()
                 }
@@ -153,8 +169,26 @@ object WearPhoneSync {
             canUndo = dataMap.getBoolean(WearSyncContract.KEY_CAN_UNDO),
             updatedAt = dataMap.getLong(WearSyncContract.KEY_UPDATED_AT)
         )
+        val currentState = _phoneScoreState.value
+        if (currentState != null && state.updatedAt < currentState.updatedAt) {
+            Log.d(TAG, "Ignored stale phone score state update: ${state.scoreCall} @${state.updatedAt}")
+            return
+        }
+        markPhoneSeen()
         _phoneScoreState.value = state
         Log.d(TAG, "Phone score state updated: ${state.scoreCall}")
+    }
+
+    private fun markPhoneSeen() {
+        lastPhoneSeenAtElapsed = SystemClock.elapsedRealtime()
+        _phoneConnected.value = true
+    }
+
+    private fun updatePhoneConnectedWithGrace(reason: String) {
+        val now = SystemClock.elapsedRealtime()
+        val isFresh = now - lastPhoneSeenAtElapsed <= ConnectionGraceMs
+        _phoneConnected.value = isFresh
+        Log.d(TAG, "Phone connection grace check ($reason): connected=$isFresh")
     }
 
     private fun String?.toTeam(): Team =

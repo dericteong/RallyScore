@@ -35,6 +35,8 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 data class TabletDisplayState(
+    val hostId: String,
+    val sessionId: String,
     val teamAName: String,
     val teamBName: String,
     val teamACourtOrderedName: String,
@@ -75,11 +77,18 @@ enum class TabletCommand(val wireValue: String) {
     }
 }
 
+private data class TabletCommandMessage(
+    val command: TabletCommand,
+    val sessionId: String?
+)
+
 object TabletDisplaySync {
     private const val TAG = "TabletDisplaySync"
     private const val PREFS_NAME = "rallyscore_tablet_display_sync"
     private const val KEY_LAST_PHONE_HOST = "last_phone_host"
     private const val KEY_LAST_PHONE_PORT = "last_phone_port"
+    private const val KEY_PAIRED_PHONE_HOST_ID = "paired_phone_host_id"
+    private const val KEY_PAIRED_PHONE_SESSION_ID = "paired_phone_session_id"
     private const val PORT = 45454
     private const val TABLET_TCP_PORT = 45455
     private const val PHONE_WS_PORT = 45456
@@ -119,8 +128,12 @@ object TabletDisplaySync {
     @Volatile private var connectedPhoneWebSocketEndpoint: InetSocketAddress? = null
     @Volatile private var connectedPhoneWebSocket: Socket? = null
     @Volatile private var tabletCommandHandler: ((TabletCommand) -> Unit)? = null
+    @Volatile private var phoneHostIdProvider: (() -> String)? = null
+    @Volatile private var phoneSessionIdProvider: (() -> String)? = null
     @Volatile private var latestPhonePayload: String? = null
     @Volatile private var lastRemoteSnapshotReceivedAt: Long = 0L
+    @Volatile private var pairedPhoneHostId: String? = null
+    @Volatile private var pairedPhoneSessionId: String? = null
     private val webSocketClients = Collections.synchronizedSet(mutableSetOf<Socket>())
     private val tabletEndpoints = ConcurrentHashMap<InetSocketAddress, Long>()
     private val tabletTcpEndpoints = ConcurrentHashMap<InetSocketAddress, Long>()
@@ -132,6 +145,8 @@ object TabletDisplaySync {
 
     fun initialize(context: Context) {
         appContext = context.applicationContext
+        pairedPhoneHostId = rememberedPairedPhoneHostId()
+        pairedPhoneSessionId = rememberedPairedPhoneSessionId()
     }
 
     fun startListener() {
@@ -146,18 +161,30 @@ object TabletDisplaySync {
         matchActiveProvider: () -> Boolean,
         canUndoProvider: () -> Boolean = { false },
         voiceModeProvider: () -> VoiceAnnouncementMode = { VoiceAnnouncementMode.PhoneOnly },
+        hostIdProvider: () -> String,
+        sessionIdProvider: () -> String,
         onTabletCommand: (TabletCommand) -> Unit = {}
     ) {
         tabletCommandHandler = onTabletCommand
+        phoneHostIdProvider = hostIdProvider
+        phoneSessionIdProvider = sessionIdProvider
         if (broadcasterJob?.isActive == true) return
         startPhoneWebSocketServer()
         broadcasterJob = scope.launch {
-            runBroadcaster(stateProvider, matchActiveProvider, canUndoProvider, voiceModeProvider)
+            runBroadcaster(
+                stateProvider = stateProvider,
+                matchActiveProvider = matchActiveProvider,
+                canUndoProvider = canUndoProvider,
+                voiceModeProvider = voiceModeProvider,
+                hostIdProvider = hostIdProvider,
+                sessionIdProvider = sessionIdProvider
+            )
         }
     }
 
     fun sendTabletCommand(command: TabletCommand) {
         val socket = connectedPhoneWebSocket
+        val sessionId = pairedPhoneSessionId ?: _remoteDisplayState.value?.sessionId
         if (!tabletDisplayAvailable || !phoneWebSocketConnected || socket == null) {
             Log.w(TAG, "Unable to send tablet command while phone WebSocket is disconnected: ${command.wireValue}")
             if (tabletDisplayAvailable) {
@@ -173,10 +200,14 @@ object TabletDisplaySync {
             )
             return
         }
+        if (sessionId.isNullOrBlank()) {
+            Log.w(TAG, "Unable to send tablet command without a paired phone session: ${command.wireValue}")
+            return
+        }
 
         scope.launch {
             try {
-                socket.writeWebSocketTextFrame(command.toWirePayload())
+                socket.writeWebSocketTextFrame(command.toWirePayload(sessionId))
                 Log.d(TAG, "Sent tablet command: ${command.wireValue}")
             } catch (error: Exception) {
                 Log.w(TAG, "Failed to send tablet command: ${command.wireValue}", error)
@@ -211,6 +242,37 @@ object TabletDisplaySync {
             connectedPhoneWebSocket = null
             connectedPhoneWebSocketEndpoint = null
             setConnectionState(TabletConnectionState.Searching)
+        }
+    }
+
+    fun forgetPairedPhone() {
+        pairedPhoneHostId = null
+        pairedPhoneSessionId = null
+        connectedPhoneWebSocket?.closeQuietly()
+        connectedPhoneWebSocket = null
+        connectedPhoneWebSocketEndpoint = null
+        phoneWebSocketConnected = false
+        _remoteDisplayState.value = null
+        lastRemoteSnapshotReceivedAt = 0L
+
+        appContext
+            ?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            ?.edit()
+            ?.remove(KEY_PAIRED_PHONE_HOST_ID)
+            ?.remove(KEY_PAIRED_PHONE_SESSION_ID)
+            ?.remove(KEY_LAST_PHONE_HOST)
+            ?.remove(KEY_LAST_PHONE_PORT)
+            ?.apply()
+
+        setConnectionState(TabletConnectionState.Searching)
+        Log.d(TAG, "Forgot paired phone identity and reset tablet discovery")
+
+        if (tabletDisplayAvailable) {
+            connectToRememberedPhoneWebSocket()
+            connectToGatewayPhoneWebSocket()
+            startTabletHelloBroadcaster()
+            startTabletTcpServer()
+            startTabletSubnetScanner()
         }
     }
 
@@ -274,7 +336,9 @@ object TabletDisplaySync {
         stateProvider: () -> GameState,
         matchActiveProvider: () -> Boolean,
         canUndoProvider: () -> Boolean,
-        voiceModeProvider: () -> VoiceAnnouncementMode
+        voiceModeProvider: () -> VoiceAnnouncementMode,
+        hostIdProvider: () -> String,
+        sessionIdProvider: () -> String
     ) {
         try {
             DatagramSocket().use { socket ->
@@ -284,7 +348,9 @@ object TabletDisplaySync {
                     val payload = state.toTabletDisplayPayload(
                         matchActive = matchActiveProvider(),
                         canUndo = canUndoProvider(),
-                        voiceAnnouncementMode = voiceModeProvider()
+                        voiceAnnouncementMode = voiceModeProvider(),
+                        hostId = hostIdProvider(),
+                        sessionId = sessionIdProvider()
                     )
                     latestPhonePayload = payload
                     val bytes = payload.toByteArray(StandardCharsets.UTF_8)
@@ -398,9 +464,18 @@ object TabletDisplaySync {
             Log.d(TAG, "Tablet WebSocket client connected: ${socket.inetAddress.hostAddress}")
             while (currentCoroutineContext().isActive) {
                 val payload = readWebSocketTextFrame(socket) ?: break
-                val command = payload.toTabletCommand() ?: continue
-                Log.d(TAG, "Received tablet command: ${command.wireValue}")
-                tabletCommandHandler?.invoke(command)
+                val commandMessage = payload.toTabletCommandMessage() ?: continue
+                val expectedSessionId = phoneSessionIdProvider?.invoke()
+                if (expectedSessionId.isNullOrBlank() || commandMessage.sessionId != expectedSessionId) {
+                    Log.w(
+                        TAG,
+                        "Ignored tablet command for mismatched session: ${commandMessage.command.wireValue} " +
+                            "expected=$expectedSessionId actual=${commandMessage.sessionId}"
+                    )
+                    continue
+                }
+                Log.d(TAG, "Received tablet command: ${commandMessage.command.wireValue}")
+                tabletCommandHandler?.invoke(commandMessage.command)
             }
         } catch (error: Exception) {
             Log.w(TAG, "Unable to accept tablet WebSocket client: ${error.message}")
@@ -840,6 +915,19 @@ object TabletDisplaySync {
     }
 
     private fun updateRemoteDisplayState(state: TabletDisplayState, source: String) {
+        val pairedHost = pairedPhoneHostId
+        if (pairedHost != null && state.hostId.isNotBlank() && pairedHost != state.hostId) {
+            Log.w(
+                TAG,
+                "Ignored tablet score snapshot from non-paired host ${state.hostId}; paired host is $pairedHost"
+            )
+            return
+        }
+        if (pairedHost == null && state.hostId.isNotBlank()) {
+            rememberPairedPhoneIdentity(state.hostId, state.sessionId)
+        } else if (state.sessionId.isNotBlank() && pairedPhoneSessionId != state.sessionId) {
+            rememberPairedPhoneSession(state.sessionId)
+        }
         lastRemoteSnapshotReceivedAt = System.currentTimeMillis()
         _remoteDisplayState.value = state
         setConnectionState(TabletConnectionState.Connected)
@@ -864,17 +952,22 @@ object TabletDisplaySync {
     private fun String.toPhoneWebSocketPort(): Int? =
         split("|").getOrNull(1)?.toIntOrNull()
 
-    private fun TabletCommand.toWirePayload(): String =
+    private fun TabletCommand.toWirePayload(sessionId: String): String =
         listOf(
             TABLET_COMMAND_PROTOCOL,
             wireValue,
+            sessionId.toWireField(),
             System.currentTimeMillis().toString()
         ).joinToString("|")
 
-    private fun String.toTabletCommand(): TabletCommand? {
+    private fun String.toTabletCommandMessage(): TabletCommandMessage? {
         val fields = split("|")
         if (fields.size < 2 || fields[0] != TABLET_COMMAND_PROTOCOL) return null
-        return TabletCommand.fromWireValue(fields[1])
+        val command = TabletCommand.fromWireValue(fields[1]) ?: return null
+        return TabletCommandMessage(
+            command = command,
+            sessionId = fields.getOrNull(2)?.fromWireField()
+        )
     }
 
     private fun acquireMulticastLock() {
@@ -997,6 +1090,27 @@ object TabletDisplaySync {
             .apply()
     }
 
+    private fun rememberPairedPhoneIdentity(hostId: String, sessionId: String) {
+        pairedPhoneHostId = hostId
+        pairedPhoneSessionId = sessionId
+        val context = appContext ?: return
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_PAIRED_PHONE_HOST_ID, hostId)
+            .putString(KEY_PAIRED_PHONE_SESSION_ID, sessionId)
+            .apply()
+        Log.d(TAG, "Paired tablet to phone host $hostId session $sessionId")
+    }
+
+    private fun rememberPairedPhoneSession(sessionId: String) {
+        pairedPhoneSessionId = sessionId
+        val context = appContext ?: return
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_PAIRED_PHONE_SESSION_ID, sessionId)
+            .apply()
+    }
+
     private fun rememberedPhoneEndpoint(): InetSocketAddress? {
         val context = appContext ?: return null
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -1010,16 +1124,30 @@ object TabletDisplaySync {
         return InetSocketAddress(address, port)
     }
 
+    private fun rememberedPairedPhoneHostId(): String? =
+        appContext
+            ?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            ?.getString(KEY_PAIRED_PHONE_HOST_ID, null)
+
+    private fun rememberedPairedPhoneSessionId(): String? =
+        appContext
+            ?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            ?.getString(KEY_PAIRED_PHONE_SESSION_ID, null)
+
     private fun GameState.toTabletDisplayPayload(
         matchActive: Boolean,
         canUndo: Boolean,
-        voiceAnnouncementMode: VoiceAnnouncementMode
+        voiceAnnouncementMode: VoiceAnnouncementMode,
+        hostId: String,
+        sessionId: String
     ): String =
         listOf(
             PROTOCOL,
             System.currentTimeMillis().toString(),
             matchActive.toString(),
             canUndo.toString(),
+            hostId.toWireField(),
+            sessionId.toWireField(),
             settings.teamAName.toWireField(),
             settings.teamBName.toWireField(),
             teamAScore.toString(),
@@ -1036,32 +1164,36 @@ object TabletDisplaySync {
 
     private fun String.toTabletDisplayState(): TabletDisplayState? {
         val fields = split("|")
-        if ((fields.size != 10 && fields.size != 11 && fields.size != 13 && fields.size != 14 && fields.size != 16) || fields[0] != PROTOCOL) return null
-        val hasCanUndo = fields.size == 11 || fields.size == 13 || fields.size == 14 || fields.size == 16
-        val hasVoiceFields = fields.size == 13 || fields.size == 14 || fields.size == 16
-        val hasServingPlayerName = fields.size == 14 || fields.size == 16
-        val hasCourtNames = fields.size == 16
+        if ((fields.size != 10 && fields.size != 11 && fields.size != 13 && fields.size != 14 && fields.size != 16 && fields.size != 18) || fields[0] != PROTOCOL) return null
+        val hasCanUndo = fields.size == 11 || fields.size == 13 || fields.size == 14 || fields.size == 16 || fields.size == 18
+        val hasVoiceFields = fields.size == 13 || fields.size == 14 || fields.size == 16 || fields.size == 18
+        val hasServingPlayerName = fields.size == 14 || fields.size == 16 || fields.size == 18
+        val hasCourtNames = fields.size == 16 || fields.size == 18
+        val hasIdentityFields = fields.size == 18
         val offset = if (hasCanUndo) 1 else 0
-        val scoreCall = fields[9 + offset].fromWireField()
+        val identityOffset = if (hasIdentityFields) 2 else 0
+        val scoreCall = fields[9 + offset + identityOffset].fromWireField()
 
         return TabletDisplayState(
             updatedAt = fields[1].toLongOrNull() ?: return null,
             matchActive = fields[2].toBooleanStrictOrNull() ?: return null,
             canUndo = if (hasCanUndo) fields[3].toBooleanStrictOrNull() ?: false else false,
-            teamAName = fields[3 + offset].fromWireField(),
-            teamBName = fields[4 + offset].fromWireField(),
-            teamACourtOrderedName = if (hasCourtNames) fields[13 + offset].fromWireField() else fields[3 + offset].fromWireField(),
-            teamBCourtOrderedName = if (hasCourtNames) fields[14 + offset].fromWireField() else fields[4 + offset].fromWireField(),
-            teamAScore = fields[5 + offset].toIntOrNull() ?: return null,
-            teamBScore = fields[6 + offset].toIntOrNull() ?: return null,
-            servingTeam = fields[7 + offset].toTeam(),
-            serverNumber = fields[8 + offset].toIntOrNull() ?: return null,
+            hostId = if (hasIdentityFields) fields[3 + offset].fromWireField() else "",
+            sessionId = if (hasIdentityFields) fields[4 + offset].fromWireField() else "",
+            teamAName = fields[3 + offset + identityOffset].fromWireField(),
+            teamBName = fields[4 + offset + identityOffset].fromWireField(),
+            teamACourtOrderedName = if (hasCourtNames) fields[13 + offset + identityOffset].fromWireField() else fields[3 + offset + identityOffset].fromWireField(),
+            teamBCourtOrderedName = if (hasCourtNames) fields[14 + offset + identityOffset].fromWireField() else fields[4 + offset + identityOffset].fromWireField(),
+            teamAScore = fields[5 + offset + identityOffset].toIntOrNull() ?: return null,
+            teamBScore = fields[6 + offset + identityOffset].toIntOrNull() ?: return null,
+            servingTeam = fields[7 + offset + identityOffset].toTeam(),
+            serverNumber = fields[8 + offset + identityOffset].toIntOrNull() ?: return null,
             scoreCall = scoreCall,
-            spokenScoreCall = if (hasVoiceFields) fields[10 + offset].fromWireField() else scoreCall,
+            spokenScoreCall = if (hasVoiceFields) fields[10 + offset + identityOffset].fromWireField() else scoreCall,
             voiceAnnouncementMode = VoiceAnnouncementMode.fromWireValue(
-                if (hasVoiceFields) fields[11 + offset] else null
+                if (hasVoiceFields) fields[11 + offset + identityOffset] else null
             ),
-            servingPlayerName = if (hasServingPlayerName) fields[12 + offset].fromWireField() else ""
+            servingPlayerName = if (hasServingPlayerName) fields[12 + offset + identityOffset].fromWireField() else ""
         )
     }
 

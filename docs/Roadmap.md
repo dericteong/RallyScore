@@ -40,7 +40,7 @@ Remaining hardening:
 
 ## Phase 2 - Wear OS Watch Control
 
-Status: Standalone Watch Only exists; initial command-only phone sync exists and needs hardening.
+Status: Complete enough for Phase 3 iteration.
 
 Current:
 
@@ -50,7 +50,7 @@ Current:
 - Wear score calls.
 - Connected watch can send rally and undo commands to phone in initial implementation.
 
-Next:
+Delivered in this phase:
 
 - Preserve Watch Only as a valid casual/demo/backup mode.
 - Remove watch-owned scoring authority from connected Watch + Phone flow.
@@ -63,10 +63,21 @@ Next:
 - Reflect phone-owned state back to the watch.
 - Add pairing/reconnect states.
 - Implement connected voice timing: confirmed watch announcement immediately, phone repeat approximately two seconds later.
+- Keep the watch visible in ambient/always-on style use while RallyScore is open.
+- Harden connected watch routing so `START ON PHONE`, live scoring, undo, and end behave consistently on real hardware.
+
+Phase 2 exit criteria before Phase 3 becomes the primary focus:
+
+- Connected watch reliably stays on the phone-owned scoreboard during an active phone match.
+- `START ON PHONE` from the watch reliably transitions phone, watch, and tablet to the same live match.
+- `END` from the watch reliably ends the phone-owned match and returns the watch to the idle/start screen.
+- Connected watch does not apply scoring logic locally; rally and undo remain phone-confirmed actions only.
+- Connected watch reconnection is stable enough on real hardware for social-play testing.
+- Watch Only standalone mode still works after connected-mode hardening.
 
 ## Phase 3 - Tablet Standalone Controller
 
-Status: Paused while tablet connection robustness is hardened.
+Status: Current phase.
 
 Current priority:
 

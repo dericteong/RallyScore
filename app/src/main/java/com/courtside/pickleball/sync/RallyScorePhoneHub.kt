@@ -12,6 +12,7 @@ import com.courtside.pickleball.domain.displayValue
 import com.courtside.pickleball.domain.spokenScoreCall
 import com.google.android.gms.wearable.PutDataMapRequest
 import com.google.android.gms.wearable.Wearable
+import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -35,6 +36,8 @@ object RallyScorePhoneHub {
     private const val KEY_SERVING_TEAM = "serving_team"
     private const val KEY_SERVER_NUMBER = "server_number"
     private const val KEY_FIRST_SERVER_EXCEPTION = "first_server_exception"
+    private const val KEY_HOST_ID = "host_id"
+    private const val KEY_SESSION_ID = "session_id"
 
     val store = ScoreboardStore()
 
@@ -46,11 +49,14 @@ object RallyScorePhoneHub {
 
     private var appContext: Context? = null
     private var initialized = false
+    @Volatile private var hostId: String = generateHostId()
+    @Volatile private var sessionId: String = generateSessionId()
 
     fun initialize(context: Context) {
         if (initialized) return
         initialized = true
         appContext = context.applicationContext
+        restoreIdentity(context.applicationContext)
 
         TabletDisplaySync.initialize(context.applicationContext)
         restorePersistedMatch(context.applicationContext)
@@ -61,6 +67,8 @@ object RallyScorePhoneHub {
             matchActiveProvider = { store.matchActive.value },
             canUndoProvider = { store.canUndo() },
             voiceModeProvider = { _voiceAnnouncementMode.value },
+            hostIdProvider = { hostId },
+            sessionIdProvider = { sessionId },
             onTabletCommand = { command -> handleTabletCommand(command) }
         )
         publishScoreState(store.state.value)
@@ -86,6 +94,42 @@ object RallyScorePhoneHub {
 
     fun setVoiceAnnouncementMode(mode: VoiceAnnouncementMode) {
         _voiceAnnouncementMode.value = mode
+    }
+
+    fun startMatch(
+        teamAName: String,
+        teamBName: String,
+        teamAPlayer1: String,
+        teamAPlayer2: String,
+        teamBPlayer1: String,
+        teamBPlayer2: String,
+        startingTeam: Team
+    ): GameState {
+        rotateSessionId()
+        return store.startMatch(
+            teamAName = teamAName,
+            teamBName = teamBName,
+            teamAPlayer1 = teamAPlayer1,
+            teamAPlayer2 = teamAPlayer2,
+            teamBPlayer1 = teamBPlayer1,
+            teamBPlayer2 = teamBPlayer2,
+            startingTeam = startingTeam
+        )
+    }
+
+    fun reset(
+        settings: GameSettings = store.state.value.settings,
+        startingTeam: Team = Team.A
+    ): GameState {
+        rotateSessionId()
+        return store.reset(settings = settings, startingTeam = startingTeam)
+    }
+
+    fun endMatch(): GameState {
+        val current = store.endMatch()
+        rotateSessionId()
+        publishScoreState(current)
+        return current
     }
 
     fun refreshConnectedNodes() {
@@ -115,11 +159,11 @@ object RallyScorePhoneHub {
         val next = when (path) {
             WearSyncContract.COMMAND_START_MATCH_TEAM_A -> {
                 Log.d(TAG, "Watch command: START_MATCH_TEAM_A")
-                store.reset(settings = store.state.value.settings, startingTeam = Team.A)
+                reset(settings = store.state.value.settings, startingTeam = Team.A)
             }
             WearSyncContract.COMMAND_START_MATCH_TEAM_B -> {
                 Log.d(TAG, "Watch command: START_MATCH_TEAM_B")
-                store.reset(settings = store.state.value.settings, startingTeam = Team.B)
+                reset(settings = store.state.value.settings, startingTeam = Team.B)
             }
             WearSyncContract.COMMAND_A_WON_RALLY -> {
                 Log.d(TAG, "Watch command: A_WON_RALLY")
@@ -135,7 +179,7 @@ object RallyScorePhoneHub {
             }
             WearSyncContract.COMMAND_END_MATCH -> {
                 Log.d(TAG, "Watch command: END_MATCH")
-                store.endMatch()
+                endMatch()
             }
             else -> {
                 Log.w(TAG, "Ignored unknown watch command: $path")
@@ -168,7 +212,7 @@ object RallyScorePhoneHub {
                 }
                 TabletCommand.EndMatch -> {
                     Log.d(TAG, "Tablet command: TABLET_END_MATCH")
-                    store.endMatch()
+                    endMatch()
                 }
             }
             publishScoreState(next)
@@ -237,6 +281,16 @@ object RallyScorePhoneHub {
         Log.d(TAG, "Restored persisted phone match: ${state.scoreCall}")
     }
 
+    private fun restoreIdentity(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        hostId = prefs.getString(KEY_HOST_ID, null) ?: generateHostId().also {
+            prefs.edit().putString(KEY_HOST_ID, it).apply()
+        }
+        sessionId = prefs.getString(KEY_SESSION_ID, null) ?: generateSessionId().also {
+            prefs.edit().putString(KEY_SESSION_ID, it).apply()
+        }
+    }
+
     private fun persistMatch(context: Context, state: GameState, matchActive: Boolean) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit()
@@ -252,7 +306,23 @@ object RallyScorePhoneHub {
             .putString(KEY_SERVING_TEAM, state.servingTeam.name)
             .putString(KEY_SERVER_NUMBER, state.serverNumber.name)
             .putBoolean(KEY_FIRST_SERVER_EXCEPTION, state.isFirstServerException)
+            .putString(KEY_HOST_ID, hostId)
+            .putString(KEY_SESSION_ID, sessionId)
             .apply()
     }
+
+    private fun rotateSessionId() {
+        sessionId = generateSessionId()
+        appContext?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            ?.edit()
+            ?.putString(KEY_HOST_ID, hostId)
+            ?.putString(KEY_SESSION_ID, sessionId)
+            ?.apply()
+        Log.d(TAG, "Rotated phone session id: $sessionId")
+    }
+
+    private fun generateHostId(): String = "phone-${UUID.randomUUID()}"
+
+    private fun generateSessionId(): String = UUID.randomUUID().toString().substring(0, 8)
 
 }

@@ -58,6 +58,11 @@ Status: In development.
 - Connected Wear now disables rally and undo controls while waiting for phone confirmation to reduce accidental double taps.
 - Phone and Wear apps refresh connection state while open to improve reconnection behavior.
 - Wear app now keeps the screen awake while RallyScore is open.
+- Wear app now declares the same RallyScore launcher icon as phone and tablet.
+- Wear app now attaches ambient support so the watch app can remain visible more reliably while open.
+- Connected watch start/end routing was hardened so `START ON PHONE` and `END` behave consistently against confirmed phone-owned match state.
+- Watch score-state refresh now prefers the newest phone snapshot and ignores stale regressions.
+- Phone match start/reset publish order was hardened so the watch does not receive a fresh-but-inactive match snapshot during connected start.
 - Phone and Wear score announcements now use media speech audio attributes with explicit full-volume TTS parameters.
 - External display support is treated as mirroring the existing phone score screen to a tablet or portable monitor.
 - Tablet-sized Android screens now show a display-only live match layout with large scores, player names, serving side, server number, and CALL.
