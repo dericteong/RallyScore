@@ -143,9 +143,7 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
     }
     val configuration = LocalConfiguration.current
     val useTabletDisplayLayout = configuration.smallestScreenWidthDp >= TabletSmallestWidthDp
-    val localCourtCode = remember(useTabletDisplayLayout) {
-        if (useTabletDisplayLayout) null else viewModel.localCourtCode()
-    }
+    val localCourtCode = remember { viewModel.localCourtCode() }
     val activeRemoteTabletState = remoteTabletDisplayState?.takeIf { it.matchActive }
     val activeRemoteTabletVoiceSignature = activeRemoteTabletState?.voiceSignature()
     val showRemoteTabletMatch = useTabletDisplayLayout && activeRemoteTabletState != null
@@ -348,8 +346,9 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
                 TabletDisplayScreen(
                     state = activeRemoteTabletState!!,
                     connectionState = tabletConnectionState,
-                    pairedCourtCode = pairedTabletCourtCode,
+                    courtCode = pairedTabletCourtCode ?: localCourtCode,
                     myTeamOnTop = activeRemoteTabletState.myTeamOnTop,
+                    watchConnected = activeRemoteTabletState.watchConnected,
                     canUndo = activeRemoteTabletState.canUndo,
                     onTeamARally = { viewModel.sendTabletCommand(TabletCommand.TeamAWonRally) },
                     onTeamBRally = { viewModel.sendTabletCommand(TabletCommand.TeamBWonRally) },
@@ -366,11 +365,13 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
                             myTeamOnTop = myTeamOnTop,
                             matchActive = true,
                             canUndo = viewModel.canUndo(),
-                            voiceAnnouncementMode = voiceAnnouncementMode
+                            voiceAnnouncementMode = voiceAnnouncementMode,
+                            watchConnected = watchConnected
                         ),
                         connectionState = tabletConnectionState,
-                        pairedCourtCode = pairedTabletCourtCode,
+                        courtCode = pairedTabletCourtCode ?: localCourtCode,
                         myTeamOnTop = myTeamOnTop,
+                        watchConnected = watchConnected,
                         canUndo = viewModel.canUndo(),
                         onTeamARally = { viewModel.recordRallyWinner(Team.A) },
                         onTeamBRally = { viewModel.recordRallyWinner(Team.B) },
@@ -1097,8 +1098,9 @@ private fun ScorePreviewCard(
 private fun TabletDisplayScreen(
     state: TabletDisplayState,
     connectionState: TabletConnectionState = TabletConnectionState.Connected,
-    pairedCourtCode: String? = null,
+    courtCode: String? = null,
     myTeamOnTop: Boolean = true,
+    watchConnected: Boolean = false,
     canUndo: Boolean = false,
     onTeamARally: (() -> Unit)? = null,
     onTeamBRally: (() -> Unit)? = null,
@@ -1122,9 +1124,10 @@ private fun TabletDisplayScreen(
                 .padding(horizontal = 28.dp, vertical = 18.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            ConnectionStatusBar(
+            TabletStatusHeader(
                 connectionState = connectionState,
-                pairedCourtCode = pairedCourtCode
+                courtCode = courtCode,
+                watchConnected = watchConnected
             )
             TabletControlBar(
                 state = state,
@@ -1219,7 +1222,7 @@ private fun TabletTeamScoreTableRow(
             contentAlignment = Alignment.CenterStart
         ) {
             TeamNameDisplay(
-                modifier = Modifier.padding(horizontal = 24.dp),
+                modifier = Modifier.padding(horizontal = 30.dp),
                 name = name,
                 color = Color.White,
                 highlightColor = color,
@@ -1241,15 +1244,15 @@ private fun TabletTeamScoreTableRow(
 @Composable
 private fun TabletServeDots(color: Color, isServing: Boolean, serverNumber: ServerNumber) {
     Row(
-        modifier = Modifier.size(width = 110.dp, height = 46.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+        modifier = Modifier.size(width = 124.dp, height = 56.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (isServing) {
             repeat(serverNumber.displayValue) {
                 Box(
                     modifier = Modifier
-                        .size(28.dp)
+                        .size(34.dp)
                         .background(color, CircleShape)
                 )
             }
@@ -1269,9 +1272,9 @@ private fun TabletConnectionState.displayLabel(pairedCourtCode: String?): String
 }
 
 private fun TabletConnectionState.phoneDisplayLabel(): String = when (this) {
-    TabletConnectionState.Searching -> "SEARCHING FOR PHONE"
-    TabletConnectionState.Reconnecting -> "PHONE RECONNECTING"
-    TabletConnectionState.Connected -> "PHONE CONNECTED"
+    TabletConnectionState.Searching -> "SEARCHING FOR TABLET"
+    TabletConnectionState.Reconnecting -> "TABLET RECONNECTING"
+    TabletConnectionState.Connected -> "TABLET CONNECTED"
 }
 
 private fun TabletConnectionState.displayColor(): Color = when (this) {
@@ -1281,33 +1284,29 @@ private fun TabletConnectionState.displayColor(): Color = when (this) {
 }
 
 @Composable
-private fun ConnectionStatusBar(
+private fun TabletStatusHeader(
     connectionState: TabletConnectionState,
-    pairedCourtCode: String? = null
+    courtCode: String? = null,
+    watchConnected: Boolean = false
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(44.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(CallBackground),
+            .height(28.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .size(width = 12.dp, height = 28.dp)
-                .clip(RoundedCornerShape(6.dp))
-                .background(connectionState.displayColor())
+        CourtCodeBadge(
+            modifier = Modifier.weight(1f),
+            code = courtCode ?: "0000"
         )
-        Text(
-            text = connectionState.displayLabel(pairedCourtCode),
-            color = Color.White,
-            fontSize = 22.sp,
-            fontWeight = FontWeight.Black,
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-            modifier = Modifier.padding(start = 14.dp)
+        WatchConnectionStatusBar(
+            modifier = Modifier.weight(1f),
+            connected = watchConnected
+        )
+        PhoneTabletStatusBar(
+            modifier = Modifier.weight(1f),
+            connectionState = connectionState
         )
     }
 }
@@ -1352,7 +1351,7 @@ private fun TabletControlBar(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .fillMaxHeight(0.48f)
+            .fillMaxHeight(0.54f)
             .clip(RoundedCornerShape(10.dp))
             .background(CallBackground)
             .padding(horizontal = 24.dp, vertical = 14.dp)
@@ -1364,9 +1363,9 @@ private fun TabletControlBar(
                 .padding(end = if (showControls) 138.dp else 0.dp, start = 12.dp),
             text = state.coloredScoreCall(),
             color = Color.White,
-            fontSize = 168.sp,
+            fontSize = 198.sp,
             fontWeight = FontWeight.Black,
-            lineHeight = 172.sp,
+            lineHeight = 202.sp,
             textAlign = TextAlign.Center,
             maxLines = 1
         )
@@ -1374,7 +1373,7 @@ private fun TabletControlBar(
             Column(
                 modifier = Modifier
                     .align(Alignment.CenterEnd),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(26.dp),
                 horizontalAlignment = Alignment.End
             ) {
                 if (onNavigateToSetup != null) {
@@ -1622,7 +1621,7 @@ private fun TeamNameDisplay(
         Row(
             modifier = modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(if (isTablet) 18.dp else 14.dp)
         ) {
             PositionedPlayerName(
                 modifier = Modifier.weight(1f),
@@ -1632,12 +1631,12 @@ private fun TeamNameDisplay(
                 isServing = playerOne == serving,
                 isTablet = isTablet
             )
-            Text(
-                text = "|",
-                color = Color.White.copy(alpha = 0.9f),
-                fontSize = if (isTablet) 42.sp else 34.sp,
-                fontWeight = FontWeight.Black,
-                maxLines = 1
+            Box(
+                modifier = Modifier
+                    .width(if (isTablet) 6.dp else 4.dp)
+                    .height(if (isTablet) 72.dp else 52.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(Color.Black.copy(alpha = 0.7f))
             )
             PositionedPlayerName(
                 modifier = Modifier.weight(1f),
@@ -1688,15 +1687,15 @@ private fun PositionedPlayerName(
         text = name,
         color = if (isServing) highlightColor else color,
         fontSize = when {
-            isTablet && isServing -> 52.sp
-            isTablet -> 44.sp
+            isTablet && isServing -> 64.sp
+            isTablet -> 56.sp
             isServing -> 40.sp
             else -> 34.sp
         },
         fontWeight = FontWeight.Black,
         lineHeight = when {
-            isTablet && isServing -> 54.sp
-            isTablet -> 48.sp
+            isTablet && isServing -> 66.sp
+            isTablet -> 60.sp
             isServing -> 42.sp
             else -> 38.sp
         },
@@ -1859,7 +1858,7 @@ private fun WatchConnectionStatusBar(
         Text(
             text = label,
             color = Color.White,
-            fontSize = if (compact) 8.sp else 10.sp,
+            fontSize = if (compact) 8.sp else 12.sp,
             fontWeight = FontWeight.Black,
             textAlign = TextAlign.Center,
             maxLines = 1,
@@ -1894,7 +1893,7 @@ private fun PhoneTabletStatusBar(
         Text(
             text = label,
             color = Color.White,
-            fontSize = if (compact) 8.sp else 10.sp,
+            fontSize = if (compact) 8.sp else 12.sp,
             fontWeight = FontWeight.Black,
             textAlign = TextAlign.Center,
             maxLines = 1,
@@ -1926,7 +1925,7 @@ private fun CourtCodeBadge(
         Text(
             text = "COURT $code",
             color = Color.White,
-            fontSize = if (compact) 8.sp else 10.sp,
+            fontSize = if (compact) 8.sp else 12.sp,
             fontWeight = FontWeight.Black,
             textAlign = TextAlign.Center,
             maxLines = 1,
@@ -2206,12 +2205,14 @@ private fun GameState.toTabletDisplayState(
     myTeamOnTop: Boolean,
     matchActive: Boolean,
     canUndo: Boolean,
-    voiceAnnouncementMode: VoiceAnnouncementMode
+    voiceAnnouncementMode: VoiceAnnouncementMode,
+    watchConnected: Boolean
 ): TabletDisplayState =
     TabletDisplayState(
         hostId = "",
         sessionId = "",
         myTeamOnTop = myTeamOnTop,
+        watchConnected = watchConnected,
         teamAName = settings.teamAName,
         teamBName = settings.teamBName,
         teamACourtOrderedName = courtOrderedTeamName(Team.A),

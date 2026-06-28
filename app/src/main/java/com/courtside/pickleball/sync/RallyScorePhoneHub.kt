@@ -84,6 +84,7 @@ object RallyScorePhoneHub {
             stateProvider = { store.state.value },
             matchActiveProvider = { store.matchActive.value },
             canUndoProvider = { store.canUndo() },
+            watchConnectedProvider = { _watchConnected.value },
             voiceModeProvider = { _voiceAnnouncementMode.value },
             hostIdProvider = { hostId },
             sessionIdProvider = { sessionId },

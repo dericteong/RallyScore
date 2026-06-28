@@ -38,6 +38,7 @@ data class TabletDisplayState(
     val hostId: String,
     val sessionId: String,
     val myTeamOnTop: Boolean,
+    val watchConnected: Boolean,
     val teamAName: String,
     val teamBName: String,
     val teamACourtOrderedName: String,
@@ -201,6 +202,7 @@ object TabletDisplaySync {
         stateProvider: () -> GameState,
         matchActiveProvider: () -> Boolean,
         canUndoProvider: () -> Boolean = { false },
+        watchConnectedProvider: () -> Boolean = { false },
         voiceModeProvider: () -> VoiceAnnouncementMode = { VoiceAnnouncementMode.PhoneOnly },
         hostIdProvider: () -> String,
         sessionIdProvider: () -> String,
@@ -216,6 +218,7 @@ object TabletDisplaySync {
                 stateProvider = stateProvider,
                 matchActiveProvider = matchActiveProvider,
                 canUndoProvider = canUndoProvider,
+                watchConnectedProvider = watchConnectedProvider,
                 voiceModeProvider = voiceModeProvider,
                 hostIdProvider = hostIdProvider,
                 sessionIdProvider = sessionIdProvider
@@ -433,6 +436,7 @@ object TabletDisplaySync {
         stateProvider: () -> GameState,
         matchActiveProvider: () -> Boolean,
         canUndoProvider: () -> Boolean,
+        watchConnectedProvider: () -> Boolean,
         voiceModeProvider: () -> VoiceAnnouncementMode,
         hostIdProvider: () -> String,
         sessionIdProvider: () -> String
@@ -445,6 +449,7 @@ object TabletDisplaySync {
                     val payload = state.toTabletDisplayPayload(
                         matchActive = matchActiveProvider(),
                         canUndo = canUndoProvider(),
+                        watchConnected = watchConnectedProvider(),
                         voiceAnnouncementMode = voiceModeProvider(),
                         hostId = hostIdProvider(),
                         sessionId = sessionIdProvider()
@@ -1346,6 +1351,7 @@ object TabletDisplaySync {
     private fun GameState.toTabletDisplayPayload(
         matchActive: Boolean,
         canUndo: Boolean,
+        watchConnected: Boolean,
         voiceAnnouncementMode: VoiceAnnouncementMode,
         hostId: String,
         sessionId: String
@@ -1358,6 +1364,7 @@ object TabletDisplaySync {
             hostId.toWireField(),
             sessionId.toWireField(),
             myTeamOnTopForSync.toString(),
+            watchConnected.toString(),
             settings.teamAName.toWireField(),
             settings.teamBName.toWireField(),
             teamAScore.toString(),
@@ -1374,17 +1381,19 @@ object TabletDisplaySync {
 
     private fun String.toTabletDisplayState(): TabletDisplayState? {
         val fields = split("|")
-        if ((fields.size != 10 && fields.size != 11 && fields.size != 13 && fields.size != 14 && fields.size != 16 && fields.size != 18 && fields.size != 19) || fields[0] != PROTOCOL) return null
-        val hasCanUndo = fields.size == 11 || fields.size == 13 || fields.size == 14 || fields.size == 16 || fields.size == 18 || fields.size == 19
-        val hasVoiceFields = fields.size == 13 || fields.size == 14 || fields.size == 16 || fields.size == 18 || fields.size == 19
-        val hasServingPlayerName = fields.size == 14 || fields.size == 16 || fields.size == 18 || fields.size == 19
-        val hasCourtNames = fields.size == 16 || fields.size == 18 || fields.size == 19
-        val hasIdentityFields = fields.size == 18 || fields.size == 19
-        val hasMyTeamOnTop = fields.size == 19
+        if ((fields.size != 10 && fields.size != 11 && fields.size != 13 && fields.size != 14 && fields.size != 16 && fields.size != 18 && fields.size != 19 && fields.size != 20) || fields[0] != PROTOCOL) return null
+        val hasCanUndo = fields.size == 11 || fields.size == 13 || fields.size == 14 || fields.size == 16 || fields.size == 18 || fields.size == 19 || fields.size == 20
+        val hasVoiceFields = fields.size == 13 || fields.size == 14 || fields.size == 16 || fields.size == 18 || fields.size == 19 || fields.size == 20
+        val hasServingPlayerName = fields.size == 14 || fields.size == 16 || fields.size == 18 || fields.size == 19 || fields.size == 20
+        val hasCourtNames = fields.size == 16 || fields.size == 18 || fields.size == 19 || fields.size == 20
+        val hasIdentityFields = fields.size == 18 || fields.size == 19 || fields.size == 20
+        val hasMyTeamOnTop = fields.size == 19 || fields.size == 20
+        val hasWatchConnected = fields.size == 20
         val offset = if (hasCanUndo) 1 else 0
         val identityOffset = if (hasIdentityFields) 2 else 0
         val sideOffset = if (hasMyTeamOnTop) 1 else 0
-        val scoreCall = fields[9 + offset + identityOffset + sideOffset].fromWireField()
+        val watchOffset = if (hasWatchConnected) 1 else 0
+        val scoreCall = fields[9 + offset + identityOffset + sideOffset + watchOffset].fromWireField()
 
         return TabletDisplayState(
             updatedAt = fields[1].toLongOrNull() ?: return null,
@@ -1397,20 +1406,25 @@ object TabletDisplaySync {
             } else {
                 true
             },
-            teamAName = fields[3 + offset + identityOffset + sideOffset].fromWireField(),
-            teamBName = fields[4 + offset + identityOffset + sideOffset].fromWireField(),
-            teamACourtOrderedName = if (hasCourtNames) fields[13 + offset + identityOffset + sideOffset].fromWireField() else fields[3 + offset + identityOffset + sideOffset].fromWireField(),
-            teamBCourtOrderedName = if (hasCourtNames) fields[14 + offset + identityOffset + sideOffset].fromWireField() else fields[4 + offset + identityOffset + sideOffset].fromWireField(),
-            teamAScore = fields[5 + offset + identityOffset + sideOffset].toIntOrNull() ?: return null,
-            teamBScore = fields[6 + offset + identityOffset + sideOffset].toIntOrNull() ?: return null,
-            servingTeam = fields[7 + offset + identityOffset + sideOffset].toTeam(),
-            serverNumber = fields[8 + offset + identityOffset + sideOffset].toIntOrNull() ?: return null,
+            watchConnected = if (hasWatchConnected) {
+                fields[3 + offset + identityOffset + sideOffset].toBooleanStrictOrNull() ?: false
+            } else {
+                false
+            },
+            teamAName = fields[3 + offset + identityOffset + sideOffset + watchOffset].fromWireField(),
+            teamBName = fields[4 + offset + identityOffset + sideOffset + watchOffset].fromWireField(),
+            teamACourtOrderedName = if (hasCourtNames) fields[13 + offset + identityOffset + sideOffset + watchOffset].fromWireField() else fields[3 + offset + identityOffset + sideOffset + watchOffset].fromWireField(),
+            teamBCourtOrderedName = if (hasCourtNames) fields[14 + offset + identityOffset + sideOffset + watchOffset].fromWireField() else fields[4 + offset + identityOffset + sideOffset + watchOffset].fromWireField(),
+            teamAScore = fields[5 + offset + identityOffset + sideOffset + watchOffset].toIntOrNull() ?: return null,
+            teamBScore = fields[6 + offset + identityOffset + sideOffset + watchOffset].toIntOrNull() ?: return null,
+            servingTeam = fields[7 + offset + identityOffset + sideOffset + watchOffset].toTeam(),
+            serverNumber = fields[8 + offset + identityOffset + sideOffset + watchOffset].toIntOrNull() ?: return null,
             scoreCall = scoreCall,
-            spokenScoreCall = if (hasVoiceFields) fields[10 + offset + identityOffset + sideOffset].fromWireField() else scoreCall,
+            spokenScoreCall = if (hasVoiceFields) fields[10 + offset + identityOffset + sideOffset + watchOffset].fromWireField() else scoreCall,
             voiceAnnouncementMode = VoiceAnnouncementMode.fromWireValue(
-                if (hasVoiceFields) fields[11 + offset + identityOffset + sideOffset] else null
+                if (hasVoiceFields) fields[11 + offset + identityOffset + sideOffset + watchOffset] else null
             ),
-            servingPlayerName = if (hasServingPlayerName) fields[12 + offset + identityOffset + sideOffset].fromWireField() else ""
+            servingPlayerName = if (hasServingPlayerName) fields[12 + offset + identityOffset + sideOffset + watchOffset].fromWireField() else ""
         )
     }
 
