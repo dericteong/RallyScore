@@ -7,5 +7,6 @@ local.properties
 *.apk
 *.aab
 *.keystore
+.DS_Store
 
 app/build/
