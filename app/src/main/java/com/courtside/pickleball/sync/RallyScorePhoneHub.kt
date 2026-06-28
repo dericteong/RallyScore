@@ -1,6 +1,7 @@
 package com.courtside.pickleball.sync
 
 import android.content.Context
+import android.content.res.Configuration
 import android.util.Log
 import com.courtside.pickleball.domain.GameState
 import com.courtside.pickleball.domain.GameSettings
@@ -69,16 +70,35 @@ object RallyScorePhoneHub {
     private var initialized = false
     @Volatile private var hostId: String = generateHostId()
     @Volatile private var sessionId: String = generateSessionId()
+    @Volatile private var deviceRole: String = WearSyncContract.DEVICE_ROLE_PHONE
 
     fun initialize(context: Context) {
         if (initialized) return
         initialized = true
         appContext = context.applicationContext
+        deviceRole = if (context.resources.configuration.smallestScreenWidthDp >= 600) {
+            WearSyncContract.DEVICE_ROLE_TABLET
+        } else {
+            WearSyncContract.DEVICE_ROLE_PHONE
+        }
         restoreIdentity(context.applicationContext)
 
         TabletDisplaySync.initialize(context.applicationContext)
         restorePersistedMatch(context.applicationContext)
         refreshConnectedNodes()
+        if (deviceRole == WearSyncContract.DEVICE_ROLE_TABLET) {
+            WatchTabletFallbackSync.initialize(context.applicationContext)
+            WatchTabletFallbackSync.start(
+                stateProvider = { store.state.value },
+                matchActiveProvider = { store.matchActive.value },
+                canUndoProvider = { store.canUndo() },
+                voiceModeProvider = { _voiceAnnouncementMode.value },
+                courtCodeProvider = { courtCode() },
+                onWatchCommand = ::handleWatchCommand
+            )
+        } else {
+            WatchTabletFallbackSync.stop()
+        }
         TabletDisplaySync.startListener()
         TabletDisplaySync.startBroadcaster(
             stateProvider = { store.state.value },
@@ -362,6 +382,7 @@ object RallyScorePhoneHub {
             dataMap.putBoolean(WearSyncContract.KEY_MATCH_ACTIVE, store.matchActive.value)
             dataMap.putBoolean(WearSyncContract.KEY_CAN_UNDO, store.canUndo())
             dataMap.putString(WearSyncContract.KEY_VOICE_MODE, _voiceAnnouncementMode.value.wireValue)
+            dataMap.putString(WearSyncContract.KEY_DEVICE_ROLE, deviceRole)
         }.asPutDataRequest().setUrgent()
 
         Wearable.getDataClient(context).putDataItem(request)

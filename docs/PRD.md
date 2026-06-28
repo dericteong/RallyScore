@@ -38,25 +38,35 @@ Large shared scoreboard
 ### Mode 0 - Watch Only
 
 - Wear OS watch is the source of truth.
-- Supports match setup, first server selection, ME WON, OPP WON, Undo, score display, and voice announcements.
+- Supports match setup, first server selection, `WE WON`, `OPP WON`, Undo,
+  score display, and voice announcements.
 - Purpose: casual play, minimal setup, demo mode, and backup mode.
 
 ### Mode 1 - Phone Only
 
 - Android phone is the source of truth.
-- Supports match setup, team names, first server selection, score display, ME WON, OPP WON, Undo, and voice announcements.
+- Supports match setup, team names, first server selection, score display,
+  rally-winner input, Undo, and voice announcements.
 - This is a first-class experience.
 
 ### Mode 2 - Watch + Phone
 
 - Phone is the source of truth.
-- Watch acts as a remote control with ME WON, OPP WON, and Undo.
+- Watch acts as a remote control with rally-winner input and Undo.
 - Phone owns scoring rules, side outs, server transitions, undo history, voice announcements, and display output.
+
+### Mode 2a - Watch + Tablet Fallback
+
+- Tablet is the source of truth when no phone is available.
+- Watch acts as a remote control with rally-winner input and Undo.
+- If both phone and tablet are available to the watch, phone remains the preferred target.
 
 ### Mode 3 - Tablet Only
 
 - Android tablet is the source of truth.
-- Supports match setup, team names, first server selection, score display, ME WON, OPP WON, Undo, correction mode when available, and voice announcements.
+- Supports match setup, team names, first server selection, score display,
+  rally-winner input, Undo, correction mode when available, and voice
+  announcements.
 - Uses the same shared scoring engine as the phone.
 - Purpose: social play where a tablet is placed courtside and any player can tap scoring controls.
 
@@ -194,7 +204,15 @@ Future synced mode:
 - TabletDisplayState includes servingPlayerName, teamACourtOrderedName, and teamBCourtOrderedName (wire protocol bumped to 16 fields).
 - Player names and server indices are persisted in SharedPreferences for match restore after app relaunch.
 - Server rotation uses a simplified fixed-position model: P1/P4 are always right-side starters (Server 1), P2/P3 are left-side (Server 2). First-server exception makes Server 2 act as Server 1 at game start.
-- The Wear app currently supports standalone prototype scoring with watch-side score calls. This is a temporary implementation mismatch with the target architecture; future watch work should evolve it into a command-only controller.
+- The watch start screen now uses a single mode selector that cycles between
+  `TABLET MODE`, `WATCH MODE`, and `PHONE MODE`, followed by first-server
+  selection and a separate `START` action.
+- In direct Watch -> Tablet mode, the watch remembers the last selected tablet
+  court and reconnects to that same court when rediscovered.
+- If multiple tablets are on the same network, the watch exposes a tablet court
+  selector so the player can choose the intended tablet explicitly.
+- If only one tablet is discovered, the watch hides the court selector to
+  preserve space and favors showing the `START` button fully.
 - Watch-to-phone synchronization is implemented in initial form and continues to be hardened.
 - My Team / Team A is blue; Opponent Team / Team B is green.
 - Each team row displays both player names joined with `&`.
@@ -219,13 +237,13 @@ Future synced mode:
   controller mode, tapping team score panels records rally wins through the
   shared scoring engine, and UNDO/END buttons appear in the call bar.
 - The CALL bar on both tablet and phone uses a dark-navy background (#111827).
-- The CALL label is white (38sp tablet, 28sp phone) rendered as a separate
-  Text composable from the score call numbers.
 - The call score is enlarged: 180sp on tablet, 52sp on phone.
 - Server dots on tablet are horizontal white circles (..) left of the score,
   with a counterbalance spacer centering the score number.
-- Phone and tablet show connection status bars at the top of the score screen
-  (WATCH CONNECTED/OFFLINE and TABLET CONNECTED/SEARCHING).
+- On tablet surfaces, the top status row now shows the local court code plus
+  compact WATCH and PHONE connection-state pills.
+- On phone surfaces, the top connection pills show WATCH and TABLET state from
+  the phone perspective.
 - Score call spoken via TTS uses English words for numbers 21–99 (e.g.
   "twenty one") and digit-by-digit for 100+ (e.g. "1 0 3").
 - Tablet screen routing checks local match state first; a local match always

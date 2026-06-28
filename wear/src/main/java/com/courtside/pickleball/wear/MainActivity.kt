@@ -10,6 +10,7 @@ class MainActivity : FragmentActivity(), AmbientModeSupport.AmbientCallbackProvi
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WearPhoneSync.initialize(applicationContext)
+        WearTabletFallbackSync.initialize(applicationContext)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         AmbientModeSupport.attach(this)
         setContent {

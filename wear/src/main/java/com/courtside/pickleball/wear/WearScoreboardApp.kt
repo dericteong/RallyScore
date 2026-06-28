@@ -16,6 +16,8 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -64,6 +66,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.courtside.pickleball.domain.GameState
 import com.courtside.pickleball.domain.GameSettings
@@ -88,6 +91,9 @@ private val InactiveGray = Color(0xFF374151)
 private val UndoButtonBackground = Color(0xFF111827)
 private val TeamBluePanel = Color(0xFF1565C0)
 private val TeamGreenPanel = Color(0xFF2E7D32)
+private val ModeTealGreen = Color(0xFF2AA876)
+private val ModeCyan = Color(0xFF26C6DA)
+private val ModeSlate = Color(0xFF90A4AE)
 private const val TAG = "WearScoreboardApp"
 private const val WatchActionDebounceMs = 700L
 private const val PhoneConfirmationTimeoutMs = 2_200L
@@ -108,9 +114,21 @@ private enum class WatchCommandFeedback {
     Problem
 }
 
-private enum class ConnectedStartTarget {
+private enum class ConnectedRemoteTarget {
     Phone,
-    Watch
+    Tablet
+}
+
+private enum class WatchStartMode {
+    Watch,
+    Phone,
+    Tablet
+}
+
+private enum class WearConnectionMode {
+    WatchOnly,
+    PhoneConnected,
+    TabletConnected
 }
 
 @Composable
@@ -120,12 +138,17 @@ fun WearScoreboardApp() {
     var state by remember { mutableStateOf<GameState?>(null) }
     val phoneScoreState by WearPhoneSync.phoneScoreState.collectAsState()
     val phoneConnected by WearPhoneSync.phoneConnected.collectAsState()
+    val tabletScoreState by WearTabletFallbackSync.tabletScoreState.collectAsState()
+    val tabletConnected by WearTabletFallbackSync.tabletConnected.collectAsState()
+    val tabletDiscoveryStatus by WearTabletFallbackSync.discoveryStatus.collectAsState()
+    val discoveredTablets by WearTabletFallbackSync.discoveredTablets.collectAsState()
+    val selectedTabletCourtCode by WearTabletFallbackSync.selectedCourtCode.collectAsState()
     var ttsReady by remember { mutableStateOf(false) }
     var pendingScoreCall by remember { mutableStateOf<String?>(null) }
     var lastWatchActionAt by remember { mutableStateOf(0L) }
     var awaitingPhoneConfirmation by remember { mutableStateOf(false) }
     var commandSentAt by remember { mutableStateOf(0L) }
-    var baselinePhoneUpdateAt by remember { mutableStateOf<Long?>(null) }
+    var baselineConnectedUpdateAt by remember { mutableStateOf<Long?>(null) }
     var watchCommandFeedback by remember { mutableStateOf<WatchCommandFeedback?>(null) }
     var lastConnectedScoreSignature by remember { mutableStateOf<String?>(null) }
     var lastStablePhoneMatchState by remember { mutableStateOf<PhoneScoreState?>(null) }
@@ -133,7 +156,9 @@ fun WearScoreboardApp() {
     var showEndConfirmation by remember { mutableStateOf(false) }
     var connectedEndRequest by remember { mutableStateOf(false) }
     var pendingEndCommand by remember { mutableStateOf(false) }
-    var connectedStartTarget by remember { mutableStateOf(ConnectedStartTarget.Phone) }
+    var connectedRemoteTarget by remember { mutableStateOf(ConnectedRemoteTarget.Phone) }
+    var selectedStartMode by remember { mutableStateOf(WatchStartMode.Tablet) }
+    var selectedStartingTeam by remember { mutableStateOf<Team?>(null) }
     var uiElapsedRealtime by remember { mutableStateOf(SystemClock.elapsedRealtime()) }
     val context = LocalContext.current
     val haptics = LocalHapticFeedback.current
@@ -150,13 +175,63 @@ fun WearScoreboardApp() {
         action()
     }
 
-    fun sendPhoneCommand(commandPath: String) {
+    fun availableRemoteTargets(): List<ConnectedRemoteTarget> = buildList {
+        if (phoneConnected) add(ConnectedRemoteTarget.Phone)
+        if (tabletConnected) add(ConnectedRemoteTarget.Tablet)
+    }
+
+    fun availableStartModes(): List<WatchStartMode> = buildList {
+        if (discoveredTablets.isNotEmpty() || tabletConnected) add(WatchStartMode.Tablet)
+        add(WatchStartMode.Watch)
+        if (phoneConnected) add(WatchStartMode.Phone)
+    }
+
+    fun activeConnectedState(): PhoneScoreState? = when {
+        connectedRemoteTarget == ConnectedRemoteTarget.Phone && phoneConnected && phoneScoreState != null -> phoneScoreState
+        connectedRemoteTarget == ConnectedRemoteTarget.Tablet && tabletConnected && tabletScoreState != null -> tabletScoreState
+        phoneConnected && phoneScoreState != null -> phoneScoreState
+        tabletConnected && tabletScoreState != null -> tabletScoreState
+        connectedRemoteTarget == ConnectedRemoteTarget.Phone && phoneConnected -> phoneScoreState
+        connectedRemoteTarget == ConnectedRemoteTarget.Tablet && tabletConnected -> tabletScoreState
+        !tabletConnected -> phoneScoreState
+        else -> tabletScoreState
+    }
+
+    fun activeConnectedRole(): ConnectedAndroidRole? = when {
+        connectedRemoteTarget == ConnectedRemoteTarget.Phone && phoneConnected -> ConnectedAndroidRole.Phone
+        connectedRemoteTarget == ConnectedRemoteTarget.Tablet && tabletConnected -> ConnectedAndroidRole.Tablet
+        phoneConnected -> ConnectedAndroidRole.Phone
+        tabletConnected -> ConnectedAndroidRole.Tablet
+        else -> null
+    }
+
+    fun sendConnectedCommand(commandPath: String) {
         awaitingPhoneConfirmation = true
         commandSentAt = SystemClock.elapsedRealtime()
-        baselinePhoneUpdateAt = phoneScoreState?.updatedAt
+        baselineConnectedUpdateAt = activeConnectedState()?.updatedAt
         watchCommandFeedback = WatchCommandFeedback.Sent
         pendingEndCommand = commandPath == WearSyncContract.COMMAND_END_MATCH
-        WearPhoneSync.sendCommand(context, commandPath)
+        val sent = when {
+            connectedRemoteTarget == ConnectedRemoteTarget.Phone && phoneConnected -> {
+                WearPhoneSync.sendCommand(context, commandPath)
+                true
+            }
+            connectedRemoteTarget == ConnectedRemoteTarget.Tablet -> {
+                WearTabletFallbackSync.sendCommand(commandPath)
+            }
+            phoneConnected -> {
+                WearPhoneSync.sendCommand(context, commandPath)
+                true
+            }
+            else -> {
+                WearTabletFallbackSync.sendCommand(commandPath)
+            }
+        }
+        if (!sent) {
+            awaitingPhoneConfirmation = false
+            pendingEndCommand = false
+            watchCommandFeedback = WatchCommandFeedback.Problem
+        }
     }
 
     fun speakScoreCall(scoreCall: String) {
@@ -216,9 +291,11 @@ fun WearScoreboardApp() {
         }
     }
 
-    LaunchedEffect(phoneScoreState?.updatedAt, awaitingPhoneConfirmation) {
-        val updatedAt = phoneScoreState?.updatedAt ?: return@LaunchedEffect
-        val baseline = baselinePhoneUpdateAt
+    val activeConnectedScoreState = activeConnectedState()
+
+    LaunchedEffect(activeConnectedScoreState?.updatedAt, awaitingPhoneConfirmation) {
+        val updatedAt = activeConnectedScoreState?.updatedAt ?: return@LaunchedEffect
+        val baseline = baselineConnectedUpdateAt
         if (awaitingPhoneConfirmation && (baseline == null || updatedAt > baseline)) {
             awaitingPhoneConfirmation = false
             pendingEndCommand = false
@@ -232,8 +309,14 @@ fun WearScoreboardApp() {
         }
     }
 
-    LaunchedEffect(phoneConnected, phoneScoreState?.updatedAt, phoneScoreState?.matchActive) {
-        val scoreState = phoneScoreState
+    LaunchedEffect(
+        phoneConnected,
+        tabletConnected,
+        phoneScoreState?.updatedAt,
+        tabletScoreState?.updatedAt,
+        activeConnectedScoreState?.matchActive
+    ) {
+        val scoreState = activeConnectedScoreState
         if (pendingEndCommand && scoreState?.matchActive == false) {
             pendingEndCommand = false
             awaitingPhoneConfirmation = false
@@ -242,7 +325,7 @@ fun WearScoreboardApp() {
             return@LaunchedEffect
         }
 
-        if (!phoneConnected || scoreState?.matchActive != true) {
+        if ((!(phoneConnected || tabletConnected)) || scoreState?.matchActive != true) {
             lastConnectedScoreSignature = null
             return@LaunchedEffect
         }
@@ -279,6 +362,9 @@ fun WearScoreboardApp() {
         repeat(CommandRefreshBurstCount) {
             if (!awaitingPhoneConfirmation || commandSentAt != pendingCommandSentAt) return@LaunchedEffect
             WearPhoneSync.refreshPhoneState()
+            if (!phoneConnected) {
+                delay(CommandRefreshBurstDelayMs)
+            }
             delay(CommandRefreshBurstDelayMs)
         }
     }
@@ -304,13 +390,23 @@ fun WearScoreboardApp() {
         }
     }
 
-    LaunchedEffect(phoneConnected, phoneScoreState?.matchActive, state) {
-        if (!phoneConnected || phoneScoreState?.matchActive == true || state != null) {
-            connectedStartTarget = ConnectedStartTarget.Phone
+    LaunchedEffect(phoneConnected, tabletConnected, discoveredTablets.size, selectedTabletCourtCode) {
+        val availableTargets = availableRemoteTargets()
+        connectedRemoteTarget = when {
+            connectedRemoteTarget in availableTargets -> connectedRemoteTarget
+            ConnectedRemoteTarget.Tablet in availableTargets -> ConnectedRemoteTarget.Tablet
+            ConnectedRemoteTarget.Phone in availableTargets -> ConnectedRemoteTarget.Phone
+            else -> ConnectedRemoteTarget.Phone
+        }
+
+        val availableModes = availableStartModes()
+        selectedStartMode = when {
+            selectedStartMode in availableModes -> selectedStartMode
+            else -> availableModes.firstOrNull() ?: WatchStartMode.Watch
         }
     }
 
-    LaunchedEffect(phoneConnected, phoneScoreState?.updatedAt, phoneScoreState?.matchActive, uiElapsedRealtime, state) {
+    LaunchedEffect(phoneConnected, tabletConnected, phoneScoreState?.updatedAt, uiElapsedRealtime, state) {
         when {
             phoneConnected && phoneScoreState?.matchActive == true -> {
                 lastStablePhoneMatchState = phoneScoreState
@@ -333,16 +429,29 @@ fun WearScoreboardApp() {
             color = WatchBackground
         ) {
             val current = state
-            val liveConnectedScoreState = phoneScoreState
+            val remoteTargets = availableRemoteTargets()
+            val selectedTabletAvailable = selectedTabletCourtCode != null &&
+                discoveredTablets.any { it.courtCode == selectedTabletCourtCode }
+            val liveConnectedScoreState = when {
+                connectedRemoteTarget == ConnectedRemoteTarget.Phone && phoneConnected -> phoneScoreState
+                connectedRemoteTarget == ConnectedRemoteTarget.Tablet && tabletConnected -> tabletScoreState
+                phoneConnected -> phoneScoreState
+                tabletConnected -> tabletScoreState
+                else -> null
+            }
             val graceConnectedScoreState = lastStablePhoneMatchState?.takeIf {
                 state == null &&
+                    !tabletConnected &&
                     phoneScoreState?.matchActive != false &&
                     uiElapsedRealtime - lastStablePhoneMatchSeenAt <= ConnectedUiGraceMs
             }
             val connectedScoreState = when {
-                liveConnectedScoreState?.matchActive == true -> liveConnectedScoreState
+                phoneConnected && liveConnectedScoreState?.sourceRole == ConnectedAndroidRole.Phone && liveConnectedScoreState.matchActive == true -> liveConnectedScoreState
+                tabletConnected && liveConnectedScoreState?.sourceRole == ConnectedAndroidRole.Tablet && liveConnectedScoreState.matchActive == true -> liveConnectedScoreState
+                tabletConnected && liveConnectedScoreState != null -> liveConnectedScoreState
+                phoneConnected && liveConnectedScoreState != null -> liveConnectedScoreState
                 graceConnectedScoreState != null -> graceConnectedScoreState
-                phoneConnected -> liveConnectedScoreState
+                phoneConnected || tabletConnected -> liveConnectedScoreState
                 else -> null
             }
             fun startStandaloneMatch(servingTeam: Team) {
@@ -354,6 +463,8 @@ fun WearScoreboardApp() {
                 state = next
                 announceScore(next)
             }
+
+            val connectedRemoteRole = connectedScoreState?.sourceRole ?: activeConnectedRole()
 
             if (current != null) {
                 WearScoreboardScreen(
@@ -397,27 +508,31 @@ fun WearScoreboardApp() {
             } else if (connectedScoreState?.matchActive == true) {
                 WearConnectedScoreboardScreen(
                     state = connectedScoreState,
+                    connectionMode = when (connectedRemoteTarget) {
+                        ConnectedRemoteTarget.Phone -> WearConnectionMode.PhoneConnected
+                        ConnectedRemoteTarget.Tablet -> WearConnectionMode.TabletConnected
+                    },
                     feedback = watchCommandFeedback,
                     actionsEnabled = !awaitingPhoneConfirmation,
                     onTeamAWon = {
                         runWatchAction {
                             context.vibrateSingleTap()
                             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                            sendPhoneCommand(WearSyncContract.COMMAND_A_WON_RALLY)
+                            sendConnectedCommand(WearSyncContract.COMMAND_A_WON_RALLY)
                         }
                     },
                     onTeamBWon = {
                         runWatchAction {
                             context.vibrateSingleTap()
                             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                            sendPhoneCommand(WearSyncContract.COMMAND_B_WON_RALLY)
+                            sendConnectedCommand(WearSyncContract.COMMAND_B_WON_RALLY)
                         }
                     },
                     onUndo = {
                         runWatchAction {
                             context.vibrateDoubleTap()
                             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            sendPhoneCommand(WearSyncContract.COMMAND_UNDO)
+                            sendConnectedCommand(WearSyncContract.COMMAND_UNDO)
                         }
                     },
                     onEndRequested = {
@@ -425,59 +540,115 @@ fun WearScoreboardApp() {
                         showEndConfirmation = true
                     }
                 )
-            } else if (connectedScoreState != null) {
-                if (connectedStartTarget == ConnectedStartTarget.Phone) {
-                    WearConnectedStartChoiceScreen(
-                        onTeamAStarts = {
-                            runWatchAction {
-                                context.vibrateSingleTap()
-                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                sendPhoneCommand(WearSyncContract.COMMAND_START_MATCH_TEAM_A)
+            } else if (connectedRemoteRole != null || discoveredTablets.isNotEmpty()) {
+                WearConnectedStartChoiceScreen(
+                    connectionMode = when (selectedStartMode) {
+                        WatchStartMode.Watch -> WearConnectionMode.WatchOnly
+                        WatchStartMode.Phone -> if (phoneConnected) WearConnectionMode.PhoneConnected else WearConnectionMode.WatchOnly
+                        WatchStartMode.Tablet -> if (tabletConnected) WearConnectionMode.TabletConnected else WearConnectionMode.WatchOnly
+                    },
+                    selectedMode = selectedStartMode,
+                    availableModes = availableStartModes(),
+                    selectedTabletCourtCode = selectedTabletCourtCode,
+                    showTabletCourtSelector = discoveredTablets.size > 1,
+                    tabletReady = tabletConnected || selectedTabletAvailable,
+                    tabletModeStatus = when {
+                        selectedStartMode != WatchStartMode.Tablet -> null
+                        tabletConnected && selectedTabletCourtCode != null -> "COURT $selectedTabletCourtCode CONNECTED"
+                        selectedTabletAvailable && selectedTabletCourtCode != null -> "COURT $selectedTabletCourtCode READY"
+                        discoveredTablets.isNotEmpty() -> "TABLET FOUND"
+                        tabletDiscoveryStatus == WearTabletFallbackSync.DiscoveryStatus.Found -> "TABLET FOUND"
+                        else -> "SEARCHING TABLETS"
+                    },
+                    onModeCycle = {
+                        val modes = availableStartModes()
+                        val currentIndex = modes.indexOf(selectedStartMode).takeIf { it >= 0 } ?: -1
+                        val nextMode = modes[(currentIndex + 1).floorMod(modes.size)]
+                        selectedStartMode = nextMode
+                        when (nextMode) {
+                            WatchStartMode.Tablet -> connectedRemoteTarget = ConnectedRemoteTarget.Tablet
+                            WatchStartMode.Phone -> {
+                                connectedRemoteTarget = ConnectedRemoteTarget.Phone
+                                WearPhoneSync.refreshPhoneState()
                             }
-                        },
-                        onTeamBStarts = {
-                            runWatchAction {
-                                context.vibrateSingleTap()
-                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                sendPhoneCommand(WearSyncContract.COMMAND_START_MATCH_TEAM_B)
-                            }
-                        },
-                        title = "START ON PHONE",
-                        secondaryLabel = "START ON WATCH",
-                        onSecondaryAction = {
-                            connectedStartTarget = ConnectedStartTarget.Watch
-                        }
-                    )
-                } else {
-                    WearConnectedStartChoiceScreen(
-                        onTeamAStarts = {
-                            runWatchAction {
-                                startStandaloneMatch(Team.A)
-                            }
-                        },
-                        onTeamBStarts = {
-                            runWatchAction {
-                                startStandaloneMatch(Team.B)
-                            }
-                        },
-                        title = "START ON WATCH",
-                        secondaryLabel = "START ON PHONE",
-                        onSecondaryAction = {
-                            connectedStartTarget = ConnectedStartTarget.Phone
-                            WearPhoneSync.refreshPhoneState()
-                        }
-                    )
-                }
-            } else {
-                WearServeSetupScreen(
-                    onTeamAStarts = {
-                        runWatchAction {
-                            startStandaloneMatch(Team.A)
+                            WatchStartMode.Watch -> Unit
                         }
                     },
-                    onTeamBStarts = {
+                    onTabletCourtCycle = {
+                        WearTabletFallbackSync.cycleSelectedTablet()
+                    },
+                    selectedStartingTeam = selectedStartingTeam,
+                    onSelectTeamA = {
+                        selectedStartingTeam = Team.A
+                    },
+                    onSelectTeamB = {
+                        selectedStartingTeam = Team.B
+                    },
+                    onStart = {
                         runWatchAction {
-                            startStandaloneMatch(Team.B)
+                            when (selectedStartingTeam) {
+                                Team.A -> when (selectedStartMode) {
+                                    WatchStartMode.Watch -> startStandaloneMatch(Team.A)
+                                    WatchStartMode.Phone -> {
+                                        connectedRemoteTarget = ConnectedRemoteTarget.Phone
+                                        context.vibrateSingleTap()
+                                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        sendConnectedCommand(WearSyncContract.COMMAND_START_MATCH_TEAM_A)
+                                    }
+                                    WatchStartMode.Tablet -> {
+                                        connectedRemoteTarget = ConnectedRemoteTarget.Tablet
+                                        context.vibrateSingleTap()
+                                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        sendConnectedCommand(WearSyncContract.COMMAND_START_MATCH_TEAM_A)
+                                    }
+                                }
+                                Team.B -> when (selectedStartMode) {
+                                    WatchStartMode.Watch -> startStandaloneMatch(Team.B)
+                                    WatchStartMode.Phone -> {
+                                        connectedRemoteTarget = ConnectedRemoteTarget.Phone
+                                        context.vibrateSingleTap()
+                                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        sendConnectedCommand(WearSyncContract.COMMAND_START_MATCH_TEAM_B)
+                                    }
+                                    WatchStartMode.Tablet -> {
+                                        connectedRemoteTarget = ConnectedRemoteTarget.Tablet
+                                        context.vibrateSingleTap()
+                                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        sendConnectedCommand(WearSyncContract.COMMAND_START_MATCH_TEAM_B)
+                                    }
+                                }
+                                null -> Unit
+                            }
+                        }
+                    }
+                )
+            } else {
+                WearServeSetupScreen(
+                    connectionMode = when {
+                        tabletConnected -> WearConnectionMode.TabletConnected
+                        phoneConnected -> WearConnectionMode.PhoneConnected
+                        else -> WearConnectionMode.WatchOnly
+                    },
+                    tabletStatus = when {
+                        phoneConnected -> null
+                        tabletConnected -> "TABLET CONNECTED"
+                        tabletDiscoveryStatus == WearTabletFallbackSync.DiscoveryStatus.Found -> "TABLET FOUND"
+                        else -> "SEARCHING TABLET"
+                    },
+                    selectedStartingTeam = selectedStartingTeam,
+                    onSelectTeamA = {
+                        selectedStartingTeam = Team.A
+                    },
+                    onSelectTeamB = {
+                        selectedStartingTeam = Team.B
+                    },
+                    onStart = {
+                        runWatchAction {
+                            when (selectedStartingTeam) {
+                                Team.A -> startStandaloneMatch(Team.A)
+                                Team.B -> startStandaloneMatch(Team.B)
+                                null -> Unit
+                            }
                         }
                     }
                 )
@@ -500,14 +671,9 @@ fun WearScoreboardApp() {
                             onClick = {
                                 showEndConfirmation = false
                                 if (connectedEndRequest) {
-                                    awaitingPhoneConfirmation = true
-                                    commandSentAt = SystemClock.elapsedRealtime()
-                                    baselinePhoneUpdateAt = phoneScoreState?.updatedAt
-                                    watchCommandFeedback = WatchCommandFeedback.Sent
-                                    pendingEndCommand = true
                                     context.vibrateDoubleTap()
                                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    WearPhoneSync.sendCommand(context, WearSyncContract.COMMAND_END_MATCH)
+                                    sendConnectedCommand(WearSyncContract.COMMAND_END_MATCH)
                                 } else {
                                     history.clear()
                                     tts.stop()
@@ -531,18 +697,25 @@ fun WearScoreboardApp() {
 
 @Composable
 private fun WearServeSetupScreen(
-    onTeamAStarts: () -> Unit,
-    onTeamBStarts: () -> Unit
+    connectionMode: WearConnectionMode,
+    tabletStatus: String? = null,
+    selectedStartingTeam: Team?,
+    onSelectTeamA: () -> Unit,
+    onSelectTeamB: () -> Unit,
+    onStart: () -> Unit
 ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(WatchBackground)
-            .padding(horizontal = 30.dp, vertical = 14.dp),
+            .padding(horizontal = 28.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically)
+        verticalArrangement = Arrangement.spacedBy(5.dp, Alignment.Top)
     ) {
-        WearConnectionLabel(connected = false)
+        WearConnectionLabel(
+            modifier = Modifier.padding(top = 4.dp),
+            connectionMode = connectionMode
+        )
         Text(
             text = "SERVES FIRST",
             color = SecondaryText,
@@ -559,17 +732,38 @@ private fun WearServeSetupScreen(
             textAlign = TextAlign.Center,
             maxLines = 1
         )
-        ServeChoiceButton(
-            modifier = Modifier.fillMaxWidth(0.76f),
-            label = "ME SERVES",
-            color = TeamBlue,
-            onClick = onTeamAStarts
-        )
-        ServeChoiceButton(
-            modifier = Modifier.fillMaxWidth(0.76f),
-            label = "OPP SERVES",
-            color = TeamGreen,
-            onClick = onTeamBStarts
+        if (tabletStatus != null) {
+            Text(
+                text = tabletStatus,
+                color = SecondaryText,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                maxLines = 1
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(0.92f),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            ServeChoiceButton(
+                modifier = Modifier.weight(1f),
+                label = "WE SERVE\nFIRST",
+                color = TeamBlue,
+                selected = selectedStartingTeam == Team.A,
+                onClick = onSelectTeamA
+            )
+            ServeChoiceButton(
+                modifier = Modifier.weight(1f),
+                label = "OPP SERVE\nFIRST",
+                color = TeamGreen,
+                selected = selectedStartingTeam == Team.B,
+                onClick = onSelectTeamB
+            )
+        }
+        PrimaryStartButton(
+            enabled = selectedStartingTeam != null,
+            onClick = onStart
         )
     }
 }
@@ -577,6 +771,7 @@ private fun WearServeSetupScreen(
 @Composable
 private fun WearConnectedScoreboardScreen(
     state: PhoneScoreState,
+    connectionMode: WearConnectionMode,
     feedback: WatchCommandFeedback?,
     actionsEnabled: Boolean,
     onTeamAWon: () -> Unit,
@@ -592,7 +787,7 @@ private fun WearConnectedScoreboardScreen(
     ) {
         WearConnectionLabel(
             modifier = Modifier.align(Alignment.TopCenter),
-            connected = true,
+            connectionMode = connectionMode,
             feedback = feedback
         )
 
@@ -614,7 +809,8 @@ private fun WearConnectedScoreboardScreen(
             teamAScore = state.teamAScore,
             teamBScore = state.teamBScore,
             servingTeam = state.servingTeam,
-            teamAName = "ME WON",
+            serverNumber = state.serverNumber,
+            teamAName = "WE WON",
             teamBName = "OPP WON",
             enabled = actionsEnabled,
             onTeamATapped = onTeamAWon,
@@ -625,65 +821,152 @@ private fun WearConnectedScoreboardScreen(
 
 @Composable
 private fun WearConnectedStartChoiceScreen(
-    onTeamAStarts: () -> Unit,
-    onTeamBStarts: () -> Unit,
-    title: String,
-    secondaryLabel: String,
-    onSecondaryAction: () -> Unit
+    connectionMode: WearConnectionMode,
+    selectedMode: WatchStartMode,
+    availableModes: List<WatchStartMode>,
+    selectedTabletCourtCode: String?,
+    showTabletCourtSelector: Boolean,
+    tabletReady: Boolean,
+    tabletModeStatus: String?,
+    onModeCycle: () -> Unit,
+    onTabletCourtCycle: () -> Unit,
+    selectedStartingTeam: Team?,
+    onSelectTeamA: () -> Unit,
+    onSelectTeamB: () -> Unit,
+    onStart: () -> Unit,
 ) {
+    val scrollState = rememberScrollState()
+
+    LaunchedEffect(selectedMode, showTabletCourtSelector, tabletReady) {
+        if (selectedMode == WatchStartMode.Tablet && !showTabletCourtSelector) {
+            scrollState.scrollTo(scrollState.maxValue)
+        } else {
+            scrollState.scrollTo(0)
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(WatchBackground)
-            .padding(horizontal = 26.dp, vertical = 14.dp),
+            .verticalScroll(scrollState)
+            .padding(horizontal = 22.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(7.dp, Alignment.CenterVertically)
+        verticalArrangement = Arrangement.spacedBy(5.dp, Alignment.Top)
     ) {
-        WearConnectionLabel(connected = true)
-        Text(
-            text = title,
-            color = MainText,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Black,
-            textAlign = TextAlign.Center,
-            maxLines = 1
+        WearConnectionLabel(
+            modifier = Modifier.padding(top = 4.dp),
+            connectionMode = connectionMode
         )
-        ServeChoiceButton(
-            modifier = Modifier.fillMaxWidth(0.82f),
-            label = "ME SERVES",
-            color = TeamBlue,
-            onClick = onTeamAStarts
+        WearStartModeButton(
+            label = when (selectedMode) {
+                WatchStartMode.Tablet -> "TABLET MODE"
+                WatchStartMode.Watch -> "WATCH MODE"
+                WatchStartMode.Phone -> "PHONE MODE"
+            },
+            subtitle = if (availableModes.size > 1) "TAP TO SWITCH" else null,
+            color = when (selectedMode) {
+                WatchStartMode.Tablet -> ModeTealGreen
+                WatchStartMode.Watch -> ModeSlate
+                WatchStartMode.Phone -> ModeCyan
+            },
+            onClick = onModeCycle
         )
-        ServeChoiceButton(
-            modifier = Modifier.fillMaxWidth(0.82f),
-            label = "OPP SERVES",
-            color = TeamGreen,
-            onClick = onTeamBStarts
-        )
-        OutlinedButton(
-            modifier = Modifier
-                .fillMaxWidth(0.82f)
-                .height(44.dp),
-            onClick = onSecondaryAction,
-            shape = RoundedCornerShape(22.dp),
-            border = BorderStroke(2.dp, ConnectedAmber),
-            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-            colors = ButtonDefaults.outlinedButtonColors(
-                containerColor = WatchBackground,
-                contentColor = ConnectedAmber
-            )
-        ) {
-            Text(
-                text = secondaryLabel,
+        if (selectedMode == WatchStartMode.Tablet && showTabletCourtSelector) {
+            WearStartModeButton(
+                label = selectedTabletCourtCode?.let { "COURT $it" } ?: "SEARCHING TABLETS",
+                subtitle = when {
+                    selectedTabletCourtCode != null && availableModes.contains(WatchStartMode.Tablet) -> "TAP TO SWITCH"
+                    else -> tabletModeStatus
+                },
                 color = ConnectedAmber,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Black,
+                onClick = onTabletCourtCycle
+            )
+        } else if (tabletModeStatus != null) {
+            Text(
+                text = tabletModeStatus,
+                color = SecondaryText,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
                 maxLines = 1
             )
         }
+        Row(
+            modifier = Modifier.fillMaxWidth(0.92f),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            ServeChoiceButton(
+                modifier = Modifier.weight(1f),
+                label = "WE SERVE\nFIRST",
+                color = TeamBlue,
+                selected = selectedStartingTeam == Team.A,
+                onClick = onSelectTeamA
+            )
+            ServeChoiceButton(
+                modifier = Modifier.weight(1f),
+                label = "OPP SERVE\nFIRST",
+                color = TeamGreen,
+                selected = selectedStartingTeam == Team.B,
+                onClick = onSelectTeamB
+            )
+        }
+        PrimaryStartButton(
+            enabled = selectedStartingTeam != null &&
+                (selectedMode != WatchStartMode.Tablet || tabletReady),
+            onClick = onStart
+        )
     }
 }
+
+@Composable
+private fun WearStartModeButton(
+    label: String,
+    subtitle: String? = null,
+    color: Color,
+    onClick: () -> Unit
+) {
+    OutlinedButton(
+        modifier = Modifier
+            .fillMaxWidth(0.82f)
+            .height(54.dp),
+        onClick = onClick,
+        shape = RoundedCornerShape(18.dp),
+        border = BorderStroke(
+            2.dp,
+            color
+        ),
+        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+        colors = ButtonDefaults.outlinedButtonColors(
+            containerColor = color.copy(alpha = 0.14f),
+            contentColor = color
+        )
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = label,
+                color = color,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Black,
+                textAlign = TextAlign.Center,
+                maxLines = 1
+            )
+            if (subtitle != null) {
+                Text(
+                    text = subtitle,
+                    color = color.copy(alpha = 0.78f),
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1
+                )
+            }
+        }
+    }
+}
+
+private fun Int.floorMod(modulus: Int): Int =
+    if (modulus == 0) 0 else ((this % modulus) + modulus) % modulus
 
 @Composable
 private fun WearScoreboardScreen(
@@ -705,7 +988,7 @@ private fun WearScoreboardScreen(
     ) {
         WearConnectionLabel(
             modifier = Modifier.align(Alignment.TopCenter),
-            connected = false
+            connectionMode = WearConnectionMode.WatchOnly
         )
 
         ScoreSummary(
@@ -725,7 +1008,8 @@ private fun WearScoreboardScreen(
             teamAScore = state.teamAScore,
             teamBScore = state.teamBScore,
             servingTeam = state.servingTeam,
-            teamAName = "ME WON",
+            serverNumber = state.serverNumber.displayValue,
+            teamAName = "WE WON",
             teamBName = "OPP WON",
             enabled = !gameOver,
             onTeamATapped = onTeamAWon,
@@ -739,23 +1023,59 @@ private fun ServeChoiceButton(
     modifier: Modifier,
     label: String,
     color: Color,
+    selected: Boolean,
     onClick: () -> Unit
 ) {
     Button(
-        modifier = modifier.height(40.dp),
+        modifier = modifier.height(58.dp),
         onClick = onClick,
         shape = RoundedCornerShape(24.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = color,
+            containerColor = if (selected) color else WatchBackground,
             contentColor = MainText,
             disabledContainerColor = InactiveGray,
             disabledContentColor = SecondaryText.copy(alpha = 0.55f)
+        ),
+        border = BorderStroke(
+            width = if (selected) 2.dp else 1.dp,
+            color = if (selected) color else MainText.copy(alpha = 0.28f)
         ),
         contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp)
     ) {
         Text(
             text = label,
-            fontSize = 19.sp,
+            fontSize = 12.sp,
+            lineHeight = 1.05.em,
+            fontWeight = FontWeight.Black,
+            textAlign = TextAlign.Center,
+            maxLines = 2
+        )
+    }
+}
+
+@Composable
+private fun PrimaryStartButton(
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    Button(
+        modifier = Modifier
+            .fillMaxWidth(0.62f)
+            .height(40.dp),
+        onClick = onClick,
+        enabled = enabled,
+        shape = RoundedCornerShape(20.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MainText,
+            contentColor = WatchBackground,
+            disabledContainerColor = InactiveGray,
+            disabledContentColor = SecondaryText.copy(alpha = 0.6f)
+        ),
+        contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp)
+    ) {
+        Text(
+            text = "START",
+            fontSize = 14.sp,
             fontWeight = FontWeight.Black,
             textAlign = TextAlign.Center,
             maxLines = 1
@@ -836,20 +1156,24 @@ private fun ConnectedScoreSummary(
 @Composable
 private fun WearConnectionLabel(
     modifier: Modifier = Modifier,
-    connected: Boolean,
+    connectionMode: WearConnectionMode,
     feedback: WatchCommandFeedback? = null
 ) {
     val isProblem = feedback == WatchCommandFeedback.Problem
     val color = when {
         isProblem -> ProblemRed
-        connected -> ConnectedAmber
-        else -> ProblemRed
+        connectionMode == WearConnectionMode.WatchOnly -> ConnectedAmber
+        else -> ConnectedAmber
     }
     val text = when (feedback) {
         WatchCommandFeedback.Sent -> "SENT"
         WatchCommandFeedback.Confirmed -> "SCORE OK"
-        WatchCommandFeedback.Problem -> "PHONE?"
-        null -> if (connected) "CONNECTED" else "STANDALONE"
+        WatchCommandFeedback.Problem -> "DEVICE?"
+        null -> when (connectionMode) {
+            WearConnectionMode.TabletConnected -> "TABLET CONNECTED"
+            WearConnectionMode.PhoneConnected -> "PHONE CONNECTED"
+            WearConnectionMode.WatchOnly -> "WATCH ONLY"
+        }
     }
     Row(
         modifier = modifier
@@ -862,7 +1186,7 @@ private fun WearConnectionLabel(
     ) {
         Box(
             modifier = Modifier
-                .size(5.dp)
+                .size(7.dp)
                 .background(color, CircleShape)
         )
         Text(
@@ -876,12 +1200,18 @@ private fun WearConnectionLabel(
     }
 }
 
+private fun ConnectedAndroidRole.startLabel(): String = when (this) {
+    ConnectedAndroidRole.Phone -> "PHONE"
+    ConnectedAndroidRole.Tablet -> "TABLET"
+}
+
 @Composable
 private fun WearScorePanels(
     modifier: Modifier = Modifier,
     teamAScore: Int,
     teamBScore: Int,
     servingTeam: Team,
+    serverNumber: Int,
     teamAName: String,
     teamBName: String,
     enabled: Boolean,
@@ -899,6 +1229,7 @@ private fun WearScorePanels(
             label = teamAName,
             score = teamAScore,
             isServing = servingTeam == Team.A,
+            serverNumber = serverNumber,
             panelColor = TeamBluePanel,
             enabled = enabled,
             onClick = onTeamATapped
@@ -908,6 +1239,7 @@ private fun WearScorePanels(
             label = teamBName,
             score = teamBScore,
             isServing = servingTeam == Team.B,
+            serverNumber = serverNumber,
             panelColor = TeamGreenPanel,
             enabled = enabled,
             onClick = onTeamBTapped
@@ -921,6 +1253,7 @@ private fun WearScorePanel(
     label: String,
     score: Int,
     isServing: Boolean,
+    serverNumber: Int,
     panelColor: Color,
     enabled: Boolean,
     onClick: () -> Unit
@@ -959,7 +1292,10 @@ private fun WearScorePanel(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(5.dp, Alignment.CenterVertically)
             ) {
-                WearServeDots(isServing = isServing)
+                WearServeDots(
+                    isServing = isServing,
+                    serverNumber = serverNumber
+                )
                 Text(
                     text = score.toString(),
                     color = MainText,
@@ -1065,17 +1401,20 @@ private fun WearUtilityRow(
 }
 
 @Composable
-private fun WearServeDots(isServing: Boolean) {
+private fun WearServeDots(
+    isServing: Boolean,
+    serverNumber: Int
+) {
     Row(
         modifier = Modifier.height(8.dp),
         horizontalArrangement = Arrangement.spacedBy(5.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (isServing) {
-            repeat(2) {
+            repeat(serverNumber.coerceIn(1, 2)) {
                 Box(
                     modifier = Modifier
-                        .size(5.dp)
+                        .size(7.dp)
                         .background(ConnectedAmber, CircleShape)
                 )
             }

@@ -81,13 +81,28 @@ Contains:
 - `WearDataLayerListenerService`
 - Text-to-Speech score calls for standalone Watch Only mode.
 
-Current Wear behavior supports connected remote mode when the phone has an active match and standalone Watch Only mode when no phone-owned match is active. If the phone is connected but idle, the watch still allows a local standalone match to start from the watch. Connected Wear behavior is command-only: My Team won rally, Opponent won rally, and Undo. Connected-mode controls are temporarily disabled while awaiting phone confirmation to reduce accidental double taps during play. The watch should not contain pickleball scoring logic, server-transition logic, side-out logic, or authoritative match state in connected mode.
+Current Wear behavior supports connected remote mode when the phone or a
+paired tablet has an active match and standalone Watch Only mode when no
+remote match is active. The connected start screen uses a single mode button
+that cycles between `TABLET MODE`, `WATCH MODE`, and `PHONE MODE`, followed by
+first-server selection and a separate `START` button. Connected Wear behavior
+is command-only: My Team won rally, Opponent won rally, and Undo. Connected-mode
+controls are temporarily disabled while awaiting remote confirmation to reduce
+accidental double taps during play. The watch should not contain pickleball
+scoring logic, server-transition logic, side-out logic, or authoritative match
+state in connected mode. If both phone and tablet are present, the watch
+prefers the phone as its single target. If no phone is available, the watch may
+target a RallyScore tablet directly using the same command/state-sync pattern.
+When multiple tablets are discovered on one network, the watch requires an
+explicit tablet court selection and remembers the last selected tablet court for
+reconnect.
 
 ## Supported Product Modes
 
 - Mode 0 - Watch Only: watch source of truth.
 - Mode 1 - Phone Only: phone source of truth.
 - Mode 2 - Watch + Phone: phone source of truth, watch remote control.
+- Mode 2a - Watch + Tablet fallback: tablet source of truth, watch remote control when no phone is available.
 - Mode 3 - Tablet Only: tablet source of truth.
 - Mode 4 - Phone + Tablet synced: one shared canonical source of truth.
 - Mode 5 - Watch + Phone + Android Tablet synced: phone primary hub, one shared canonical source of truth.
@@ -100,7 +115,7 @@ Current Wear behavior supports connected remote mode when the phone has an activ
 1. User reviews or edits My Team and Opponent Team names on the phone.
 2. User selects starting serving team during setup.
 3. Phone ViewModel creates the authoritative `GameState`.
-4. Primary flow: active player taps ME WON or OPP WON on the watch.
+4. Primary flow: active player taps `WE WON` or `OPP WON` on the watch.
 5. Watch sends a `MessageClient` command event to the phone.
 6. Fallback flow: user taps Team A or Team B score directly on the phone.
 7. Phone ViewModel stores the previous state in history.
@@ -177,7 +192,7 @@ Required principles:
 ### Watch Only Data Flow
 
 1. User chooses first server on the watch.
-2. User taps ME WON or OPP WON on the watch.
+2. User taps `WE WON` or `OPP WON` on the watch.
 3. Watch-local state stores previous state in history.
 4. Watch asks `PickleballScoringEngine.recordRallyWinner`.
 5. Watch Compose redraws and announces the score locally.
@@ -185,6 +200,17 @@ Required principles:
 The standalone Wear flow is valid for Watch Only mode. Connected Wear flow must keep the phone as source of truth even when rally input originates on the watch.
 
 Connected Wear mode may speak only after confirmed phone state is received. It must never speak a predicted score.
+
+### Watch + Tablet Fallback Data Flow
+
+1. Tablet advertises its watch-fallback endpoint together with its court code.
+2. Watch discovers one or more tablet courts on the local network.
+3. If more than one tablet court is visible, the watch user explicitly selects
+   the intended court from the watch start flow.
+4. Watch remembers the selected tablet court for later reconnects.
+5. Watch sends start, rally, undo, and end intent only to the selected tablet.
+6. Tablet applies scoring through the shared engine and returns confirmed state
+   to the watch.
 
 ## Watch Command Contract
 

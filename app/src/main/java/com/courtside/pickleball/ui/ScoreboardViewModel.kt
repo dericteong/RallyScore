@@ -14,6 +14,7 @@ import com.courtside.pickleball.sync.TabletDisplayState
 import com.courtside.pickleball.sync.TabletDisplaySync
 import com.courtside.pickleball.sync.TabletPhoneCandidate
 import com.courtside.pickleball.sync.TabletSetupPayload
+import com.courtside.pickleball.sync.WatchTabletFallbackSync
 import kotlinx.coroutines.flow.StateFlow
 
 class ScoreboardViewModel(
@@ -24,6 +25,7 @@ class ScoreboardViewModel(
     val state: StateFlow<GameState> = store.state
     val matchActive: StateFlow<Boolean> = store.matchActive
     val watchConnected: StateFlow<Boolean> = RallyScorePhoneHub.watchConnected
+    val tabletWatchConnected: StateFlow<Boolean> = WatchTabletFallbackSync.watchConnected
     val voiceAnnouncementMode: StateFlow<VoiceAnnouncementMode> = RallyScorePhoneHub.voiceAnnouncementMode
     val remoteTabletDisplayState: StateFlow<TabletDisplayState?> = TabletDisplaySync.remoteDisplayState
     val tabletConnectionState: StateFlow<TabletConnectionState> = TabletDisplaySync.connectionState

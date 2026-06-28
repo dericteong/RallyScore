@@ -27,6 +27,8 @@ Status: In development.
 - Wear serving-team selection before scoring.
 - Wear Text-to-Speech score calls.
 - Wear scoring screens use a black high-contrast theme, side-by-side score panels, a larger color-coded CALL, and round-screen-optimized controls.
+- Wear direct tablet-fallback discovery now exposes tablet court codes and
+  remembers the last selected tablet court on the watch.
 - Initial Wear OS Data Layer sync using watch commands and phone-owned score snapshots.
 - Phone-owned score snapshots include active-match and undo-availability state for connected Wear control.
 - Phone and Wear connection status indicators.
@@ -56,6 +58,13 @@ Status: In development.
 - Connected tablet voice announcements use confirmed phone-owned snapshots and do not announce predicted scores.
 - Connected Wear now waits for an active phone match before showing remote scoring controls.
 - Connected Wear now disables rally and undo controls while waiting for phone confirmation to reduce accidental double taps.
+- Connected watch start flow now uses a single cycling mode button:
+  `TABLET MODE`, `WATCH MODE`, `PHONE MODE`, followed by first-server
+  selection and a separate `START` action.
+- Direct Watch -> Tablet mode now requires explicit watch-side tablet-court
+  selection when multiple tablets are discovered on the same network.
+- Single-tablet Watch -> Tablet mode now hides the tablet-court selector and
+  auto-favors keeping the `START` button visible.
 - Phone and Wear apps refresh connection state while open to improve reconnection behavior.
 - Wear app now keeps the screen awake while RallyScore is open.
 - Wear app now declares the same RallyScore launcher icon as phone and tablet.
@@ -90,6 +99,8 @@ Status: In development.
   score, with the score centered via a counterbalance spacer.
 - Tablet connection status bar shows "PHONE CONNECTED", "PHONE
   RECONNECTING", or "SEARCHING FOR PHONE".
+- Tablet setup header now shows its local court code beside WATCH and PHONE
+  connection-state pills.
 - Phone scoring screen now shows watch connection status as a full-width
   bar at the top (was a compact rail beside UNDO).
 - Phone setup screen now displays watch and tablet connection status side
@@ -109,6 +120,7 @@ Status: In development.
 - Setup screen has app title "RallyScore", swap teams button (⇅), solid team-colored cards, `imePadding()`, and always scrollable form column.
 - Score preview card simplified to "WE SERVE FIRST" / "OPP SERVE FIRST" / "TAP A TEAM" with team-colored background, tappable.
 - Scoreboard shows dynamic court-ordered team names, serving player underlined, call bar shows serving player (e.g., "P1 SERVES").
+- Watch score tiles now read `WE WON` and `OPP WON`.
 - "Setup" button on scoreboard returns to setup screen to edit names mid-match.
 - "START NEW GAME" and "RESUME GAME" buttons use red-orange (#D84315), no confirmation dialogs.
 - TabletDisplayState includes `servingPlayerName`, `teamACourtOrderedName`, and `teamBCourtOrderedName`; wire protocol bumped to 16 fields.

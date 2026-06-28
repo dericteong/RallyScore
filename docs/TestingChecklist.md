@@ -154,7 +154,8 @@ Initial implementation exists. Required before the connected Watch + Phone produ
 
 - Watch can discover or pair with the phone scoring hub.
 - Watch shows connected phone-idle choices when the phone is connected but has not started a match.
-- From that connected idle state, the watch can still start a standalone local match with ME SERVES or OPP SERVES.
+- From that connected idle state, the watch can still start a standalone local
+  match with `WE SERVE FIRST` or `OPP SERVE FIRST`.
 - Phone owns authoritative match state.
 - Watch rally input updates the phone/shared display.
 - Watch undo restores the phone/shared display.
@@ -185,7 +186,9 @@ Initial implementation exists. Required before the connected Watch + Phone produ
 Treat Phase 2 as complete enough to move focus to Phase 3 only when all of the following pass on real hardware:
 
 - Connected watch remains on the phone-owned scoreboard during an idle active match and does not flicker back to start.
-- From connected idle state, `START ON PHONE` on the watch moves the watch to the connected scoreboard without bouncing back to start.
+- From connected idle state, selecting `PHONE MODE`, choosing a serving side,
+  and tapping `START` on the watch moves the watch to the connected scoreboard
+  without bouncing back to start.
 - From connected scoreboard state, watch rally input updates the phone and remains on the connected scoreboard.
 - From connected scoreboard state, watch `UNDO` updates the phone and remains on the connected scoreboard.
 - From connected scoreboard state, watch `END` with confirmation ends the phone-owned match and returns the watch to the idle/start screen.
@@ -257,6 +260,15 @@ Treat Phase 2 as complete enough to move focus to Phase 3 only when all of the f
 - Tablet remembers the phone host identity after first successful connected sync.
 - Tablet can intentionally forget the remembered phone host and re-enter discovery without clearing app data.
 - After forgetting the phone host, verify the tablet returns to setup discovery state and requires a fresh explicit court selection.
+- With two tablets on the same local network, verify the watch shows a tablet
+  court selector and can switch between discovered tablet courts before
+  starting a direct watch-to-tablet match.
+- With only one tablet on the same local network, verify the watch hides the
+  tablet court selector and still allows direct tablet start cleanly.
+- Verify direct watch-to-tablet pairing remembers the last selected tablet court
+  across watch app relaunch and reconnects to that same court when available.
+- In single-tablet `TABLET MODE`, verify the watch start screen favors showing
+  the `START` button fully without requiring manual scroll.
 - When the phone starts a new phone-owned match, the connected tablet receives the new session identity before sending later commands.
 - Tablet-to-phone commands include the current phone-owned match session identity.
 - Phone ignores connected tablet commands whose session identity does not match the current phone-owned match.

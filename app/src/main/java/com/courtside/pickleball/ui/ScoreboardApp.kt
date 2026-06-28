@@ -131,6 +131,7 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val matchStarted by viewModel.matchActive.collectAsStateWithLifecycle()
     val watchConnected by viewModel.watchConnected.collectAsStateWithLifecycle()
+    val tabletWatchConnected by viewModel.tabletWatchConnected.collectAsStateWithLifecycle()
     val voiceAnnouncementMode by viewModel.voiceAnnouncementMode.collectAsStateWithLifecycle()
     val remoteTabletDisplayState by viewModel.remoteTabletDisplayState.collectAsStateWithLifecycle()
     val tabletConnectionState by viewModel.tabletConnectionState.collectAsStateWithLifecycle()
@@ -147,6 +148,7 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
     val activeRemoteTabletState = remoteTabletDisplayState?.takeIf { it.matchActive }
     val activeRemoteTabletVoiceSignature = activeRemoteTabletState?.voiceSignature()
     val showRemoteTabletMatch = useTabletDisplayLayout && activeRemoteTabletState != null
+    val effectiveTabletWatchConnected = watchConnected || tabletWatchConnected
     var setupTeamAPlayer1 by remember { mutableStateOf("P1") }
     var setupTeamAPlayer2 by remember { mutableStateOf("P2") }
     var setupTeamBPlayer1 by remember { mutableStateOf("P3") }
@@ -366,12 +368,12 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
                             matchActive = true,
                             canUndo = viewModel.canUndo(),
                             voiceAnnouncementMode = voiceAnnouncementMode,
-                            watchConnected = watchConnected
+                            watchConnected = effectiveTabletWatchConnected
                         ),
                         connectionState = tabletConnectionState,
                         courtCode = pairedTabletCourtCode ?: localCourtCode,
                         myTeamOnTop = myTeamOnTop,
-                        watchConnected = watchConnected,
+                        watchConnected = effectiveTabletWatchConnected,
                         canUndo = viewModel.canUndo(),
                         onTeamARally = { viewModel.recordRallyWinner(Team.A) },
                         onTeamBRally = { viewModel.recordRallyWinner(Team.B) },
@@ -421,7 +423,7 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
                             null -> null
                         }
                     },
-                    watchConnected = watchConnected,
+                    watchConnected = effectiveTabletWatchConnected,
                     tabletConnectionState = tabletConnectionState,
                     voiceAnnouncementMode = voiceAnnouncementMode,
                     onVoiceAnnouncementModeChange = {
@@ -642,13 +644,18 @@ private fun MatchSetupScreen(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+                                CourtCodeBadge(
+                                    modifier = Modifier.widthIn(min = 108.dp),
+                                    code = localCourtCode ?: "0000"
+                                )
                                 WatchConnectionStatusBar(
                                     modifier = Modifier.widthIn(min = 150.dp),
                                     connected = watchConnected
                                 )
                                 PhoneTabletStatusBar(
                                     modifier = Modifier.widthIn(min = 160.dp),
-                                    connectionState = tabletConnectionState
+                                    connectionState = tabletConnectionState,
+                                    isTabletPerspective = true
                                 )
                             }
                         } else {
@@ -1306,7 +1313,8 @@ private fun TabletStatusHeader(
         )
         PhoneTabletStatusBar(
             modifier = Modifier.weight(1f),
-            connectionState = connectionState
+            connectionState = connectionState,
+            isTabletPerspective = true
         )
     }
 }
@@ -1489,7 +1497,8 @@ private fun ScoreboardScreen(
                 )
                 PhoneTabletStatusBar(
                     modifier = Modifier.weight(1f),
-                    connectionState = tabletConnectionState
+                    connectionState = tabletConnectionState,
+                    isTabletPerspective = true
                 )
             }
             ControlBar(
@@ -1871,10 +1880,15 @@ private fun WatchConnectionStatusBar(
 private fun PhoneTabletStatusBar(
     modifier: Modifier = Modifier,
     connectionState: TabletConnectionState,
+    isTabletPerspective: Boolean = false,
     compact: Boolean = false
 ) {
     val color = connectionState.displayColor()
-    val label = connectionState.phoneDisplayLabel()
+    val label = if (isTabletPerspective) {
+        connectionState.displayLabel(pairedCourtCode = null)
+    } else {
+        connectionState.phoneDisplayLabel()
+    }
 
     Row(
         modifier = modifier

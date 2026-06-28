@@ -9,6 +9,7 @@ Supported modes:
 - Mode 0: Watch Only.
 - Mode 1: Phone Only.
 - Mode 2: Watch + Phone.
+- Mode 2a: Watch + Tablet fallback.
 - Mode 3: Tablet Only.
 - Mode 4: Phone + Tablet synced.
 - Mode 5: Watch + Phone + Android Tablet synced.
@@ -187,7 +188,7 @@ Current behavior:
 
 - Uses the shared scoring engine.
 - Keeps local state in Compose.
-- Uses score tiles as the primary ME WON and OPP WON controls.
+- Uses score tiles as the primary `WE WON` and `OPP WON` controls.
 - Keeps Undo on the main screen and exposes End as a secondary watch action to protect round-screen readability.
 - Speaks score calls locally in standalone mode.
 - When the phone has an active match, switches to connected remote-control mode.
@@ -196,7 +197,8 @@ Current behavior:
 Standalone Watch Only behavior:
 
 - Watch may be the source of truth.
-- Supports match setup, first server selection, ME WON, OPP WON, Undo, score display, and voice announcements.
+- Supports match setup, first-server selection, `WE WON`, `OPP WON`, Undo,
+  score display, and voice announcements.
 - Existing standalone behavior should be preserved unless intentionally changing Watch Only mode.
 
 Connected Watch + Phone behavior:
@@ -216,6 +218,17 @@ Remote-control behavior uses Wear OS Data Layer:
   - Undo.
 - `DataClient` for phone-to-watch score state snapshots.
 - Phone score snapshots include active-match and undo-availability flags.
+- When both phone and tablet are connected to the watch, the watch prefers the
+  phone as its single command target.
+- When no phone is available but a RallyScore tablet is connected, the watch may
+  target the tablet directly and the tablet becomes the source of truth for that
+  connected match.
+- Direct watch-to-tablet discovery includes the tablet court code.
+- The watch remembers the last selected tablet court and reconnects to that same
+  court when it is rediscovered.
+- If multiple tablets are on the same local network, the watch must let the user
+  switch tablet courts explicitly instead of auto-attaching to an arbitrary
+  tablet.
 
 Connected watch mode must not share ViewModels between phone and Wear and must not run watch-owned scoring logic.
 Connected watch controls must not become active until the phone has started a match.
@@ -238,7 +251,7 @@ Tablet Only mode defaults to Tablet only and announces immediately after confirm
 
 Connected Watch + Phone mode defaults to Watch then Phone:
 
-1. Watch sends ME WON, OPP WON, or Undo to phone.
+1. Watch sends `WE WON`, `OPP WON`, or Undo to phone.
 2. Phone updates score as source of truth.
 3. Phone publishes confirmed score state.
 4. Watch receives confirmed score state and announces immediately.
@@ -246,7 +259,7 @@ Connected Watch + Phone mode defaults to Watch then Phone:
 
 Connected Watch + Phone + Tablet mode should default to Watch then Tablet:
 
-1. Watch sends ME WON, OPP WON, or Undo to phone.
+1. Watch sends `WE WON`, `OPP WON`, or Undo to phone.
 2. Phone updates score as source of truth.
 3. Phone publishes confirmed score state to watch and tablet.
 4. Watch announces the confirmed score immediately.

@@ -23,9 +23,12 @@ object WearSyncContract {
     const val KEY_MATCH_ACTIVE = "match_active"
     const val KEY_CAN_UNDO = "can_undo"
     const val KEY_VOICE_MODE = "voice_mode"
+    const val KEY_DEVICE_ROLE = "device_role"
 
     const val TEAM_A = "A"
     const val TEAM_B = "B"
+    const val DEVICE_ROLE_PHONE = "phone"
+    const val DEVICE_ROLE_TABLET = "tablet"
 
     const val VOICE_OFF = "off"
     const val VOICE_PHONE_ONLY = "phone_only"

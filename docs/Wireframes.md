@@ -119,7 +119,7 @@ Round/small-screen optimized primary controller layout:
 
 Standalone Watch Only behavior:
 
-- Starts with ME SERVES / OPP SERVES selection.
+- Starts with `WE SERVE FIRST` / `OPP SERVE FIRST` selection.
 - Uses shared scoring rules.
 - Maintains its own local state.
 - Speaks the score after first-server selection, rally input, and undo.
@@ -130,8 +130,18 @@ Standalone Watch Only behavior:
 Connected Watch + Phone behavior:
 
 - Shows standalone status when no phone state is available.
-- When the phone is connected but idle, shows explicit `START ON WATCH` and `START ON PHONE` choices. `START ON WATCH` begins a standalone watch-owned match with ME SERVES or OPP SERVES. `START ON PHONE` keeps the watch in a waiting state until a phone-owned match begins.
-- In the connected idle state, the watch may also start a fresh phone-owned match directly using the existing phone team names and either `ME SERVES` or `OPP SERVES`, so players can restart from the watch after ending a phone-owned game without touching the phone unless names change.
+- When a remote target is available but idle, the watch shows a single mode
+  button that cycles through `TABLET MODE`, `WATCH MODE`, and `PHONE MODE`.
+- After selecting the mode, the user chooses `WE SERVE FIRST` or
+  `OPP SERVE FIRST`, then taps a separate `START` button.
+- In the connected idle state, `PHONE MODE` can start a fresh phone-owned match
+  directly from the watch using the existing phone team names unless the names
+  need to change.
+- When `TABLET MODE` is selected and more than one tablet court is discovered,
+  the watch shows the selected tablet court code and lets the user tap to
+  switch among discovered tablet courts on the same network.
+- When only one tablet is discovered, the watch hides the tablet court selector
+  to preserve space and keep `START` visible.
 - Shows connected phone score state when phone sync is available and the phone has an active match.
 - Watch sends My Team won rally, Opponent won rally, and Undo commands to the phone during live play.
 - Phone remains the source of truth.
