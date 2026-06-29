@@ -172,6 +172,9 @@ Connected Phone + Tablet voice flow when Phone then Tablet mode is selected:
 10. Undo restores the previous tablet-owned state.
 
 Tablet Only mode should reuse the same shared scoring engine and core Android scoring state patterns as Phone Only mode. UI code must not duplicate scoring rules.
+Standalone tablet correction mode adjusts scores through the shared
+`ScoreboardStore` rather than mutating Compose state directly, so corrections
+remain undoable.
 
 ### Future Phone + Tablet Synced Data Flow
 
@@ -299,6 +302,14 @@ The same WebSocket also carries tablet-to-phone commands:
 - `TABLET_OPP_WON_RALLY`
 - `TABLET_UNDO`
 - `TABLET_END_MATCH`
+- `TABLET_ADJUST_TEAM_A_SCORE_DOWN`
+- `TABLET_ADJUST_TEAM_A_SCORE_UP`
+- `TABLET_ADJUST_TEAM_B_SCORE_DOWN`
+- `TABLET_ADJUST_TEAM_B_SCORE_UP`
+- `TABLET_SET_SERVING_TEAM_A`
+- `TABLET_SET_SERVING_TEAM_B`
+- `TABLET_SET_SERVER_ONE`
+- `TABLET_SET_SERVER_TWO`
 
 Commands represent intent only. The tablet does not run connected scoring
 logic or update its connected score optimistically.
@@ -358,6 +369,8 @@ instead of showing a blocking waiting screen.
 `GameState` is immutable. Each rally creates a new state.
 
 `GameState` includes `courtOrderedTeamName(team)` which returns player-name pairs in current court position order (swaps on odd scores), and `servingPlayerName()` which returns the name of the current serving player under a fixed-position model (P1/P4 always right-side Server 1, P2/P3 always left-side Server 2).
+
+Tablet standalone correction mode may adjust score, serving side, and server number, but those edits still go through `ScoreboardStore` so the UI does not implement scoring rules and every correction remains undoable.
 
 Undo is implemented by keeping prior `GameState` values in a list for the current match. Undo is unlimited within the in-memory match session.
 

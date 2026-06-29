@@ -70,7 +70,7 @@ Landscape layout:
 | [green] dots | P3 & P4 (or P4 & P3)       | score [white]  |
 |              | P4 underlined if serving    |                |
 ---------------------------------------------------------------
-| CALL 8 - 6 - 2      P1 SERVES      UNDO | END              |
+| [SETUP] [CORRECT]      8 - 6 - 2                    [UNDO] [END] |
 ---------------------------------------------------------------
 ```
 
@@ -85,10 +85,11 @@ Interaction:
 - One serving dot means Server 1.
 - Two serving dots means Server 2.
 - Only the serving team row shows dots.
-- Call bar uses dark-navy background (#111827). CALL label is white (28sp).
-  Score call text is 56sp. Below score call, serving player name shown with team color (e.g., "P1 SERVES").
+- Call bar uses dark-navy background (#111827).
+  Score call text is 56sp with Setup/Correct controls on the left and Undo/End controls on the right.
 - Watch and tablet connection status bars shown at top of screen, with a "Setup" button to return to the setup screen.
-- Undo reverses last rally.
+- Correct opens a match-correction dialog for score, serving side, and server number.
+- Undo reverses last rally or correction.
 - End opens a confirmation dialog.
 - Phone speaker announces the confirmed score after rally input or undo when enabled.
 - In Watch then Phone mode, the phone repeats the same confirmed score approximately two seconds after the watch announces it.

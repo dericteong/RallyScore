@@ -163,6 +163,56 @@ class ScoreboardViewModelTest {
     }
 
     @Test
+    fun adjustScoreUpdatesStateAndRemainsUndoable() {
+        val viewModel = newViewModel()
+        viewModel.startMatch(
+            teamAName = "Team A",
+            teamBName = "Team B",
+            teamAPlayer1 = "P1",
+            teamAPlayer2 = "P2",
+            teamBPlayer1 = "P3",
+            teamBPlayer2 = "P4",
+            startingTeam = Team.A
+        )
+        val started = viewModel.state.value
+
+        viewModel.adjustScore(Team.B, 1)
+
+        assertEquals(0, viewModel.state.value.teamAScore)
+        assertEquals(1, viewModel.state.value.teamBScore)
+        assertTrue(viewModel.canUndo())
+
+        viewModel.undo()
+
+        assertEquals(started, viewModel.state.value)
+    }
+
+    @Test
+    fun adjustServeStateUpdatesServingAndRemainsUndoable() {
+        val viewModel = newViewModel()
+        viewModel.startMatch(
+            teamAName = "Team A",
+            teamBName = "Team B",
+            teamAPlayer1 = "P1",
+            teamAPlayer2 = "P2",
+            teamBPlayer1 = "P3",
+            teamBPlayer2 = "P4",
+            startingTeam = Team.A
+        )
+        val started = viewModel.state.value
+
+        viewModel.adjustServeState(Team.B, ServerNumber.One)
+
+        assertEquals(Team.B, viewModel.state.value.servingTeam)
+        assertEquals(ServerNumber.One, viewModel.state.value.serverNumber)
+        assertTrue(viewModel.canUndo())
+
+        viewModel.undo()
+
+        assertEquals(started, viewModel.state.value)
+    }
+
+    @Test
     fun resetClearsHistoryAndPreservesSettings() {
         val viewModel = newViewModel()
         val settings = GameSettings(

@@ -85,6 +85,9 @@ Status: In development.
 - Tablet scoring controller now records rally wins by tapping score panels
   (no separate ME WON/OPP WON buttons). UNDO and END buttons appear inside
   the call bar in local controller mode.
+- Tablet standalone controller now includes a `CORRECT` action that opens a
+  score-adjustment dialog for My Team and Opponent Team. Adjustments route
+  through the shared store and remain undoable.
 - Tablet screen routing checks local match state first; a local match
   always takes priority over remote display state.
 - Phone score rows now use team-colored backgrounds: blue for Team A,
@@ -131,8 +134,14 @@ Status: In development.
 
 - Wear sync is initial and still needs paired real-device hardening.
 - Wear app still contains standalone Watch Only scoring logic when no phone state is available.
-- Tablet Only controller mode supports tap-to-score, UNDO, and END in the
-  call bar. Correction mode is not yet implemented.
+- Tablet Only controller mode supports tap-to-score, CORRECT, UNDO, and END in the
+  call bar. Correction mode now supports score edits plus serving-side and
+  server-number fixes, and those changes remain undoable.
+- Phone scoreboard now includes the same `CORRECT` capability, using the shared
+  match-correction dialog for score, serving-side, and server-number edits.
+- Connected tablet mode now also exposes `CORRECT`; correction actions are sent
+  to the phone as explicit tablet commands, applied by the phone as source of
+  truth, and then broadcast back to tablet and watch as confirmed state.
 - Phone + Tablet synced controller mode is future work and requires conflict handling.
 - Wireless tablet sync is an initial local-network prototype and still needs real-venue hardening. Some Wi-Fi paths can block local WebSocket/discovery delivery between phone and tablet.
 - Undo history is not persisted after app restart.

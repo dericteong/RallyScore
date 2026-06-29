@@ -272,6 +272,38 @@ object RallyScorePhoneHub {
                     Log.d(TAG, "Tablet command: TABLET_UNDO")
                     store.undo()
                 }
+                TabletCommand.AdjustTeamAScoreDown -> {
+                    Log.d(TAG, "Tablet command: TABLET_ADJUST_TEAM_A_SCORE_DOWN")
+                    store.adjustScore(Team.A, -1)
+                }
+                TabletCommand.AdjustTeamAScoreUp -> {
+                    Log.d(TAG, "Tablet command: TABLET_ADJUST_TEAM_A_SCORE_UP")
+                    store.adjustScore(Team.A, 1)
+                }
+                TabletCommand.AdjustTeamBScoreDown -> {
+                    Log.d(TAG, "Tablet command: TABLET_ADJUST_TEAM_B_SCORE_DOWN")
+                    store.adjustScore(Team.B, -1)
+                }
+                TabletCommand.AdjustTeamBScoreUp -> {
+                    Log.d(TAG, "Tablet command: TABLET_ADJUST_TEAM_B_SCORE_UP")
+                    store.adjustScore(Team.B, 1)
+                }
+                TabletCommand.SetServingTeamA -> {
+                    Log.d(TAG, "Tablet command: TABLET_SET_SERVING_TEAM_A")
+                    store.adjustServeState(Team.A, store.state.value.serverNumber)
+                }
+                TabletCommand.SetServingTeamB -> {
+                    Log.d(TAG, "Tablet command: TABLET_SET_SERVING_TEAM_B")
+                    store.adjustServeState(Team.B, store.state.value.serverNumber)
+                }
+                TabletCommand.SetServerOne -> {
+                    Log.d(TAG, "Tablet command: TABLET_SET_SERVER_ONE")
+                    store.adjustServeState(store.state.value.servingTeam, ServerNumber.One)
+                }
+                TabletCommand.SetServerTwo -> {
+                    Log.d(TAG, "Tablet command: TABLET_SET_SERVER_TWO")
+                    store.adjustServeState(store.state.value.servingTeam, ServerNumber.Two)
+                }
                 TabletCommand.EndMatch -> {
                     Log.d(TAG, "Tablet command: TABLET_END_MATCH")
                     endMatch()

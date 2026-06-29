@@ -103,6 +103,9 @@ Use a real phone when possible.
 - Call bar uses team colors for the relevant numbers.
 - Call bar shows serving player below score call (e.g., "P1 SERVES").
 - "Setup" button in top bar returns to setup screen for editing names mid-match.
+- Phone score screen shows a `CORRECT` action.
+- Phone `CORRECT` opens a match-correction dialog for Team A score, Team B score, serving side, and server number.
+- Phone correction updates the visible call row and remains undoable.
 - TTS announces after rally input.
 - Voice Announcements defaults appropriately for Phone Only mode.
 - Voice Announcements can be set to Off.
@@ -211,6 +214,9 @@ Treat Phase 2 as complete enough to move focus to Phase 3 only when all of the f
 - Tablet supports My Team and Opponent Team setup.
 - Tablet player fields default to P1, P2, P3, and P4.
 - Tablet allows first-server selection.
+- Tablet standalone mode shows a `CORRECT` action.
+- Tablet `CORRECT` opens a score-adjustment dialog for My Team and Opponent Team.
+- Tablet score correction updates the visible score and remains undoable.
 - Tablet can start a match at `0 - 0 - 2`.
 - Tablet score screen shows player names in court-ordered format.
 - Tablet score screen shows serving player name underlined.
@@ -221,6 +227,8 @@ Treat Phase 2 as complete enough to move focus to Phase 3 only when all of the f
 - Tapping team score panel records the rally winner through the shared scoring engine.
 - Undo restores the previous rally.
 - Correction mode is available if already implemented for the shared phone/tablet UI.
+- In tablet standalone mode, `CORRECT` can adjust Team A score, Team B score, serving side, and server number.
+- After a correction change, `UNDO` restores the full prior state, including serving side and server number.
 - Tablet voice announcement setting is visible and usable.
 - Tablet announces the confirmed score when Tablet only mode is enabled in standalone tablet mode.
 - Connected tablet announces only after receiving confirmed phone-owned state.
@@ -257,6 +265,9 @@ Treat Phase 2 as complete enough to move focus to Phase 3 only when all of the f
 - Phone broadcasts connected tablet score changes back to the tablet and to the watch if connected.
 - Connected tablet UNDO sends a command to the phone and all connected displays update from confirmed phone state.
 - Connected tablet END sends a command to the phone and all connected displays leave the active match after confirmed phone state.
+- Connected tablet shows a `CORRECT` action.
+- Connected tablet `CORRECT` opens the same match-correction dialog.
+- Score, serving side, and server-number corrections from connected tablet are sent to the phone and only appear after confirmed phone state is broadcast back.
 - Tablet remembers the phone host identity after first successful connected sync.
 - Tablet can intentionally forget the remembered phone host and re-enter discovery without clearing app data.
 - After forgetting the phone host, verify the tablet returns to setup discovery state and requires a fresh explicit court selection.

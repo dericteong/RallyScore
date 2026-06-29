@@ -3,6 +3,7 @@ package com.courtside.pickleball.sync
 import com.courtside.pickleball.domain.GameSettings
 import com.courtside.pickleball.domain.GameState
 import com.courtside.pickleball.domain.PickleballScoringEngine
+import com.courtside.pickleball.domain.ServerNumber
 import com.courtside.pickleball.domain.Team
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -62,6 +63,34 @@ class ScoreboardStore(
         val previous = history.removeLastOrNull() ?: return _state.value
         _state.value = previous
         return previous
+    }
+
+    fun adjustScore(team: Team, delta: Int): GameState {
+        if (!_matchActive.value || delta == 0) return _state.value
+
+        val current = _state.value
+        val nextScore = (current.scoreFor(team) + delta).coerceAtLeast(0)
+        if (nextScore == current.scoreFor(team)) return current
+
+        history += current
+        _state.value = current.withScore(team, nextScore)
+        return _state.value
+    }
+
+    fun adjustServeState(servingTeam: Team, serverNumber: ServerNumber): GameState {
+        if (!_matchActive.value) return _state.value
+
+        val current = _state.value
+        if (current.servingTeam == servingTeam && current.serverNumber == serverNumber) {
+            return current
+        }
+
+        history += current
+        _state.value = current.copy(
+            servingTeam = servingTeam,
+            serverNumber = serverNumber
+        )
+        return _state.value
     }
 
     fun updateTeamNames(

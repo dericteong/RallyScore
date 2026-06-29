@@ -3,6 +3,7 @@ package com.courtside.pickleball.ui
 import androidx.lifecycle.ViewModel
 import com.courtside.pickleball.domain.GameSettings
 import com.courtside.pickleball.domain.GameState
+import com.courtside.pickleball.domain.ServerNumber
 import com.courtside.pickleball.domain.Team
 import com.courtside.pickleball.domain.VoiceAnnouncementMode
 import com.courtside.pickleball.sync.RallyScorePhoneHub
@@ -71,6 +72,14 @@ class ScoreboardViewModel(
 
     fun undo() {
         store.undo()
+    }
+
+    fun adjustScore(team: Team, delta: Int) {
+        store.adjustScore(team, delta)
+    }
+
+    fun adjustServeState(servingTeam: Team, serverNumber: ServerNumber) {
+        store.adjustServeState(servingTeam, serverNumber)
     }
 
     fun reset(

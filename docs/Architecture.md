@@ -125,6 +125,14 @@ The same WebSocket carries tablet-to-phone commands. Tablet commands are:
 - `TABLET_OPP_WON_RALLY`
 - `TABLET_UNDO`
 - `TABLET_END_MATCH`
+- `TABLET_ADJUST_TEAM_A_SCORE_DOWN`
+- `TABLET_ADJUST_TEAM_A_SCORE_UP`
+- `TABLET_ADJUST_TEAM_B_SCORE_DOWN`
+- `TABLET_ADJUST_TEAM_B_SCORE_UP`
+- `TABLET_SET_SERVING_TEAM_A`
+- `TABLET_SET_SERVING_TEAM_B`
+- `TABLET_SET_SERVER_ONE`
+- `TABLET_SET_SERVER_TWO`
 
 Commands are intent only. The phone applies them through `ScoreboardStore`
 and the shared scoring engine, then broadcasts the confirmed result back to
