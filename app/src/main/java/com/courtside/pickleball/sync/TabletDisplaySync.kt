@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.wifi.WifiManager
 import android.util.Log
 import com.courtside.pickleball.domain.GameState
+import com.courtside.pickleball.domain.ScoringFormat
 import com.courtside.pickleball.domain.Team
 import com.courtside.pickleball.domain.VoiceAnnouncementMode
 import com.courtside.pickleball.domain.displayValue
@@ -110,6 +111,7 @@ data class TabletSetupPayload(
     val teamAPlayer2: String,
     val teamBPlayer1: String,
     val teamBPlayer2: String,
+    val scoringFormat: ScoringFormat,
     val startingTeam: Team?,
     val myTeamOnTop: Boolean
 )
@@ -1115,6 +1117,7 @@ object TabletDisplaySync {
             payload.teamAPlayer2.toWireField(),
             payload.teamBPlayer1.toWireField(),
             payload.teamBPlayer2.toWireField(),
+            payload.scoringFormat.name.toWireField(),
             (payload.startingTeam?.toWireValue() ?: "").toWireField(),
             payload.myTeamOnTop.toString()
         ).joinToString("|")

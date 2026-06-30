@@ -3,6 +3,7 @@ package com.courtside.pickleball.ui
 import androidx.lifecycle.ViewModel
 import com.courtside.pickleball.domain.GameSettings
 import com.courtside.pickleball.domain.GameState
+import com.courtside.pickleball.domain.ScoringFormat
 import com.courtside.pickleball.domain.ServerNumber
 import com.courtside.pickleball.domain.Team
 import com.courtside.pickleball.domain.VoiceAnnouncementMode
@@ -41,6 +42,7 @@ class ScoreboardViewModel(
         teamAPlayer2: String,
         teamBPlayer1: String,
         teamBPlayer2: String,
+        scoringFormat: ScoringFormat,
         startingTeam: Team
     ) {
         if (usesPhoneHub) {
@@ -51,6 +53,7 @@ class ScoreboardViewModel(
                 teamAPlayer2,
                 teamBPlayer1,
                 teamBPlayer2,
+                scoringFormat,
                 startingTeam
             )
         } else {
@@ -61,6 +64,7 @@ class ScoreboardViewModel(
                 teamAPlayer2,
                 teamBPlayer1,
                 teamBPlayer2,
+                scoringFormat,
                 startingTeam
             )
         }
@@ -107,9 +111,18 @@ class ScoreboardViewModel(
         teamAPlayer1: String,
         teamAPlayer2: String,
         teamBPlayer1: String,
-        teamBPlayer2: String
+        teamBPlayer2: String,
+        scoringFormat: ScoringFormat = state.value.settings.scoringFormat
     ) {
-        store.updateTeamNames(teamAName, teamBName, teamAPlayer1, teamAPlayer2, teamBPlayer1, teamBPlayer2)
+        store.updateTeamNames(
+            teamAName,
+            teamBName,
+            teamAPlayer1,
+            teamAPlayer2,
+            teamBPlayer1,
+            teamBPlayer2,
+            scoringFormat
+        )
     }
 
     fun sendTabletCommand(command: TabletCommand) {

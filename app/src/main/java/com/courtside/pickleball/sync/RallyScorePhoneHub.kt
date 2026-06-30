@@ -5,6 +5,7 @@ import android.content.res.Configuration
 import android.util.Log
 import com.courtside.pickleball.domain.GameState
 import com.courtside.pickleball.domain.GameSettings
+import com.courtside.pickleball.domain.ScoringFormat
 import com.courtside.pickleball.domain.ServerNumber
 import com.courtside.pickleball.domain.Team
 import com.courtside.pickleball.domain.VoiceAnnouncementMode
@@ -29,6 +30,7 @@ data class PhoneUiSyncRequest(
     val teamAPlayer2: String,
     val teamBPlayer1: String,
     val teamBPlayer2: String,
+    val scoringFormat: ScoringFormat,
     val startingTeam: Team?,
     val myTeamOnTop: Boolean
 ) {
@@ -53,6 +55,7 @@ object RallyScorePhoneHub {
     private const val KEY_SERVING_TEAM = "serving_team"
     private const val KEY_SERVER_NUMBER = "server_number"
     private const val KEY_FIRST_SERVER_EXCEPTION = "first_server_exception"
+    private const val KEY_SCORING_FORMAT = "scoring_format"
     private const val KEY_HOST_ID = "host_id"
     private const val KEY_SESSION_ID = "session_id"
 
@@ -144,6 +147,7 @@ object RallyScorePhoneHub {
         teamAPlayer2: String,
         teamBPlayer1: String,
         teamBPlayer2: String,
+        scoringFormat: ScoringFormat,
         startingTeam: Team
     ): GameState {
         rotateSessionId()
@@ -154,6 +158,7 @@ object RallyScorePhoneHub {
             teamAPlayer2 = teamAPlayer2,
             teamBPlayer1 = teamBPlayer1,
             teamBPlayer2 = teamBPlayer2,
+            scoringFormat = scoringFormat,
             startingTeam = startingTeam
         )
     }
@@ -172,7 +177,8 @@ object RallyScorePhoneHub {
         teamAPlayer1: String,
         teamAPlayer2: String,
         teamBPlayer1: String,
-        teamBPlayer2: String
+        teamBPlayer2: String,
+        scoringFormat: ScoringFormat = store.state.value.settings.scoringFormat
     ) {
         store.updateTeamNames(
             teamAName = teamAName,
@@ -180,7 +186,8 @@ object RallyScorePhoneHub {
             teamAPlayer1 = teamAPlayer1,
             teamAPlayer2 = teamAPlayer2,
             teamBPlayer1 = teamBPlayer1,
-            teamBPlayer2 = teamBPlayer2
+            teamBPlayer2 = teamBPlayer2,
+            scoringFormat = scoringFormat
         )
     }
 
@@ -322,6 +329,7 @@ object RallyScorePhoneHub {
                         teamAPlayer2 = payload.teamAPlayer2,
                         teamBPlayer1 = payload.teamBPlayer1,
                         teamBPlayer2 = payload.teamBPlayer2,
+                        scoringFormat = payload.scoringFormat,
                         startingTeam = payload.startingTeam ?: Team.A
                     )
                     publishPhoneUiSync(
@@ -343,7 +351,8 @@ object RallyScorePhoneHub {
                         teamAPlayer1 = payload.teamAPlayer1,
                         teamAPlayer2 = payload.teamAPlayer2,
                         teamBPlayer1 = payload.teamBPlayer1,
-                        teamBPlayer2 = payload.teamBPlayer2
+                        teamBPlayer2 = payload.teamBPlayer2,
+                        scoringFormat = payload.scoringFormat
                     )
                     publishPhoneUiSync(
                         action = PhoneUiSyncRequest.Action.ResumeMatch,
@@ -367,13 +376,14 @@ object RallyScorePhoneHub {
             teamAPlayer2 = payload.teamAPlayer2,
             teamBPlayer1 = payload.teamBPlayer1,
             teamBPlayer2 = payload.teamBPlayer2,
+            scoringFormat = payload.scoringFormat,
             startingTeam = payload.startingTeam,
             myTeamOnTop = payload.myTeamOnTop
         )
     }
 
     private fun TabletCommandMessage.toSetupPayload(): TabletSetupPayload? {
-        if (args.size < 8) return null
+        if (args.size < 9) return null
         return TabletSetupPayload(
             teamAName = args[0].fromWireField(),
             teamBName = args[1].fromWireField(),
@@ -381,8 +391,9 @@ object RallyScorePhoneHub {
             teamAPlayer2 = args[3].fromWireField(),
             teamBPlayer1 = args[4].fromWireField(),
             teamBPlayer2 = args[5].fromWireField(),
-            startingTeam = args[6].fromWireField().toTeamOrNull(),
-            myTeamOnTop = args[7].toBooleanStrictOrNull() ?: true
+            scoringFormat = args[6].fromWireField().toScoringFormat(),
+            startingTeam = args[7].fromWireField().toTeamOrNull(),
+            myTeamOnTop = args[8].toBooleanStrictOrNull() ?: true
         )
     }
 
@@ -393,6 +404,9 @@ object RallyScorePhoneHub {
         Team.B.name -> Team.B
         else -> null
     }
+
+    private fun String.toScoringFormat(): ScoringFormat =
+        runCatching { ScoringFormat.valueOf(this) }.getOrDefault(ScoringFormat.Traditional)
 
     private fun String.fromWireField(): String =
         replace("%7C", "|")
@@ -454,7 +468,10 @@ object RallyScorePhoneHub {
                 teamAPlayer1 = prefs.getString(KEY_TEAM_A_PLAYER1, null) ?: "P1",
                 teamAPlayer2 = prefs.getString(KEY_TEAM_A_PLAYER2, null) ?: "P2",
                 teamBPlayer1 = prefs.getString(KEY_TEAM_B_PLAYER1, null) ?: "P3",
-                teamBPlayer2 = prefs.getString(KEY_TEAM_B_PLAYER2, null) ?: "P4"
+                teamBPlayer2 = prefs.getString(KEY_TEAM_B_PLAYER2, null) ?: "P4",
+                scoringFormat = prefs.getString(KEY_SCORING_FORMAT, null)
+                    ?.let { runCatching { ScoringFormat.valueOf(it) }.getOrNull() }
+                    ?: ScoringFormat.Traditional
             )
         )
         store.restore(state = state, matchActive = true)
@@ -481,6 +498,7 @@ object RallyScorePhoneHub {
             .putString(KEY_TEAM_A_PLAYER2, state.settings.teamAPlayer2)
             .putString(KEY_TEAM_B_PLAYER1, state.settings.teamBPlayer1)
             .putString(KEY_TEAM_B_PLAYER2, state.settings.teamBPlayer2)
+            .putString(KEY_SCORING_FORMAT, state.settings.scoringFormat.name)
             .putInt(KEY_TEAM_A_SCORE, state.teamAScore)
             .putInt(KEY_TEAM_B_SCORE, state.teamBScore)
             .putString(KEY_SERVING_TEAM, state.servingTeam.name)

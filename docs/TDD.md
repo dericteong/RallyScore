@@ -30,13 +30,14 @@ Contains:
 - `Team`
 - `ServerNumber`
 - `GameStatus`
-- `GameSettings` (team names, individual player names `teamAPlayer1`/`teamAPlayer2`/`teamBPlayer1`/`teamBPlayer2`, target, winBy)
+- `GameSettings` (team names, individual player names `teamAPlayer1`/`teamAPlayer2`/`teamBPlayer1`/`teamBPlayer2`, scoring format, target, winBy)
 - `GameState` (score, serving, `courtOrderedTeamName()`, `servingPlayerName()`)
 - `PickleballScoringEngine`
 
 Responsibilities:
 
 - Apply rally-winner scoring rules.
+- Support both Traditional and Rally formats through the same pure scoring engine.
 - Preserve score-call order as serving score, receiving score, server number.
 - Keep Android dependencies out of scoring logic.
 - Remain the only place for pickleball scoring rules.
@@ -114,17 +115,18 @@ reconnect.
 
 1. User reviews or edits My Team and Opponent Team names on the phone.
 2. User selects starting serving team during setup.
-3. Phone ViewModel creates the authoritative `GameState`.
-4. Primary flow: active player taps `WE WON` or `OPP WON` on the watch.
-5. Watch sends a `MessageClient` command event to the phone.
-6. Fallback flow: user taps Team A or Team B score directly on the phone.
-7. Phone ViewModel stores the previous state in history.
-8. Phone ViewModel asks `PickleballScoringEngine.recordRallyWinner`.
-9. Phone updates authoritative match state.
-10. Phone publishes updated score state through `DataClient`.
-11. Shared display redraws team scores, serving team, and server number.
-12. Voice announcements use only confirmed phone-owned state.
-13. Watch receives the phone-owned score state and updates its connected display.
+3. User selects Traditional or Rally scoring during setup.
+4. Phone ViewModel creates the authoritative `GameState`.
+5. Primary flow: active player taps `WE WON` or `OPP WON` on the watch.
+6. Watch sends a `MessageClient` command event to the phone.
+7. Fallback flow: user taps Team A or Team B score directly on the phone.
+8. Phone ViewModel stores the previous state in history.
+9. Phone ViewModel asks `PickleballScoringEngine.recordRallyWinner`.
+10. Phone updates authoritative match state.
+11. Phone publishes updated score state through `DataClient`.
+12. Shared display redraws team scores, serving team, and server number.
+13. Voice announcements use only confirmed phone-owned state.
+14. Watch receives the phone-owned score state and updates its connected display.
 
 The phone-to-watch score snapshot includes whether a phone-owned match is active and whether Undo is available. Connected watch controls are enabled only when the phone has an active match and no prior command is awaiting phone confirmation. Phone and watch clients periodically refresh peer connection state while open to recover from stale connection indicators.
 
@@ -162,14 +164,15 @@ Connected Phone + Tablet voice flow when Phone then Tablet mode is selected:
 
 1. User reviews or edits My Team and Opponent Team names on the tablet.
 2. User selects starting serving team during setup.
-3. Tablet ViewModel creates the authoritative `GameState`.
-4. User taps a team score panel on the tablet to record a rally win.
-5. Tablet state stores the previous state in history.
-6. Tablet asks `PickleballScoringEngine.recordRallyWinner`.
-7. Tablet updates authoritative match state.
-8. Tablet redraws the large scoreboard and controls.
-9. Tablet announces the confirmed score when enabled.
-10. Undo restores the previous tablet-owned state.
+3. User selects Traditional or Rally scoring during setup.
+4. Tablet ViewModel creates the authoritative `GameState`.
+5. User taps a team score panel on the tablet to record a rally win.
+6. Tablet state stores the previous state in history.
+7. Tablet asks `PickleballScoringEngine.recordRallyWinner`.
+8. Tablet updates authoritative match state.
+9. Tablet redraws the large scoreboard and controls.
+10. Tablet announces the confirmed score when enabled.
+11. Undo restores the previous tablet-owned state.
 
 Tablet Only mode should reuse the same shared scoring engine and core Android scoring state patterns as Phone Only mode. UI code must not duplicate scoring rules.
 Standalone tablet correction mode adjusts scores through the shared
@@ -194,11 +197,12 @@ Required principles:
 
 ### Watch Only Data Flow
 
-1. User chooses first server on the watch.
-2. User taps `WE WON` or `OPP WON` on the watch.
-3. Watch-local state stores previous state in history.
-4. Watch asks `PickleballScoringEngine.recordRallyWinner`.
-5. Watch Compose redraws and announces the score locally.
+1. User selects Traditional or Rally scoring on the watch.
+2. User chooses first server on the watch.
+3. User taps `WE WON` or `OPP WON` on the watch.
+4. Watch-local state stores previous state in history.
+5. Watch asks `PickleballScoringEngine.recordRallyWinner`.
+6. Watch Compose redraws and announces the score locally.
 
 The standalone Wear flow is valid for Watch Only mode. Connected Wear flow must keep the phone as source of truth even when rally input originates on the watch.
 

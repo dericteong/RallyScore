@@ -2,6 +2,7 @@ package com.courtside.pickleball.ui
 
 import com.courtside.pickleball.domain.GameSettings
 import com.courtside.pickleball.domain.GameState
+import com.courtside.pickleball.domain.ScoringFormat
 import com.courtside.pickleball.domain.ServerNumber
 import com.courtside.pickleball.domain.Team
 import com.courtside.pickleball.domain.VoiceAnnouncementMode
@@ -22,6 +23,7 @@ class ScoreboardViewModelTest {
             teamAPlayer2 = "P2",
             teamBPlayer1 = "P3",
             teamBPlayer2 = "P4",
+            scoringFormat = ScoringFormat.Traditional,
             startingTeam = Team.A
         )
 
@@ -41,6 +43,7 @@ class ScoreboardViewModelTest {
             teamAPlayer2 = "P2",
             teamBPlayer1 = "P3",
             teamBPlayer2 = "P4",
+            scoringFormat = ScoringFormat.Traditional,
             startingTeam = Team.A
         )
         val started = viewModel.state.value
@@ -62,6 +65,7 @@ class ScoreboardViewModelTest {
             teamAPlayer2 = "P2",
             teamBPlayer1 = "P3",
             teamBPlayer2 = "P4",
+            scoringFormat = ScoringFormat.Traditional,
             startingTeam = Team.A
         )
         viewModel.recordRallyWinner(Team.A)
@@ -73,6 +77,7 @@ class ScoreboardViewModelTest {
             teamAPlayer2 = "Fung",
             teamBPlayer1 = "Lee",
             teamBPlayer2 = "Wong",
+            scoringFormat = ScoringFormat.Traditional,
             startingTeam = Team.B
         )
 
@@ -107,6 +112,7 @@ class ScoreboardViewModelTest {
             teamAPlayer2 = "P2",
             teamBPlayer1 = "P3",
             teamBPlayer2 = "P4",
+            scoringFormat = ScoringFormat.Traditional,
             startingTeam = Team.A
         )
         viewModel.recordRallyWinner(Team.A)
@@ -129,6 +135,7 @@ class ScoreboardViewModelTest {
             teamAPlayer2 = "P2",
             teamBPlayer1 = "P3",
             teamBPlayer2 = "P4",
+            scoringFormat = ScoringFormat.Traditional,
             startingTeam = Team.A
         )
 
@@ -151,6 +158,7 @@ class ScoreboardViewModelTest {
             teamAPlayer2 = "P2",
             teamBPlayer1 = "P3",
             teamBPlayer2 = "P4",
+            scoringFormat = ScoringFormat.Traditional,
             startingTeam = Team.A
         )
         val beforeRally = viewModel.state.value
@@ -172,6 +180,7 @@ class ScoreboardViewModelTest {
             teamAPlayer2 = "P2",
             teamBPlayer1 = "P3",
             teamBPlayer2 = "P4",
+            scoringFormat = ScoringFormat.Traditional,
             startingTeam = Team.A
         )
         val started = viewModel.state.value
@@ -197,6 +206,7 @@ class ScoreboardViewModelTest {
             teamAPlayer2 = "P2",
             teamBPlayer1 = "P3",
             teamBPlayer2 = "P4",
+            scoringFormat = ScoringFormat.Traditional,
             startingTeam = Team.A
         )
         val started = viewModel.state.value
@@ -249,6 +259,28 @@ class ScoreboardViewModelTest {
 
         assertEquals(VoiceAnnouncementMode.WatchThenPhone, viewModel.voiceAnnouncementMode.value)
         viewModel.setVoiceAnnouncementMode(VoiceAnnouncementMode.PhoneOnly)
+    }
+
+    @Test
+    fun rallyScoringAwardsPointToReceivingTeamThenAppliesServeTransition() {
+        val viewModel = newViewModel()
+        viewModel.startMatch(
+            teamAName = "My Team",
+            teamBName = "Opponent Team",
+            teamAPlayer1 = "P1",
+            teamAPlayer2 = "P2",
+            teamBPlayer1 = "P3",
+            teamBPlayer2 = "P4",
+            scoringFormat = ScoringFormat.Rally,
+            startingTeam = Team.A
+        )
+
+        viewModel.recordRallyWinner(Team.B)
+
+        assertEquals(0, viewModel.state.value.teamAScore)
+        assertEquals(1, viewModel.state.value.teamBScore)
+        assertEquals(Team.B, viewModel.state.value.servingTeam)
+        assertEquals(ServerNumber.One, viewModel.state.value.serverNumber)
     }
 
     private fun newViewModel(): ScoreboardViewModel =

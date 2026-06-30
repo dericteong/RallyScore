@@ -71,6 +71,7 @@ Phone Only and Tablet Only are first-class experiences. Watch Only may own stand
 `ScoreboardApp`
 
 - Owns transient UI-only setup state.
+- Lets the user choose the scoring format on setup.
 - Renders setup or scoreboard screen.
 - Handles Text-to-Speech score calls from confirmed phone-owned state updates.
 - Uses fixed `fontScale = 1f` for scoreboard layout stability.
@@ -182,11 +183,24 @@ Key objects:
 
 - `Team`: A or B.
 - `ServerNumber`: One or Two.
-- `GameSettings`: team names, individual player names (`teamAPlayer1`, `teamAPlayer2`, `teamBPlayer1`, `teamBPlayer2`), and target/win settings.
+- `ScoringFormat`: Traditional or Rally.
+- `GameSettings`: team names, individual player names (`teamAPlayer1`, `teamAPlayer2`, `teamBPlayer1`, `teamBPlayer2`), scoring format, and target/win settings.
 - `GameState`: immutable score, serving state, `courtOrderedTeamName(team)` for court-position-ordered names, `servingPlayerName()` for the current serving player.
 - `PickleballScoringEngine`: applies rally-winner rules.
 
 The domain model is intentionally small. The app should prefer adding tests to shared domain before extending score logic.
+
+Current scoring-format behavior:
+
+- Traditional is the default and remains unchanged.
+- Rally mode is RallyScore's custom social-play variant:
+  - every rally awards a point to the rally winner
+  - two serves remain active
+  - first-server exception still applies
+  - server transitions and side outs still follow the Traditional model
+  - court-position swapping still follows the current odd/even score model
+  - the score call remains a three-number call
+  - the engine does not auto-end the game at a target score
 
 ## Wear App
 

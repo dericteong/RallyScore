@@ -24,11 +24,13 @@ Landscape side-by-side layout:
 | SET UP GAME                                                    |
 | Enter names, then tap who serves first.                        |
 | -------------------------------------------------------------- |
-| [blue card] My Team        | [dark gray circle ⇅] |  VOICE     |
-| [P1 input ][P2 input ]     |                       |  [mode]    |
+| [blue card] My Team        | [dark gray circle ⇅] | SCORING    |
+| [P1 input ][P2 input ]     |                       | [TRAD][RLY]|
 |                             |                       |            |
-| [green card] Opponent Team |                       |  [WE SERVE |
-| [P3 input ][P4 input ]     |                       |   FIRST]   |
+| [green card] Opponent Team |                       |  VOICE     |
+| [P3 input ][P4 input ]     |                       |  [mode]    |
+|                             |                       |  [WE SERVE |
+|                             |                       |   FIRST]   |
 | -------------------------------------------------------------- |
 |                                        [ START NEW GAME ]       |
 ------------------------------------------------------------------
@@ -52,6 +54,8 @@ Current setup behavior:
 - Keyboard-visible mode shows a `DONE` control to hide the keyboard.
 - Pressing Enter/Done does not auto-focus the next field.
 - Connection status pills appear below the `SET UP GAME` title.
+- Scoring selector appears in the right column with Traditional and Rally options.
+- Traditional is the default selected option.
 - Voice Announcements dropdown appears in the right column.
 - Score Preview Card in the right column shows "WE SERVE FIRST" / "OPP SERVE FIRST" / "TAP A TEAM" with team-colored background, tappable to toggle starting team.
 
@@ -120,6 +124,7 @@ Round/small-screen optimized primary controller layout:
 
 Standalone Watch Only behavior:
 
+- Supports a local `TRAD` / `RALLY` scoring selector before starting the match.
 - Starts with `WE SERVE FIRST` / `OPP SERVE FIRST` selection.
 - Uses shared scoring rules.
 - Maintains its own local state.
@@ -135,6 +140,8 @@ Connected Watch + Phone behavior:
   button that cycles through `TABLET MODE`, `WATCH MODE`, and `PHONE MODE`.
 - After selecting the mode, the user chooses `WE SERVE FIRST` or
   `OPP SERVE FIRST`, then taps a separate `START` button.
+- When `WATCH MODE` is selected, the watch also shows a local `TRAD` /
+  `RALLY` scoring selector for standalone watch-owned matches only.
 - In the connected idle state, `PHONE MODE` can start a fresh phone-owned match
   directly from the watch using the existing phone team names unless the names
   need to change.

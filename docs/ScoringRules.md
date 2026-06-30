@@ -2,7 +2,12 @@
 
 ## Scope
 
-The app implements standard doubles pickleball side-out scoring through rally-winner input.
+The app supports two scoring formats selected on the setup screen:
+
+- Traditional
+- Rally
+
+Traditional remains the default.
 
 ## Starting State
 
@@ -20,7 +25,7 @@ Meaning:
 
 The first serving team uses the first-server exception, so the first lost rally by the starting serving team creates an immediate side out.
 
-## Rally Input
+## Traditional Scoring
 
 The user records only which team won the rally.
 
@@ -29,6 +34,28 @@ The user records only which team won the rally.
 - If Server 1 loses a rally, serve moves to Server 2 on the same team.
 - If Server 2 loses a rally, side out occurs and the opponent becomes serving team as Server 1.
 - During the first-server exception, the starting serving team begins as Server 2, so losing the first rally causes side out.
+
+## Rally Scoring
+
+RallyScore's Rally mode is a custom social-play format that keeps the current
+two-server and court-position model.
+
+The user still records only which team won the rally.
+
+- Every rally awards one point to the rally winner.
+- If the serving team wins the rally, that team scores one point and keeps the
+  current serve flow.
+- If the receiving team wins the rally, that team scores one point and the app
+  still applies the same serve-transition logic used in Traditional scoring.
+- If Server 1 loses a rally, serve moves to Server 2 on the same serving team.
+- If Server 2 loses a rally, side out occurs and the opponent becomes serving
+  team as Server 1.
+- During the first-server exception, the starting serving team begins as
+  Server 2, so losing the first rally still causes side out.
+- Court positions still swap after a point exactly as they do in Traditional
+  mode.
+
+This is intentionally not the official single-server rally format.
 
 ## Score Call
 

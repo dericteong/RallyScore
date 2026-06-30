@@ -3,6 +3,7 @@ package com.courtside.pickleball.sync
 import com.courtside.pickleball.domain.GameSettings
 import com.courtside.pickleball.domain.GameState
 import com.courtside.pickleball.domain.PickleballScoringEngine
+import com.courtside.pickleball.domain.ScoringFormat
 import com.courtside.pickleball.domain.ServerNumber
 import com.courtside.pickleball.domain.Team
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,6 +27,7 @@ class ScoreboardStore(
         teamAPlayer2: String,
         teamBPlayer1: String,
         teamBPlayer2: String,
+        scoringFormat: ScoringFormat,
         startingTeam: Team
     ): GameState {
         history.clear()
@@ -37,7 +39,8 @@ class ScoreboardStore(
                 teamAPlayer1 = teamAPlayer1.trim().ifEmpty { "P1" },
                 teamAPlayer2 = teamAPlayer2.trim().ifEmpty { "P2" },
                 teamBPlayer1 = teamBPlayer1.trim().ifEmpty { "P3" },
-                teamBPlayer2 = teamBPlayer2.trim().ifEmpty { "P4" }
+                teamBPlayer2 = teamBPlayer2.trim().ifEmpty { "P4" },
+                scoringFormat = scoringFormat
             )
         )
         _matchActive.value = true
@@ -99,7 +102,8 @@ class ScoreboardStore(
         teamAPlayer1: String,
         teamAPlayer2: String,
         teamBPlayer1: String,
-        teamBPlayer2: String
+        teamBPlayer2: String,
+        scoringFormat: ScoringFormat = _state.value.settings.scoringFormat
     ) {
         if (!_matchActive.value) return
         _state.value = _state.value.copy(
@@ -109,7 +113,8 @@ class ScoreboardStore(
                 teamAPlayer1 = teamAPlayer1.trim().ifEmpty { "P1" },
                 teamAPlayer2 = teamAPlayer2.trim().ifEmpty { "P2" },
                 teamBPlayer1 = teamBPlayer1.trim().ifEmpty { "P3" },
-                teamBPlayer2 = teamBPlayer2.trim().ifEmpty { "P4" }
+                teamBPlayer2 = teamBPlayer2.trim().ifEmpty { "P4" },
+                scoringFormat = scoringFormat
             )
         )
     }

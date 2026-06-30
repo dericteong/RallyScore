@@ -9,6 +9,7 @@ Status: In development.
 - Phone Android app.
 - Shared Kotlin scoring engine.
 - Standard doubles side-out scoring.
+- Setup-time scoring format selector with Traditional default and Rally option.
 - Rally-winner score input.
 - Setup screen for Team A and Team B names.
 - Separate Player 1 and Player 2 setup fields for each team.
@@ -48,6 +49,11 @@ Status: In development.
 - Phone Only and Tablet Only are first-class standalone controller experiences.
 - Phone remains the primary hub when a watch is used; future Phone + Tablet sync must preserve one canonical match state.
 - Timed play is supported by allowing scores to continue beyond 11.
+- Rally mode now supports RallyScore's custom social-play format: every rally
+  awards a point while the existing two-server, side-out, and court-position
+  model stays intact.
+- Watch Only mode now exposes its own local Traditional / Rally selector for
+  standalone watch-owned matches.
 - Manual score/server controls were replaced by rally-winner input.
 - Phone scoreboard contrast, score text, serving dots, and phone controls were enlarged for outdoor readability and older players.
 - Spoken score-call formatting moved into the shared domain module so UI code does not duplicate score-call logic.

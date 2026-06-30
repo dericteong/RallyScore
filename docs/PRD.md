@@ -114,13 +114,16 @@ Large shared scoreboard
 - Tablet Only scoring as a first-class standalone controller mode.
 - Large-screen, portable-monitor, or Android-tablet scoreboard display for all players.
 - Phone-to-tablet display sync works without Internet or venue Wi-Fi when the tablet joins the phone's hotspot.
-- Standard doubles pickleball scoring.
+- Setup-time scoring format selection: Traditional or Rally.
+- Traditional scoring remains unchanged and is the default.
+- Rally scoring uses RallyScore's social-play variant: every rally awards a point, while two serves, side-out flow, and court-position swapping remain the same as Traditional scoring.
 - Setup screen for My Team and Opponent Team player names, with two player fields per team.
 - Short development/social-play defaults pre-populate setup fields so a user can start immediately.
 - Select which team serves first before starting.
 - Start score call is `0 - 0 - 2`.
 - User records rally winner only.
 - App automatically updates points, serving team, server number, and side outs.
+- The app does not auto-end a game at 11, 15, or 21; players decide when to stop the match.
 - Undo reverses the full previous rally.
 - End game returns to setup after confirmation.
 - Score calls are displayed and spoken after rally input.
@@ -144,6 +147,7 @@ Connected mode:
 Standalone mode:
 
 - May remain source of truth.
+- Supports local Traditional or Rally scoring selection for Watch Only mode.
 - Supports setup, scoring, undo, score display, and voice announcements.
 
 ## Phone Responsibilities

@@ -33,13 +33,19 @@ Do not use root `./gradlew installDebug` on a phone; it installs both phone and 
 
 Verify:
 
-- Initial state is `0 - 0 - 2`.
-- Serving team scores when it wins a rally.
-- Receiving team does not score when it wins a rally.
-- First-server exception sides out immediately.
-- Server 1 loss changes to Server 2.
-- Server 2 loss causes side out.
+- Traditional mode starts at `0 - 0 - 2`.
+- Traditional mode: serving team scores when it wins a rally.
+- Traditional mode: receiving team does not score when it wins a rally.
+- Traditional mode: first-server exception sides out immediately.
+- Traditional mode: Server 1 loss changes to Server 2.
+- Traditional mode: Server 2 loss causes side out.
+- Rally mode starts at `0 - 0 - 2`.
+- Rally mode: serving team scores when it wins a rally and keeps the same serve flow.
+- Rally mode: receiving team scores when it wins a rally and the existing two-server transition logic still applies.
+- Rally mode: Server 1 loss changes to Server 2.
+- Rally mode: Server 2 loss causes side out.
 - Score call always shows serving score first.
+- Rally mode still uses the three-number score call.
 - Score can continue above 11 for timed play.
 - Undo restores complete prior state.
 - `servingPlayerName()` returns P1 at game start (first-server exception, Team A).
@@ -61,6 +67,8 @@ Use a real phone when possible.
 - Swap teams button (⇅) appears between My Team and Opponent Team cards.
 - Team cards use solid blue (My Team) and solid green (Opponent Team) backgrounds.
 - Score preview card shows "TAP A TEAM" when no team selected, "WE SERVE FIRST" or "OPP SERVE FIRST" when selected, with team-colored background.
+- Setup screen exposes Traditional and Rally scoring options.
+- Traditional is selected by default.
 - Tapping score preview card toggles starting team.
 - Team A Player 1 and Player 2 fields accept more than two characters.
 - Team B Player 1 and Player 2 fields accept more than two characters.
@@ -125,6 +133,8 @@ Use a real phone when possible.
 
 - Wear app launches on emulator or watch.
 - Phone connection status indicator is visible.
+- Watch Only setup exposes `TRAD` and `RALLY`.
+- Traditional is the default watch-only scoring selection.
 - User can choose ME or OPP to serve first.
 - Score rows fit on round display.
 - Watch uses a black background without a white launch flash.
@@ -159,6 +169,8 @@ Initial implementation exists. Required before the connected Watch + Phone produ
 - Watch shows connected phone-idle choices when the phone is connected but has not started a match.
 - From that connected idle state, the watch can still start a standalone local
   match with `WE SERVE FIRST` or `OPP SERVE FIRST`.
+- In connected idle state, `WATCH MODE` exposes `TRAD` and `RALLY` for
+  standalone watch-owned matches only.
 - Phone owns authoritative match state.
 - Watch rally input updates the phone/shared display.
 - Watch undo restores the phone/shared display.
@@ -218,6 +230,7 @@ Treat Phase 2 as complete enough to move focus to Phase 3 only when all of the f
 - Tablet `CORRECT` opens a score-adjustment dialog for My Team and Opponent Team.
 - Tablet score correction updates the visible score and remains undoable.
 - Tablet can start a match at `0 - 0 - 2`.
+- Tablet setup exposes Traditional and Rally scoring options with Traditional as the default.
 - Tablet score screen shows player names in court-ordered format.
 - Tablet score screen shows serving player name underlined.
 - Tablet score screen shows very large Team A and Team B scores.

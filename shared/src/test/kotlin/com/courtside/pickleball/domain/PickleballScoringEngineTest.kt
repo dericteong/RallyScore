@@ -147,6 +147,80 @@ class PickleballScoringEngineTest {
     }
 
     @Test
+    fun rallyModeServingTeamScoresAndKeepsServe() {
+        val state = GameState(
+            teamAScore = 4,
+            teamBScore = 3,
+            servingTeam = Team.A,
+            serverNumber = ServerNumber.One,
+            isFirstServerException = false,
+            settings = GameSettings(scoringFormat = ScoringFormat.Rally)
+        )
+
+        val next = engine.recordRallyWinner(state, Team.A)
+
+        assertEquals(5, next.teamAScore)
+        assertEquals(3, next.teamBScore)
+        assertEquals(Team.A, next.servingTeam)
+        assertEquals(ServerNumber.One, next.serverNumber)
+        assertEquals("5 - 3 - 1", next.scoreCall)
+    }
+
+    @Test
+    fun rallyModeReceivingTeamScoresAndMovesServerOneToServerTwo() {
+        val state = GameState(
+            teamAScore = 7,
+            teamBScore = 5,
+            servingTeam = Team.A,
+            serverNumber = ServerNumber.One,
+            isFirstServerException = false,
+            settings = GameSettings(scoringFormat = ScoringFormat.Rally)
+        )
+
+        val next = engine.recordRallyWinner(state, Team.B)
+
+        assertEquals(7, next.teamAScore)
+        assertEquals(6, next.teamBScore)
+        assertEquals(Team.A, next.servingTeam)
+        assertEquals(ServerNumber.Two, next.serverNumber)
+        assertEquals("7 - 6 - 2", next.scoreCall)
+    }
+
+    @Test
+    fun rallyModeReceivingTeamScoresAndServerTwoSidesOut() {
+        val state = GameState(
+            teamAScore = 7,
+            teamBScore = 5,
+            servingTeam = Team.A,
+            serverNumber = ServerNumber.Two,
+            isFirstServerException = false,
+            settings = GameSettings(scoringFormat = ScoringFormat.Rally)
+        )
+
+        val next = engine.recordRallyWinner(state, Team.B)
+
+        assertEquals(7, next.teamAScore)
+        assertEquals(6, next.teamBScore)
+        assertEquals(Team.B, next.servingTeam)
+        assertEquals(ServerNumber.One, next.serverNumber)
+        assertEquals("6 - 7 - 1", next.scoreCall)
+    }
+
+    @Test
+    fun rallyModeUsesThreeNumberSpokenScoreCall() {
+        val state = GameState(
+            teamAScore = 12,
+            teamBScore = 9,
+            servingTeam = Team.B,
+            serverNumber = ServerNumber.Two,
+            isFirstServerException = false,
+            settings = GameSettings(scoringFormat = ScoringFormat.Rally)
+        )
+
+        assertEquals("nine twelve two", state.spokenScoreCall())
+    }
+
+    @Test
     fun completedGameIgnoresFurtherRallyInput() {
         val complete = GameState(
             teamAScore = 11,

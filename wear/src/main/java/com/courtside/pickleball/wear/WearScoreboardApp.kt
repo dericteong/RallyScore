@@ -72,6 +72,7 @@ import com.courtside.pickleball.domain.GameState
 import com.courtside.pickleball.domain.GameSettings
 import com.courtside.pickleball.domain.GameStatus
 import com.courtside.pickleball.domain.PickleballScoringEngine
+import com.courtside.pickleball.domain.ScoringFormat
 import com.courtside.pickleball.domain.Team
 import com.courtside.pickleball.domain.VoiceAnnouncementMode
 import com.courtside.pickleball.domain.WearSyncContract
@@ -159,6 +160,7 @@ fun WearScoreboardApp() {
     var connectedRemoteTarget by remember { mutableStateOf(ConnectedRemoteTarget.Phone) }
     var selectedStartMode by remember { mutableStateOf(WatchStartMode.Tablet) }
     var selectedStartingTeam by remember { mutableStateOf<Team?>(null) }
+    var selectedStandaloneScoringFormat by remember { mutableStateOf(ScoringFormat.Traditional) }
     var uiElapsedRealtime by remember { mutableStateOf(SystemClock.elapsedRealtime()) }
     val context = LocalContext.current
     val haptics = LocalHapticFeedback.current
@@ -457,7 +459,9 @@ fun WearScoreboardApp() {
             fun startStandaloneMatch(servingTeam: Team) {
                 val next = GameState(
                     servingTeam = servingTeam,
-                    settings = WatchStandaloneDefaults
+                    settings = WatchStandaloneDefaults.copy(
+                        scoringFormat = selectedStandaloneScoringFormat
+                    )
                 )
                 history.clear()
                 state = next
@@ -577,6 +581,8 @@ fun WearScoreboardApp() {
                     onTabletCourtCycle = {
                         WearTabletFallbackSync.cycleSelectedTablet()
                     },
+                    selectedScoringFormat = selectedStandaloneScoringFormat,
+                    onScoringFormatSelected = { selectedStandaloneScoringFormat = it },
                     selectedStartingTeam = selectedStartingTeam,
                     onSelectTeamA = {
                         selectedStartingTeam = Team.A
@@ -635,6 +641,8 @@ fun WearScoreboardApp() {
                         tabletDiscoveryStatus == WearTabletFallbackSync.DiscoveryStatus.Found -> "TABLET FOUND"
                         else -> "SEARCHING TABLET"
                     },
+                    selectedScoringFormat = selectedStandaloneScoringFormat,
+                    onScoringFormatSelected = { selectedStandaloneScoringFormat = it },
                     selectedStartingTeam = selectedStartingTeam,
                     onSelectTeamA = {
                         selectedStartingTeam = Team.A
@@ -699,6 +707,8 @@ fun WearScoreboardApp() {
 private fun WearServeSetupScreen(
     connectionMode: WearConnectionMode,
     tabletStatus: String? = null,
+    selectedScoringFormat: ScoringFormat,
+    onScoringFormatSelected: (ScoringFormat) -> Unit,
     selectedStartingTeam: Team?,
     onSelectTeamA: () -> Unit,
     onSelectTeamB: () -> Unit,
@@ -742,6 +752,10 @@ private fun WearServeSetupScreen(
                 maxLines = 1
             )
         }
+        WearScoringFormatSelector(
+            selectedFormat = selectedScoringFormat,
+            onFormatSelected = onScoringFormatSelected
+        )
         Row(
             modifier = Modifier.fillMaxWidth(0.92f),
             horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -830,6 +844,8 @@ private fun WearConnectedStartChoiceScreen(
     tabletModeStatus: String?,
     onModeCycle: () -> Unit,
     onTabletCourtCycle: () -> Unit,
+    selectedScoringFormat: ScoringFormat,
+    onScoringFormatSelected: (ScoringFormat) -> Unit,
     selectedStartingTeam: Team?,
     onSelectTeamA: () -> Unit,
     onSelectTeamB: () -> Unit,
@@ -892,6 +908,12 @@ private fun WearConnectedStartChoiceScreen(
                 maxLines = 1
             )
         }
+        if (selectedMode == WatchStartMode.Watch) {
+            WearScoringFormatSelector(
+                selectedFormat = selectedScoringFormat,
+                onFormatSelected = onScoringFormatSelected
+            )
+        }
         Row(
             modifier = Modifier.fillMaxWidth(0.92f),
             horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -915,6 +937,61 @@ private fun WearConnectedStartChoiceScreen(
             enabled = selectedStartingTeam != null &&
                 (selectedMode != WatchStartMode.Tablet || tabletReady),
             onClick = onStart
+        )
+    }
+}
+
+@Composable
+private fun WearScoringFormatSelector(
+    selectedFormat: ScoringFormat,
+    onFormatSelected: (ScoringFormat) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(0.92f),
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        WearScoringFormatButton(
+            modifier = Modifier.weight(1f),
+            label = "TRAD",
+            selected = selectedFormat == ScoringFormat.Traditional,
+            onClick = { onFormatSelected(ScoringFormat.Traditional) }
+        )
+        WearScoringFormatButton(
+            modifier = Modifier.weight(1f),
+            label = "RALLY",
+            selected = selectedFormat == ScoringFormat.Rally,
+            onClick = { onFormatSelected(ScoringFormat.Rally) }
+        )
+    }
+}
+
+@Composable
+private fun WearScoringFormatButton(
+    modifier: Modifier,
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    OutlinedButton(
+        modifier = modifier.height(38.dp),
+        onClick = onClick,
+        shape = RoundedCornerShape(18.dp),
+        border = BorderStroke(
+            if (selected) 2.dp else 1.dp,
+            if (selected) ConnectedAmber else MainText.copy(alpha = 0.28f)
+        ),
+        colors = ButtonDefaults.outlinedButtonColors(
+            containerColor = if (selected) ConnectedAmber.copy(alpha = 0.18f) else WatchBackground,
+            contentColor = if (selected) ConnectedAmber else MainText
+        ),
+        contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp)
+    ) {
+        Text(
+            text = label,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Black,
+            textAlign = TextAlign.Center,
+            maxLines = 1
         )
     }
 }

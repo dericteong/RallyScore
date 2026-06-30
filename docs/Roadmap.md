@@ -24,6 +24,7 @@ Goals:
 - Large table-style scoreboard.
 - Rally-winner score input.
 - Automatic doubles scoring.
+- Setup-time scoring format selection with Traditional default and Rally as an alternative.
 - Unlimited undo in current match.
 - End game confirmation.
 - TTS score calls.

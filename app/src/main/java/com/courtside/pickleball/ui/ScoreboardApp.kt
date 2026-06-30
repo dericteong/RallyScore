@@ -87,6 +87,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.courtside.pickleball.R
 import com.courtside.pickleball.domain.GameState
 import com.courtside.pickleball.domain.GameStatus
+import com.courtside.pickleball.domain.ScoringFormat
 import com.courtside.pickleball.domain.ServerNumber
 import com.courtside.pickleball.domain.Team
 import com.courtside.pickleball.domain.VoiceAnnouncementMode
@@ -154,6 +155,7 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
     var setupTeamAPlayer2 by remember { mutableStateOf("P2") }
     var setupTeamBPlayer1 by remember { mutableStateOf("P3") }
     var setupTeamBPlayer2 by remember { mutableStateOf("P4") }
+    var setupScoringFormat by remember { mutableStateOf(ScoringFormat.Traditional) }
     var startingTeam by remember { mutableStateOf<Team?>(Team.A) }
     var showEndMatchDialog by remember { mutableStateOf(false) }
     var showCorrectionDialog by remember { mutableStateOf(false) }
@@ -329,6 +331,7 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
         setupTeamAPlayer2 = request.teamAPlayer2
         setupTeamBPlayer1 = request.teamBPlayer1
         setupTeamBPlayer2 = request.teamBPlayer2
+        setupScoringFormat = request.scoringFormat
         request.startingTeam?.let { startingTeam = it }
         myTeamOnTop = request.myTeamOnTop
         editingSetupFromMatch = false
@@ -419,6 +422,8 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
                     onTeamAPlayer2Change = { setupTeamAPlayer2 = normalizePlayerNamesInput(it) },
                     onTeamBPlayer1Change = { setupTeamBPlayer1 = normalizePlayerNamesInput(it) },
                     onTeamBPlayer2Change = { setupTeamBPlayer2 = normalizePlayerNamesInput(it) },
+                    scoringFormat = setupScoringFormat,
+                    onScoringFormatChange = { setupScoringFormat = it },
                     onStartingTeamChange = { startingTeam = it },
                     onSwapTeams = {
                         myTeamOnTop = !myTeamOnTop
@@ -451,6 +456,7 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
                             teamAPlayer2 = setupTeamAPlayer2,
                             teamBPlayer1 = setupTeamBPlayer1,
                             teamBPlayer2 = setupTeamBPlayer2,
+                            scoringFormat = setupScoringFormat,
                             startingTeam = server,
                             myTeamOnTop = myTeamOnTop
                         )
@@ -469,6 +475,7 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
                                 teamAPlayer2 = startPayload.teamAPlayer2,
                                 teamBPlayer1 = startPayload.teamBPlayer1,
                                 teamBPlayer2 = startPayload.teamBPlayer2,
+                                scoringFormat = startPayload.scoringFormat,
                                 startingTeam = server
                             )
                         }
@@ -482,6 +489,7 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
                             teamAPlayer2 = setupTeamAPlayer2,
                             teamBPlayer1 = setupTeamBPlayer1,
                             teamBPlayer2 = setupTeamBPlayer2,
+                            scoringFormat = setupScoringFormat,
                             startingTeam = startingTeam,
                             myTeamOnTop = myTeamOnTop
                         )
@@ -499,7 +507,8 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
                                 teamAPlayer1 = resumePayload.teamAPlayer1,
                                 teamAPlayer2 = resumePayload.teamAPlayer2,
                                 teamBPlayer1 = resumePayload.teamBPlayer1,
-                                teamBPlayer2 = resumePayload.teamBPlayer2
+                                teamBPlayer2 = resumePayload.teamBPlayer2,
+                                scoringFormat = resumePayload.scoringFormat
                             )
                         }
                         editingSetupFromMatch = false
@@ -589,11 +598,13 @@ private fun MatchSetupScreen(
     teamAPlayer2: String,
     teamBPlayer1: String,
     teamBPlayer2: String,
+    scoringFormat: ScoringFormat,
     startingTeam: Team?,
     onTeamAPlayer1Change: (String) -> Unit,
     onTeamAPlayer2Change: (String) -> Unit,
     onTeamBPlayer1Change: (String) -> Unit,
     onTeamBPlayer2Change: (String) -> Unit,
+    onScoringFormatChange: (ScoringFormat) -> Unit,
     onStartingTeamChange: (Team) -> Unit,
     editingFromMatch: Boolean = false,
     isTabletLayout: Boolean = true,
@@ -857,6 +868,11 @@ private fun MatchSetupScreen(
                         )
                         Spacer(modifier = Modifier.height(10.dp))
                     }
+                    ScoringFormatSelector(
+                        selectedFormat = scoringFormat,
+                        onFormatSelected = onScoringFormatChange,
+                        compact = !isTabletLayout
+                    )
                     ScorePreviewCard(
                         startingTeam = startingTeam,
                         compact = keyboardVisible,
@@ -935,6 +951,78 @@ private fun MatchSetupScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ScoringFormatSelector(
+    selectedFormat: ScoringFormat,
+    onFormatSelected: (ScoringFormat) -> Unit,
+    compact: Boolean
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = "SCORING",
+            color = Ink,
+            fontSize = if (compact) 14.sp else 15.sp,
+            fontWeight = FontWeight.Black,
+            letterSpacing = 0.sp
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            ScoringFormatButton(
+                modifier = Modifier.weight(1f),
+                label = if (compact) "TRAD" else "TRADITIONAL",
+                selected = selectedFormat == ScoringFormat.Traditional,
+                compact = compact,
+                onClick = { onFormatSelected(ScoringFormat.Traditional) }
+            )
+            ScoringFormatButton(
+                modifier = Modifier.weight(1f),
+                label = "RALLY",
+                selected = selectedFormat == ScoringFormat.Rally,
+                compact = compact,
+                onClick = { onFormatSelected(ScoringFormat.Rally) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun ScoringFormatButton(
+    modifier: Modifier = Modifier,
+    label: String,
+    selected: Boolean,
+    compact: Boolean,
+    onClick: () -> Unit
+) {
+    val borderColor = if (selected) ConnectedAmber else Color(0xFF374151)
+    val containerColor = if (selected) CallBackground else PanelWhite
+    val contentColor = if (selected) ConnectedAmber else Ink
+
+    OutlinedButton(
+        modifier = modifier.height(52.dp),
+        onClick = onClick,
+        shape = RoundedCornerShape(8.dp),
+        border = BorderStroke(2.dp, borderColor),
+        colors = ButtonDefaults.outlinedButtonColors(
+            containerColor = containerColor,
+            contentColor = contentColor
+        ),
+        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
+    ) {
+        Text(
+            text = label,
+            fontSize = if (compact) 13.sp else 15.sp,
+            fontWeight = FontWeight.Black,
+            textAlign = TextAlign.Center,
+            maxLines = 1
+        )
     }
 }
 

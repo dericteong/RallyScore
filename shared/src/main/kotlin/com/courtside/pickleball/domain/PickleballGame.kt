@@ -12,6 +12,11 @@ enum class ServerNumber {
     Two
 }
 
+enum class ScoringFormat {
+    Traditional,
+    Rally
+}
+
 sealed interface GameStatus {
     data object InProgress : GameStatus
     data class Complete(val winner: Team) : GameStatus
@@ -24,6 +29,7 @@ data class GameSettings(
     val teamAPlayer2: String = "P2",
     val teamBPlayer1: String = "P3",
     val teamBPlayer2: String = "P4",
+    val scoringFormat: ScoringFormat = ScoringFormat.Traditional,
     val targetScore: Int = 11,
     val winBy: Int = 2
 )
@@ -44,7 +50,10 @@ data class GameState(
         get() = scoreFor(servingTeam.opponent())
 
     val scoreCall: String
-        get() = "$servingScore - $receivingScore - ${serverNumber.displayValue}"
+        get() = when (settings.scoringFormat) {
+            ScoringFormat.Traditional,
+            ScoringFormat.Rally -> "$servingScore - $receivingScore - ${serverNumber.displayValue}"
+        }
 
     fun scoreFor(team: Team): Int = when (team) {
         Team.A -> teamAScore
@@ -87,7 +96,10 @@ val ServerNumber.displayValue: Int
     }
 
 fun GameState.spokenScoreCall(): String =
-    "${servingScore.spokenNumber()} ${receivingScore.spokenNumber()} ${serverNumber.spokenNumber()}"
+    when (settings.scoringFormat) {
+        ScoringFormat.Traditional,
+        ScoringFormat.Rally -> "${servingScore.spokenNumber()} ${receivingScore.spokenNumber()} ${serverNumber.spokenNumber()}"
+    }
 
 private fun ServerNumber.spokenNumber(): String = when (this) {
     ServerNumber.One -> "one"

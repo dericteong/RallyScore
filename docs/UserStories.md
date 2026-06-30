@@ -20,6 +20,8 @@
 
 - As a player, I want to enter both teams' player names before a game so the scoreboard is easy for players to identify.
 - As a player, I want to select which team serves first from the phone during setup.
+- As a player, I want to choose Traditional or Rally scoring before the match starts without changing the rest of the setup flow.
+- As a player, I want Traditional selected by default because that is still the most common format I use.
 - As a player, I want the setup screen to stay usable when the keyboard is open so I can enter names on a real phone.
 - As a player, I want the phone to remain the match source of truth so the watch and shared display agree.
 - As a player, I want the phone to calculate score, server transitions, side outs, and undo history so I never manage those manually.
@@ -38,6 +40,7 @@
 - As a player, I want server number shown clearly so I can verify whether the call is `1` or `2`.
 - As a player, I want serving dots on the active serving team so the server is easy to spot.
 - As a player, I want the first server exception handled automatically so the game starts correctly at `0 - 0 - 2`.
+- As a player, I want Rally mode to still use the same player positions and court-order behavior I already understand from Traditional scoring.
 
 ## Phone Only
 
