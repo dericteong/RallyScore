@@ -29,7 +29,6 @@ Contains:
 
 - `Team`
 - `ServerNumber`
-- `GameStatus`
 - `GameSettings` (team names, individual player names `teamAPlayer1`/`teamAPlayer2`/`teamBPlayer1`/`teamBPlayer2`, scoring format, target, winBy)
 - `GameState` (score, serving, `courtOrderedTeamName()`, `servingPlayerName()`)
 - `PickleballScoringEngine`
@@ -392,7 +391,6 @@ Current behavior: pressing Enter/Done does not auto-focus the next field.
 
 ## Known Technical Gaps
 
-- `GameStatus.Complete` exists, but current timed-play behavior does not automatically complete games.
 - Rally history is not persisted across process death.
 - TTS voice selection uses best available English voice from Android; no in-app voice picker exists.
 - Voice settings support Off, Phone only, Watch only, Tablet only, Watch then Phone, Watch then Tablet, and Phone then Tablet.

@@ -70,7 +70,6 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.courtside.pickleball.domain.GameState
 import com.courtside.pickleball.domain.GameSettings
-import com.courtside.pickleball.domain.GameStatus
 import com.courtside.pickleball.domain.PickleballScoringEngine
 import com.courtside.pickleball.domain.ScoringFormat
 import com.courtside.pickleball.domain.Team
@@ -1055,8 +1054,6 @@ private fun WearScoreboardScreen(
     onEndRequested: () -> Unit,
     onReset: () -> Unit
 ) {
-    val gameOver = state.status is GameStatus.Complete
-
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -1088,7 +1085,7 @@ private fun WearScoreboardScreen(
             serverNumber = state.serverNumber.displayValue,
             teamAName = "WE WON",
             teamBName = "OPP WON",
-            enabled = !gameOver,
+            enabled = true,
             onTeamATapped = onTeamAWon,
             onTeamBTapped = onTeamBWon
         )
@@ -1168,8 +1165,6 @@ private fun ScoreSummary(
     onUndo: () -> Unit,
     onEnd: () -> Unit
 ) {
-    val status = state.status
-
     Column(
         modifier = modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -1187,17 +1182,6 @@ private fun ScoreSummary(
             endEnabled = true,
             onEnd = onEnd
         )
-
-        if (status is GameStatus.Complete) {
-            Text(
-                text = "${state.teamName(status.winner).takeLast(1)} WINS",
-                color = ProblemRed,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Black,
-                textAlign = TextAlign.Center,
-                maxLines = 1
-            )
-        }
     }
 }
 

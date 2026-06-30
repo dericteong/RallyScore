@@ -1062,7 +1062,7 @@ object TabletDisplaySync {
             Log.d(TAG, "Observed phone snapshot over $source for ${state.hostId} while tablet is not yet paired")
             return
         }
-        if (pairedHost != null && state.hostId.isNotBlank() && pairedHost != state.hostId) {
+        if (state.hostId.isNotBlank() && pairedHost != state.hostId) {
             Log.w(
                 TAG,
                 "Ignored tablet score snapshot from non-paired host ${state.hostId}; paired host is $pairedHost"

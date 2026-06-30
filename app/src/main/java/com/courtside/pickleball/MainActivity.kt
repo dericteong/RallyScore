@@ -11,6 +11,7 @@ import com.courtside.pickleball.sync.RallyScorePhoneHub
 import com.courtside.pickleball.ui.ScoreboardApp
 import com.courtside.pickleball.ui.ScoreboardViewModel
 
+/** Phone and tablet host activity for RallyScore. */
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

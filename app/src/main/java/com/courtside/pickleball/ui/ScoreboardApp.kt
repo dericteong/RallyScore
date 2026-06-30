@@ -86,7 +86,6 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.courtside.pickleball.R
 import com.courtside.pickleball.domain.GameState
-import com.courtside.pickleball.domain.GameStatus
 import com.courtside.pickleball.domain.ScoringFormat
 import com.courtside.pickleball.domain.ServerNumber
 import com.courtside.pickleball.domain.Team
@@ -542,7 +541,7 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
         }
 
         val correctionState = when {
-            showRemoteTabletMatch && activeRemoteTabletState != null -> activeRemoteTabletState.toCorrectionGameState()
+            showRemoteTabletMatch -> activeRemoteTabletState?.toCorrectionGameState()
             matchStarted -> state
             else -> null
         }
@@ -2077,7 +2076,6 @@ private fun ScoreboardBody(
     onTeamARally: () -> Unit,
     onTeamBRally: () -> Unit
 ) {
-    val gameOver = state.status is GameStatus.Complete
     val orderedTeams = if (myTeamOnTop) listOf(Team.A, Team.B) else listOf(Team.B, Team.A)
 
     Column(
@@ -2095,7 +2093,7 @@ private fun ScoreboardBody(
                 color = if (team == Team.A) TeamABlue else TeamBGreen,
                 isServing = state.servingTeam == team,
                 serverNumber = state.serverNumber,
-                enabled = !gameOver,
+                enabled = true,
                 onScoreClick = if (team == Team.A) onTeamARally else onTeamBRally,
                 servingPlayerName = if (state.servingTeam == team) state.servingPlayerName() else ""
             )
@@ -2650,7 +2648,7 @@ private fun ControlBar(
                     .align(Alignment.Center)
                     .fillMaxWidth()
                     .padding(start = 86.dp, end = 86.dp),
-                text = state.scoreOnlyCallBarText(state.status),
+                text = state.scoreOnlyCallBarText(),
                 color = Color.White,
                 fontSize = 72.sp,
                 fontWeight = FontWeight.Black,
@@ -2721,39 +2719,7 @@ private fun GameState.teamColor(team: Team): Color =
         Team.B -> TeamBGreen
     }
 
-private fun GameState.callBarText(status: GameStatus) = buildAnnotatedString {
-    if (status is GameStatus.Complete) {
-        pushStyle(SpanStyle(color = teamColor(status.winner)))
-        append("${teamName(status.winner).uppercase()} WINS")
-        pop()
-        return@buildAnnotatedString
-    }
-
-    val receivingTeam = servingTeam.opponent()
-    pushStyle(SpanStyle(color = Color.White, fontSize = 28.sp))
-    append("CALL     ")
-    pop()
-    pushStyle(SpanStyle(color = teamColor(servingTeam)))
-    append(servingScore.toString())
-    pop()
-    append(" - ")
-    pushStyle(SpanStyle(color = teamColor(receivingTeam)))
-    append(receivingScore.toString())
-    pop()
-    append(" - ")
-    pushStyle(SpanStyle(color = teamColor(servingTeam)))
-    append(serverNumber.displayValue.toString())
-    pop()
-}
-
-private fun GameState.scoreOnlyCallBarText(status: GameStatus) = buildAnnotatedString {
-    if (status is GameStatus.Complete) {
-        pushStyle(SpanStyle(color = teamColor(status.winner)))
-        append("${teamName(status.winner).uppercase()} WINS")
-        pop()
-        return@buildAnnotatedString
-    }
-
+private fun GameState.scoreOnlyCallBarText() = buildAnnotatedString {
     val receivingTeam = servingTeam.opponent()
     pushStyle(SpanStyle(color = teamColor(servingTeam)))
     append(servingScore.toString())

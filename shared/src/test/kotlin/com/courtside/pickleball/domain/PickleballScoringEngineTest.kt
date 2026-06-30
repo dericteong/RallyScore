@@ -1,7 +1,6 @@
 package com.courtside.pickleball.domain
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PickleballScoringEngineTest {
@@ -126,7 +125,6 @@ class PickleballScoringEngineTest {
 
         val next = engine.recordRallyWinner(state, Team.A)
 
-        assertTrue(next.status is GameStatus.InProgress)
         assertEquals(11, next.teamAScore)
     }
 
@@ -142,7 +140,6 @@ class PickleballScoringEngineTest {
 
         val next = engine.recordRallyWinner(state, Team.A)
 
-        assertTrue(next.status is GameStatus.InProgress)
         assertEquals(15, next.teamAScore)
     }
 
@@ -218,19 +215,6 @@ class PickleballScoringEngineTest {
         )
 
         assertEquals("nine twelve two", state.spokenScoreCall())
-    }
-
-    @Test
-    fun completedGameIgnoresFurtherRallyInput() {
-        val complete = GameState(
-            teamAScore = 11,
-            teamBScore = 8,
-            status = GameStatus.Complete(Team.A)
-        )
-
-        val next = engine.recordRallyWinner(complete, Team.A)
-
-        assertEquals(complete, next)
     }
 
     @Test

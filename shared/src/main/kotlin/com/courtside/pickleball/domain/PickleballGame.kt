@@ -1,5 +1,6 @@
 package com.courtside.pickleball.domain
 
+/** Identifies the blue and green doubles teams tracked by RallyScore. */
 enum class Team {
     A,
     B;
@@ -7,21 +8,19 @@ enum class Team {
     fun opponent(): Team = if (this == A) B else A
 }
 
+/** Identifies the active server within the serving team. */
 enum class ServerNumber {
     One,
     Two
 }
 
+/** Selects which scoring rules the shared engine applies for the current match. */
 enum class ScoringFormat {
     Traditional,
     Rally
 }
 
-sealed interface GameStatus {
-    data object InProgress : GameStatus
-    data class Complete(val winner: Team) : GameStatus
-}
-
+/** Static match configuration and player labels shared across devices. */
 data class GameSettings(
     val teamAName: String = "Team A",
     val teamBName: String = "Team B",
@@ -34,14 +33,14 @@ data class GameSettings(
     val winBy: Int = 2
 )
 
+/** Immutable snapshot of the current match score, serving state, and labels. */
 data class GameState(
     val teamAScore: Int = 0,
     val teamBScore: Int = 0,
     val servingTeam: Team = Team.A,
     val serverNumber: ServerNumber = ServerNumber.Two,
     val isFirstServerException: Boolean = true,
-    val settings: GameSettings = GameSettings(),
-    val status: GameStatus = GameStatus.InProgress
+    val settings: GameSettings = GameSettings()
 ) {
     val servingScore: Int
         get() = scoreFor(servingTeam)
@@ -55,21 +54,30 @@ data class GameState(
             ScoringFormat.Rally -> "$servingScore - $receivingScore - ${serverNumber.displayValue}"
         }
 
+    /** Returns the raw score owned by the requested team. */
     fun scoreFor(team: Team): Int = when (team) {
         Team.A -> teamAScore
         Team.B -> teamBScore
     }
 
+    /** Returns the configured display name for the requested team. */
     fun teamName(team: Team): String = when (team) {
         Team.A -> settings.teamAName
         Team.B -> settings.teamBName
     }
 
+    /** Returns a copy of the state with only the requested team's score changed. */
     fun withScore(team: Team, score: Int): GameState = when (team) {
         Team.A -> copy(teamAScore = score)
         Team.B -> copy(teamBScore = score)
     }
 
+    /**
+     * Returns player names in their current court order based on the team's score parity.
+     *
+     * RallyScore uses the same player-position display model for both Traditional and Rally
+     * scoring so players can glance at the screen and confirm who should stand where.
+     */
     fun courtOrderedTeamName(team: Team): String {
         val isEvenScore = scoreFor(team) % 2 == 0
         return when (team) {
@@ -80,6 +88,9 @@ data class GameState(
         }
     }
 
+    /**
+     * Returns the current serving player's name using RallyScore's fixed-position doubles model.
+     */
     fun servingPlayerName(): String {
         val effectiveServerIsOne = isFirstServerException || serverNumber == ServerNumber.One
         return when (servingTeam) {
@@ -89,12 +100,14 @@ data class GameState(
     }
 }
 
+/** Human-readable server number used in visible score calls. */
 val ServerNumber.displayValue: Int
     get() = when (this) {
         ServerNumber.One -> 1
         ServerNumber.Two -> 2
     }
 
+/** Spoken version of the current score call used by phone, tablet, and watch TTS. */
 fun GameState.spokenScoreCall(): String =
     when (settings.scoringFormat) {
         ScoringFormat.Traditional,

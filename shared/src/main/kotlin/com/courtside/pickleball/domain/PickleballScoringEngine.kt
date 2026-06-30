@@ -1,9 +1,14 @@
 package com.courtside.pickleball.domain
 
+/**
+ * Pure scoring engine for RallyScore match updates.
+ *
+ * The engine never auto-completes a match. It only applies the configured scoring format,
+ * serve transitions, side outs, and first-server exception rules.
+ */
 class PickleballScoringEngine {
+    /** Applies one rally result and returns the next immutable match state. */
     fun recordRallyWinner(state: GameState, rallyWinner: Team): GameState {
-        if (state.status is GameStatus.Complete) return state
-
         return when (state.settings.scoringFormat) {
             ScoringFormat.Traditional -> {
                 if (rallyWinner == state.servingTeam) {

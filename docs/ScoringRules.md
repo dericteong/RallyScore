@@ -83,7 +83,7 @@ If side out changes serving to Team B with the same raw scores, the call becomes
 
 Current product behavior allows scores to continue beyond 11 because many social and club games are played by timer.
 
-The domain model has a `targetScore` and `winBy` setting plus `GameStatus.Complete`, but the current engine does not automatically end the game when a score reaches 11.
+The domain model still carries `targetScore` and `winBy` settings for future configurability, but the current engine never automatically ends a game when a score reaches 11 or any other number.
 
 ## Serving Player
 

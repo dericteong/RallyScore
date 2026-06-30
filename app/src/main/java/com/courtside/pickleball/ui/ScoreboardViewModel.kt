@@ -19,6 +19,7 @@ import com.courtside.pickleball.sync.TabletSetupPayload
 import com.courtside.pickleball.sync.WatchTabletFallbackSync
 import kotlinx.coroutines.flow.StateFlow
 
+/** ViewModel façade for RallyScore phone and tablet screens. */
 class ScoreboardViewModel(
     private val store: ScoreboardStore = RallyScorePhoneHub.store
 ) : ViewModel() {
@@ -35,6 +36,7 @@ class ScoreboardViewModel(
     val pairedTabletPhoneHost: StateFlow<String?> = TabletDisplaySync.pairedPhoneHost
     val phoneUiSyncRequest: StateFlow<PhoneUiSyncRequest?> = RallyScorePhoneHub.phoneUiSyncRequest
 
+    /** Starts a new local or phone-owned match from setup values. */
     fun startMatch(
         teamAName: String,
         teamBName: String,
@@ -70,22 +72,27 @@ class ScoreboardViewModel(
         }
     }
 
+    /** Records a rally winner against the currently active source-of-truth match. */
     fun recordRallyWinner(team: Team): GameState {
         return store.recordRallyWinner(team)
     }
 
+    /** Requests an undo on the active source-of-truth match. */
     fun undo() {
         store.undo()
     }
 
+    /** Applies a score correction to the active match. */
     fun adjustScore(team: Team, delta: Int) {
         store.adjustScore(team, delta)
     }
 
+    /** Applies a serving-state correction to the active match. */
     fun adjustServeState(servingTeam: Team, serverNumber: ServerNumber) {
         store.adjustServeState(servingTeam, serverNumber)
     }
 
+    /** Resets the active match while preserving the provided settings. */
     fun reset(
         settings: GameSettings = state.value.settings,
         startingTeam: Team = Team.A
@@ -97,6 +104,7 @@ class ScoreboardViewModel(
         }
     }
 
+    /** Ends the active match. */
     fun endMatch() {
         if (usesPhoneHub) {
             RallyScorePhoneHub.endMatch()
@@ -105,6 +113,7 @@ class ScoreboardViewModel(
         }
     }
 
+    /** Updates setup labels for the active match without changing the live score. */
     fun updateTeamNames(
         teamAName: String,
         teamBName: String,
@@ -125,32 +134,40 @@ class ScoreboardViewModel(
         )
     }
 
+    /** Sends a connected-tablet command through the current sync transport. */
     fun sendTabletCommand(command: TabletCommand) {
         TabletDisplaySync.sendTabletCommand(command)
     }
 
+    /** Sends setup intent from a connected tablet to the paired phone host. */
     fun sendTabletSetupCommand(
         hostId: String?,
         command: TabletCommand,
         payload: TabletSetupPayload
     ): Boolean = TabletDisplaySync.sendTabletSetupCommand(hostId, command, payload)
 
+    /** Clears the currently paired phone host on tablet-sized devices. */
     fun forgetPairedTabletPhone() {
         TabletDisplaySync.forgetPairedPhone()
     }
 
+    /** Pairs a tablet client with a discovered phone host. */
     fun pairTabletToPhone(hostId: String): Boolean =
         TabletDisplaySync.pairToDiscoveredPhone(hostId)
 
+    /** Exposes the local court code used for pairing and court selection. */
     fun localCourtCode(): String = RallyScorePhoneHub.courtCode()
 
+    /** Updates the shared connected voice-announcement mode. */
     fun setVoiceAnnouncementMode(mode: VoiceAnnouncementMode) {
         RallyScorePhoneHub.setVoiceAnnouncementMode(mode)
     }
 
+    /** Refreshes the current Wear connection state from Google Play Services. */
     fun refreshWatchConnection() {
         RallyScorePhoneHub.refreshConnectedNodes()
     }
 
+    /** Indicates whether undo is currently available for the active match. */
     fun canUndo(): Boolean = store.canUndo()
 }

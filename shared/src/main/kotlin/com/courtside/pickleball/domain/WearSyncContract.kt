@@ -1,5 +1,6 @@
 package com.courtside.pickleball.domain
 
+/** Shared command and payload keys used by phone, tablet, and Wear synchronization layers. */
 object WearSyncContract {
     const val COMMAND_A_WON_RALLY = "/rallyscore/command/a_won_rally"
     const val COMMAND_B_WON_RALLY = "/rallyscore/command/b_won_rally"
@@ -39,6 +40,7 @@ object WearSyncContract {
     const val VOICE_PHONE_THEN_TABLET = "phone_then_tablet"
 }
 
+/** Voice routing modes synchronized across RallyScore devices. */
 enum class VoiceAnnouncementMode(val wireValue: String) {
     Off(WearSyncContract.VOICE_OFF),
     PhoneOnly(WearSyncContract.VOICE_PHONE_ONLY),
@@ -49,6 +51,7 @@ enum class VoiceAnnouncementMode(val wireValue: String) {
     PhoneThenTablet(WearSyncContract.VOICE_PHONE_THEN_TABLET);
 
     companion object {
+        /** Returns the supported mode for a serialized wire value, falling back safely for unknown values. */
         fun fromWireValue(value: String?): VoiceAnnouncementMode =
             values().firstOrNull { it.wireValue == value } ?: WatchThenPhone
     }

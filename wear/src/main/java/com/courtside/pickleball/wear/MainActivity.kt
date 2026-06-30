@@ -6,6 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.fragment.app.FragmentActivity
 import androidx.wear.ambient.AmbientModeSupport
 
+/** Wear host activity for RallyScore watch experiences. */
 class MainActivity : FragmentActivity(), AmbientModeSupport.AmbientCallbackProvider {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
