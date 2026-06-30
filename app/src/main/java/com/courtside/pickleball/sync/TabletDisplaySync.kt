@@ -2,7 +2,6 @@ package com.courtside.pickleball.sync
 
 import android.content.Context
 import android.net.wifi.WifiManager
-import android.util.Log
 import com.courtside.pickleball.domain.GameState
 import com.courtside.pickleball.domain.ScoringFormat
 import com.courtside.pickleball.domain.Team
@@ -240,7 +239,11 @@ object TabletDisplaySync {
         val socket = connectedPhoneWebSocket
         val sessionId = pairedPhoneSessionId ?: _remoteDisplayState.value?.sessionId
         if (!tabletDisplayAvailable || !phoneWebSocketConnected || socket == null) {
-            Log.w(TAG, "Unable to send tablet command while phone WebSocket is disconnected: ${command.wireValue}")
+            SyncLog.warn(
+                TAG,
+                "Unable to send tablet command while phone connection is unavailable",
+                "Unable to send tablet command while phone WebSocket is disconnected: ${command.wireValue}"
+            )
             if (tabletDisplayAvailable) {
                 connectToRememberedPhoneWebSocket()
                 connectToGatewayPhoneWebSocket()
@@ -255,16 +258,20 @@ object TabletDisplaySync {
             return
         }
         if (sessionId.isNullOrBlank()) {
-            Log.w(TAG, "Unable to send tablet command without a paired phone session: ${command.wireValue}")
+            SyncLog.warn(
+                TAG,
+                "Unable to send tablet command without an active paired session",
+                "Unable to send tablet command without a paired phone session: ${command.wireValue}"
+            )
             return
         }
 
         scope.launch {
             try {
                 socket.writeWebSocketTextFrame(command.toWirePayload(sessionId))
-                Log.d(TAG, "Sent tablet command: ${command.wireValue}")
+                SyncLog.debug(TAG) { "Sent tablet command: ${command.wireValue}" }
             } catch (error: Exception) {
-                Log.w(TAG, "Failed to send tablet command: ${command.wireValue}", error)
+                SyncLog.warn(TAG, "Failed to send tablet command", "Failed to send tablet command: ${command.wireValue}", error)
                 phoneWebSocketConnected = false
                 connectedPhoneWebSocket = null
                 setConnectionState(TabletConnectionState.Reconnecting)
@@ -342,7 +349,7 @@ object TabletDisplaySync {
             ?.apply()
 
         setConnectionState(TabletConnectionState.Searching)
-        Log.d(TAG, "Forgot paired phone identity and reset tablet discovery")
+        SyncLog.debug(TAG) { "Forgot paired phone identity and reset tablet discovery" }
 
         if (tabletDisplayAvailable) {
             startTabletHelloBroadcaster()
@@ -366,9 +373,9 @@ object TabletDisplaySync {
             try {
                 socket.writeWebSocketTextFrame(payload)
                 pendingTabletCommandPayload = null
-                Log.d(TAG, "Sent pending tablet setup command")
+                SyncLog.debug(TAG) { "Sent pending tablet setup command" }
             } catch (error: Exception) {
-                Log.w(TAG, "Failed to send pending tablet setup command", error)
+                SyncLog.warn(TAG, "Failed to send pending tablet setup command", "Failed to send pending tablet setup command", error)
                 phoneWebSocketConnected = false
                 connectedPhoneWebSocket = null
                 setConnectionState(TabletConnectionState.Reconnecting)
@@ -382,7 +389,7 @@ object TabletDisplaySync {
         rememberPhoneEndpoint(candidate.address, candidate.port)
         updateRemoteDisplayState(candidate.state, "manual-pair")
         connectToPhoneWebSocket(candidate.address, candidate.port)
-        Log.d(TAG, "Manually paired tablet to phone host ${candidate.hostId}")
+        SyncLog.debug(TAG) { "Manually paired tablet to discovered phone host" }
         return true
     }
 
@@ -402,7 +409,7 @@ object TabletDisplaySync {
                 socket.broadcast = true
                 socket.soTimeout = LISTEN_TIMEOUT_MS
                 val buffer = ByteArray(MAX_PACKET_BYTES)
-                Log.d(TAG, "Tablet display listener started on UDP $PORT")
+                SyncLog.debug(TAG) { "Tablet display listener started" }
                 while (currentCoroutineContext().isActive) {
                     val packet = DatagramPacket(buffer, buffer.size)
                     try {
@@ -424,7 +431,7 @@ object TabletDisplaySync {
                     }
                     if (payload.startsWith(PHONE_WS_PROTOCOL)) {
                         if (tabletDisplayAvailable && !pairedPhoneHostId.isNullOrBlank()) {
-                            Log.d(TAG, "UDP discovered phone WebSocket availability at ${packet.address.hostAddress}")
+                            SyncLog.debug(TAG) { "UDP discovered phone WebSocket availability" }
                             connectToPhoneWebSocket(packet.address, payload.toPhoneWebSocketPort())
                         }
                         continue
@@ -436,7 +443,7 @@ object TabletDisplaySync {
                 }
             }
         } catch (error: Exception) {
-            Log.w(TAG, "Tablet display listener stopped", error)
+            SyncLog.warn(TAG, "Tablet display listener stopped", "Tablet display listener stopped", error)
         } finally {
             releaseMulticastLock()
         }
@@ -474,12 +481,12 @@ object TabletDisplaySync {
                     }
                     publishToTabletTcpEndpoints(payload)
                     publishToWebSocketClients(payload)
-                    Log.d(TAG, "Published tablet score snapshot: ${state.scoreCall} to ${targets.size} targets")
+                    SyncLog.debug(TAG) { "Published tablet score snapshot to ${targets.size} targets" }
                     delay(BROADCAST_INTERVAL_MS)
                 }
             }
         } catch (error: Exception) {
-            Log.w(TAG, "Tablet display broadcaster stopped", error)
+            SyncLog.warn(TAG, "Tablet display broadcaster stopped", "Tablet display broadcaster stopped", error)
         }
     }
 
@@ -500,15 +507,15 @@ object TabletDisplaySync {
     private fun connectToGatewayPhoneWebSocket() {
         if (phoneWebSocketConnected) return
         if (pairedPhoneHostId != null && pairedDiscoveredPhoneEndpoint() != null) {
-            Log.d(TAG, "Skipping generic gateway probe because paired court endpoint has been rediscovered")
+            SyncLog.debug(TAG) { "Skipping generic gateway probe because paired endpoint has been rediscovered" }
             return
         }
         val gateway = gatewayAddresses().firstOrNull()
         if (gateway == null) {
-            Log.d(TAG, "No gateway address available for phone discovery")
+            SyncLog.debug(TAG) { "No gateway address available for phone discovery" }
             return
         }
-        Log.d(TAG, "Probing gateway for phone tablet WebSocket at ${gateway.hostAddress}:$PHONE_WS_PORT")
+        SyncLog.debug(TAG) { "Probing gateway for phone tablet WebSocket" }
         connectToPhoneWebSocket(gateway, PHONE_WS_PORT)
     }
 
@@ -516,10 +523,10 @@ object TabletDisplaySync {
         if (phoneWebSocketConnected) return
         val endpoint = rememberedPhoneEndpoint()
         if (endpoint == null) {
-            Log.d(TAG, "No remembered phone endpoint available for reconnection")
+            SyncLog.debug(TAG) { "No remembered phone endpoint available for reconnection" }
             return
         }
-        Log.d(TAG, "Attempting reconnection to remembered phone at ${endpoint.address.hostAddress}:${endpoint.port}")
+        SyncLog.debug(TAG) { "Attempting reconnection to remembered phone endpoint" }
         if (!hasFreshRemoteSnapshot()) {
             setConnectionState(TabletConnectionState.Reconnecting)
         }
@@ -544,7 +551,7 @@ object TabletDisplaySync {
         try {
             ServerSocket(PHONE_WS_PORT).use { serverSocket ->
                 serverSocket.soTimeout = LISTEN_TIMEOUT_MS
-                Log.d(TAG, "Phone tablet WebSocket server started on $PHONE_WS_PORT")
+                SyncLog.debug(TAG) { "Phone tablet WebSocket server started" }
                 while (currentCoroutineContext().isActive) {
                     val socket = try {
                         serverSocket.accept()
@@ -558,7 +565,7 @@ object TabletDisplaySync {
                 }
             }
         } catch (error: Exception) {
-            Log.w(TAG, "Phone tablet WebSocket server stopped", error)
+            SyncLog.warn(TAG, "Phone tablet WebSocket server stopped", "Phone tablet WebSocket server stopped", error)
         } finally {
             closeWebSocketClients()
         }
@@ -577,7 +584,7 @@ object TabletDisplaySync {
             latestPhonePayload?.let { payload ->
                 socket.writeWebSocketTextFrame(payload)
             }
-            Log.d(TAG, "Tablet WebSocket client connected: ${socket.inetAddress.hostAddress}")
+            SyncLog.debug(TAG) { "Tablet WebSocket client connected" }
             while (currentCoroutineContext().isActive) {
                 val payload = readWebSocketTextFrame(socket) ?: break
                 val commandMessage = payload.toTabletCommandMessage() ?: continue
@@ -585,18 +592,19 @@ object TabletDisplaySync {
                 val requiresActiveSession = commandMessage.command != TabletCommand.StartMatch &&
                     commandMessage.command != TabletCommand.ResumeMatch
                 if (requiresActiveSession && (expectedSessionId.isNullOrBlank() || commandMessage.sessionId != expectedSessionId)) {
-                    Log.w(
+                    SyncLog.warn(
                         TAG,
+                        "Ignored tablet command for mismatched session",
                         "Ignored tablet command for mismatched session: ${commandMessage.command.wireValue} " +
                             "expected=$expectedSessionId actual=${commandMessage.sessionId}"
                     )
                     continue
                 }
-                Log.d(TAG, "Received tablet command: ${commandMessage.command.wireValue}")
+                SyncLog.debug(TAG) { "Received tablet command: ${commandMessage.command.wireValue}" }
                 tabletCommandHandler?.invoke(commandMessage)
             }
         } catch (error: Exception) {
-            Log.w(TAG, "Unable to accept tablet WebSocket client: ${error.message}")
+            SyncLog.warn(TAG, "Unable to accept tablet WebSocket client", "Unable to accept tablet WebSocket client: ${error.message}", error)
         } finally {
             webSocketClients -= socket
             if (webSocketClients.isEmpty()) {
@@ -641,24 +649,24 @@ object TabletDisplaySync {
 
     private fun connectToPhoneWebSocket(address: InetAddress, port: Int?) {
         if (pairedPhoneHostId.isNullOrBlank()) {
-            Log.d(TAG, "Skipping phone WebSocket probe until a phone has been explicitly paired")
+            SyncLog.debug(TAG) { "Skipping phone WebSocket probe until a phone has been explicitly paired" }
             return
         }
         val endpoint = InetSocketAddress(address, port ?: PHONE_WS_PORT)
         if (!shouldProbePhoneEndpoint(endpoint)) {
-            Log.d(TAG, "Skipping phone WebSocket probe at ${endpoint.address.hostAddress}:${endpoint.port}; not a preferred endpoint for paired court")
+            SyncLog.debug(TAG) { "Skipping phone WebSocket probe; not a preferred endpoint for paired court" }
             return
         }
         if (phoneWebSocketConnected) {
-            Log.d(TAG, "Skipping phone WebSocket probe at ${endpoint.address.hostAddress}:${endpoint.port}; phone socket already connected")
+            SyncLog.debug(TAG) { "Skipping phone WebSocket probe; phone socket already connected" }
             return
         }
         if (connectedPhoneWebSocketEndpoint == endpoint && tabletWebSocketClientJob?.isActive == true) {
-            Log.d(TAG, "Already connecting to phone WebSocket at ${endpoint.address.hostAddress}:${endpoint.port}; skipping")
+            SyncLog.debug(TAG) { "Already connecting to phone WebSocket; skipping duplicate attempt" }
             return
         }
 
-        Log.d(TAG, "Initiating phone WebSocket connection to ${endpoint.address.hostAddress}:${endpoint.port}")
+        SyncLog.debug(TAG) { "Initiating phone WebSocket connection" }
         connectedPhoneWebSocketEndpoint = endpoint
         if (!phoneWebSocketConnected && !hasFreshRemoteSnapshot()) {
             setConnectionState(
@@ -694,20 +702,25 @@ object TabletDisplaySync {
                     consecutiveFailures = 0
                     rememberPhoneEndpoint(endpoint.address, endpoint.port)
                     setConnectionState(TabletConnectionState.Connected)
-                    Log.d(TAG, "Connected to phone tablet WebSocket at ${endpoint.address.hostAddress}:${endpoint.port}")
+                    SyncLog.debug(TAG) { "Connected to phone tablet WebSocket" }
                     flushPendingTabletCommand()
                     while (currentCoroutineContext().isActive && tabletDisplayAvailable) {
                         val payload = try {
                             readWebSocketTextFrame(socket)
                         } catch (_: SocketTimeoutException) {
-                            Log.w(TAG, "Phone tablet WebSocket heartbeat timed out at ${endpoint.address.hostAddress}:${endpoint.port}")
+                            SyncLog.warn(
+                                TAG,
+                                "Phone tablet WebSocket heartbeat timed out",
+                                "Phone tablet WebSocket heartbeat timed out at ${endpoint.address.hostAddress}:${endpoint.port}"
+                            )
                             break
                         } ?: break
                         val state = payload.toTabletDisplayState() ?: continue
                         val pairedHost = pairedPhoneHostId
                         if (!pairedHost.isNullOrBlank() && state.hostId != pairedHost) {
-                            Log.w(
+                            SyncLog.warn(
                                 TAG,
+                                "Closing phone WebSocket because paired host did not match",
                                 "Closing phone WebSocket at ${endpoint.address.hostAddress}:${endpoint.port}; paired host is $pairedHost but stream reported ${state.hostId}"
                             )
                             phoneWebSocketConnected = false
@@ -721,14 +734,16 @@ object TabletDisplaySync {
                 }
             } catch (error: Exception) {
                 consecutiveFailures++
-                Log.w(
+                SyncLog.warn(
                     TAG,
+                    "Phone tablet WebSocket unavailable",
                     "Phone tablet WebSocket unavailable at ${endpoint.address.hostAddress}:${endpoint.port}" +
-                        " (attempt $consecutiveFailures/$MAX_WS_RECONNECT_ATTEMPTS): ${error.message}"
+                        " (attempt $consecutiveFailures/$MAX_WS_RECONNECT_ATTEMPTS): ${error.message}",
+                    error
                 )
                 markStaleRemoteState()
                 if (consecutiveFailures >= MAX_WS_RECONNECT_ATTEMPTS) {
-                    Log.w(TAG, "Exceeded max WebSocket reconnect attempts; yielding to discovery")
+                    SyncLog.warn(TAG, "Exceeded max WebSocket reconnect attempts; yielding to discovery")
                     break
                 }
                 delay(TABLET_HELLO_INTERVAL_MS)
@@ -747,7 +762,7 @@ object TabletDisplaySync {
     private suspend fun runTabletSubnetScanner() {
         while (currentCoroutineContext().isActive && tabletDisplayAvailable) {
             if (!phoneWebSocketConnected) {
-                Log.d(TAG, "Starting tablet subnet discovery scan")
+                SyncLog.debug(TAG) { "Starting tablet subnet discovery scan" }
                 connectToRememberedPhoneWebSocket()
                 scanLocalSubnetForPhoneWebSocket()
             }
@@ -760,7 +775,7 @@ object TabletDisplaySync {
         gateways.forEach { gateway ->
             if (phoneWebSocketConnected || !tabletDisplayAvailable) return
             if (canOpenPhoneWebSocket(gateway)) {
-                Log.d(TAG, "Discovered phone tablet WebSocket at gateway ${gateway.hostAddress}:$PHONE_WS_PORT")
+                SyncLog.debug(TAG) { "Discovered phone tablet WebSocket at gateway" }
                 connectToPhoneWebSocket(gateway, PHONE_WS_PORT)
                 return
             }
@@ -786,7 +801,7 @@ object TabletDisplaySync {
             val candidate = InetAddress.getByAddress(prefix + host.toByte())
             if (candidate == network.address || candidate in gateways) continue
             if (canOpenPhoneWebSocket(candidate)) {
-                Log.d(TAG, "Discovered phone tablet WebSocket by subnet scan at ${candidate.hostAddress}:$PHONE_WS_PORT")
+                SyncLog.debug(TAG) { "Discovered phone tablet WebSocket by subnet scan" }
                 connectToPhoneWebSocket(candidate, PHONE_WS_PORT)
                 return
             }
@@ -837,12 +852,12 @@ object TabletDisplaySync {
                         val packet = DatagramPacket(bytes, bytes.size, endpoint.address, endpoint.port)
                         socket.send(packet)
                     }
-                    Log.d(TAG, "Broadcast tablet display hello")
+                    SyncLog.debug(TAG) { "Broadcast tablet display hello" }
                     receiveScoreSnapshotsOnHelloSocket(socket, TABLET_HELLO_INTERVAL_MS)
                 }
             }
         } catch (error: Exception) {
-            Log.w(TAG, "Tablet display hello broadcaster stopped", error)
+            SyncLog.warn(TAG, "Tablet display hello broadcaster stopped", "Tablet display hello broadcaster stopped", error)
         }
     }
 
@@ -850,7 +865,7 @@ object TabletDisplaySync {
         try {
             ServerSocket(TABLET_TCP_PORT).use { serverSocket ->
                 serverSocket.soTimeout = LISTEN_TIMEOUT_MS
-                Log.d(TAG, "Tablet display TCP server started on $TABLET_TCP_PORT")
+                SyncLog.debug(TAG) { "Tablet display TCP server started" }
                 while (currentCoroutineContext().isActive) {
                     val socket = try {
                         serverSocket.accept()
@@ -868,12 +883,12 @@ object TabletDisplaySync {
                         val state = payload.toTabletDisplayState() ?: return@use
                         registerDiscoveredPhone(state, socket.inetAddress, PHONE_WS_PORT)
                         updateRemoteDisplayState(state, "TCP")
-                        Log.d(TAG, "Received tablet score snapshot over TCP: ${state.scoreCall}")
+                        SyncLog.debug(TAG) { "Received tablet score snapshot over TCP" }
                     }
                 }
             }
         } catch (error: Exception) {
-            Log.w(TAG, "Tablet display TCP server stopped", error)
+            SyncLog.warn(TAG, "Tablet display TCP server stopped", "Tablet display TCP server stopped", error)
         }
     }
 
@@ -908,14 +923,14 @@ object TabletDisplaySync {
         val endpoint = InetSocketAddress(address, udpPort)
         val previous = tabletEndpoints.put(endpoint, System.currentTimeMillis())
         if (previous == null) {
-            Log.d(TAG, "Discovered tablet display UDP at ${address.hostAddress}:$udpPort")
+            SyncLog.debug(TAG) { "Discovered tablet display UDP endpoint" }
         }
 
         if (tcpPort != null) {
             val tcpEndpoint = InetSocketAddress(address, tcpPort)
             val previousTcp = tabletTcpEndpoints.put(tcpEndpoint, System.currentTimeMillis())
             if (previousTcp == null) {
-                Log.d(TAG, "Discovered tablet display TCP at ${address.hostAddress}:$tcpPort")
+                SyncLog.debug(TAG) { "Discovered tablet display TCP endpoint" }
             }
         }
     }
@@ -944,12 +959,14 @@ object TabletDisplaySync {
                     socket.getOutputStream().write("$payload\n".toByteArray(StandardCharsets.UTF_8))
                     socket.getOutputStream().flush()
                 }
-                Log.d(TAG, "Published tablet score snapshot over TCP to ${endpoint.address.hostAddress}:${endpoint.port}")
+                SyncLog.debug(TAG) { "Published tablet score snapshot over TCP" }
             } catch (error: Exception) {
                 tabletTcpEndpoints.remove(endpoint)
-                Log.w(
+                SyncLog.warn(
                     TAG,
-                    "Removed unreachable tablet TCP endpoint ${endpoint.address.hostAddress}:${endpoint.port}: ${error.message}"
+                    "Removed unreachable tablet TCP endpoint",
+                    "Removed unreachable tablet TCP endpoint ${endpoint.address.hostAddress}:${endpoint.port}: ${error.message}",
+                    error
                 )
             }
         }
@@ -1059,12 +1076,13 @@ object TabletDisplaySync {
         val pairedHost = pairedPhoneHostId
         if (pairedHost == null) {
             setConnectionState(TabletConnectionState.Searching)
-            Log.d(TAG, "Observed phone snapshot over $source for ${state.hostId} while tablet is not yet paired")
+            SyncLog.debug(TAG) { "Observed phone snapshot while tablet is not yet paired" }
             return
         }
         if (state.hostId.isNotBlank() && pairedHost != state.hostId) {
-            Log.w(
+            SyncLog.warn(
                 TAG,
+                "Ignored tablet score snapshot from non-paired host",
                 "Ignored tablet score snapshot from non-paired host ${state.hostId}; paired host is $pairedHost"
             )
             return
@@ -1080,14 +1098,14 @@ object TabletDisplaySync {
             connectToRememberedPhoneWebSocket()
             connectToGatewayPhoneWebSocket()
         }
-        Log.d(TAG, "Received tablet score snapshot over $source: ${state.scoreCall}")
+        SyncLog.debug(TAG) { "Received tablet score snapshot over $source" }
     }
 
     private fun setConnectionState(state: TabletConnectionState) {
         if (_connectionState.value != state) {
             val previous = _connectionState.value
             _connectionState.value = state
-            Log.d(TAG, "Tablet connection state: $previous -> $state")
+            SyncLog.debug(TAG) { "Tablet connection state: $previous -> $state" }
         }
     }
 
@@ -1236,7 +1254,7 @@ object TabletDisplaySync {
         val ageMs = System.currentTimeMillis() - lastRemoteSnapshotReceivedAt
         if (ageMs > STALE_REMOTE_STATE_MS) {
             setConnectionState(TabletConnectionState.Reconnecting)
-            Log.d(TAG, "Tablet score snapshot is stale (age ${ageMs}ms); keeping last score while reconnecting")
+            SyncLog.debug(TAG) { "Tablet score snapshot is stale; keeping last score while reconnecting" }
         }
     }
 
@@ -1292,7 +1310,7 @@ object TabletDisplaySync {
 
     private fun connectToPairedDiscoveredPhoneWebSocket() {
         val endpoint = pairedDiscoveredPhoneEndpoint() ?: return
-        Log.d(TAG, "Attempting reconnection to rediscovered paired court at ${endpoint.address.hostAddress}:${endpoint.port}")
+        SyncLog.debug(TAG) { "Attempting reconnection to rediscovered paired endpoint" }
         connectToPhoneWebSocket(endpoint.address, endpoint.port)
     }
 
@@ -1324,7 +1342,7 @@ object TabletDisplaySync {
             .putString(KEY_PAIRED_PHONE_HOST_ID, hostId)
             .putString(KEY_PAIRED_PHONE_SESSION_ID, sessionId)
             .apply()
-        Log.d(TAG, "Paired tablet to phone host $hostId session $sessionId")
+        SyncLog.debug(TAG) { "Paired tablet to phone host and session" }
     }
 
     private fun rememberPairedPhoneSession(sessionId: String) {

@@ -2,7 +2,6 @@ package com.courtside.pickleball.wear
 
 import android.content.Context
 import android.os.SystemClock
-import android.util.Log
 import com.courtside.pickleball.domain.Team
 import com.courtside.pickleball.domain.VoiceAnnouncementMode
 import com.courtside.pickleball.domain.WearSyncContract
@@ -80,11 +79,11 @@ object WearPhoneSync {
                     updatePhoneConnectedWithGrace("connected node refresh returned no nodes")
                 }
                 publishPreferredState()
-                Log.d(TAG, "Connected phone nodes: ${nodes.size}")
+                WearSyncLog.debug(TAG) { "Connected phone nodes refreshed: ${nodes.size}" }
             }
             .addOnFailureListener { error ->
                 updatePhoneConnectedWithGrace("connected node refresh failed")
-                Log.w(TAG, "Unable to refresh connected phone nodes", error)
+                WearSyncLog.warn(TAG, "Unable to refresh connected phone nodes", "Unable to refresh connected phone nodes", error)
             }
     }
 
@@ -94,14 +93,14 @@ object WearPhoneSync {
     }
 
     fun handlePeerConnected(peer: Node) {
-        Log.d(TAG, "Phone peer connected: ${peer.displayName}")
+        WearSyncLog.debug(TAG) { "Phone peer connected" }
         connectedNodeIds += peer.id
         markPhoneSeen()
         refreshLatestScoreState()
     }
 
     fun handlePeerDisconnected(peer: Node) {
-        Log.d(TAG, "Phone peer disconnected: ${peer.displayName}")
+        WearSyncLog.debug(TAG) { "Phone peer disconnected" }
         connectedNodeIds -= peer.id
         statesByNodeId.remove(peer.id)
         publishPreferredState()
@@ -115,14 +114,14 @@ object WearPhoneSync {
                 connectedNodeIds.clear()
                 connectedNodeIds.addAll(nodes.map { it.id })
                 if (nodes.isEmpty()) {
-                    Log.w(TAG, "No phone node available for command: $commandPath")
+                    WearSyncLog.warn(TAG, "No phone node available for command", "No phone node available for command: $commandPath")
                     updatePhoneConnectedWithGrace("command send found no phone nodes")
                     return@addOnSuccessListener
                 }
 
                 val targetNode = resolvePreferredNode(nodes)
                 if (targetNode == null) {
-                    Log.w(TAG, "No preferred Android node resolved for command: $commandPath")
+                    WearSyncLog.warn(TAG, "No preferred Android node resolved for command", "No preferred Android node resolved for command: $commandPath")
                     updatePhoneConnectedWithGrace("command send could not resolve preferred node")
                     return@addOnSuccessListener
                 }
@@ -131,16 +130,16 @@ object WearPhoneSync {
                     .sendMessage(targetNode.id, commandPath, ByteArray(0))
                     .addOnSuccessListener {
                         markPhoneSeen()
-                        Log.d(TAG, "Sent command $commandPath to ${targetNode.displayName}")
+                        WearSyncLog.debug(TAG) { "Sent command to preferred Android node" }
                     }
                     .addOnFailureListener { error ->
                         updatePhoneConnectedWithGrace("command send failed for ${targetNode.displayName}")
-                        Log.w(TAG, "Failed command $commandPath to ${targetNode.displayName}", error)
+                        WearSyncLog.warn(TAG, "Failed to send command to preferred Android node", "Failed command $commandPath to ${targetNode.displayName}", error)
                     }
             }
             .addOnFailureListener { error ->
                 updatePhoneConnectedWithGrace("unable to locate phone nodes for command")
-                Log.w(TAG, "Unable to find phone nodes for command: $commandPath", error)
+                WearSyncLog.warn(TAG, "Unable to find phone nodes for command", "Unable to find phone nodes for command: $commandPath", error)
             }
     }
 
@@ -183,7 +182,7 @@ object WearPhoneSync {
                 }
             }
             .addOnFailureListener { error ->
-                Log.w(TAG, "Unable to refresh phone score state", error)
+                WearSyncLog.warn(TAG, "Unable to refresh phone score state", "Unable to refresh phone score state", error)
             }
     }
 
@@ -214,7 +213,7 @@ object WearPhoneSync {
         )
         val currentForNode = if (sourceNodeId.isNotBlank()) statesByNodeId[sourceNodeId] else null
         if (currentForNode != null && state.updatedAt < currentForNode.updatedAt) {
-            Log.d(TAG, "Ignored stale Android score state update from $sourceNodeId: ${state.scoreCall} @${state.updatedAt}")
+            WearSyncLog.debug(TAG) { "Ignored stale Android score state update from connected node" }
             return
         }
         if (sourceNodeId.isNotBlank()) {
@@ -222,14 +221,14 @@ object WearPhoneSync {
         } else {
             val currentState = _phoneScoreState.value
             if (currentState != null && state.updatedAt < currentState.updatedAt) {
-                Log.d(TAG, "Ignored stale Android score state update: ${state.scoreCall} @${state.updatedAt}")
+                WearSyncLog.debug(TAG) { "Ignored stale Android score state update" }
                 return
             }
             _phoneScoreState.value = state
         }
         markPhoneSeen()
         publishPreferredState()
-        Log.d(TAG, "Android score state updated from ${state.sourceRole.name.lowercase()}: ${state.scoreCall}")
+        WearSyncLog.debug(TAG) { "Android score state updated from ${state.sourceRole.name.lowercase()}" }
     }
 
     private fun publishPreferredState() {
@@ -278,7 +277,7 @@ object WearPhoneSync {
         val now = SystemClock.elapsedRealtime()
         val isFresh = now - lastPhoneSeenAtElapsed <= ConnectionGraceMs
         _phoneConnected.value = isFresh
-        Log.d(TAG, "Phone connection grace check ($reason): connected=$isFresh")
+        WearSyncLog.debug(TAG) { "Phone connection grace check ($reason): connected=$isFresh" }
     }
 
     private fun String?.toTeam(): Team =

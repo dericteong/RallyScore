@@ -2,7 +2,6 @@ package com.courtside.pickleball.sync
 
 import android.content.Context
 import android.content.res.Configuration
-import android.util.Log
 import com.courtside.pickleball.domain.GameState
 import com.courtside.pickleball.domain.GameSettings
 import com.courtside.pickleball.domain.ScoringFormat
@@ -204,11 +203,11 @@ object RallyScorePhoneHub {
             .addOnSuccessListener { nodes ->
                 val connected = nodes.isNotEmpty()
                 _watchConnected.value = connected
-                Log.d(TAG, "Connected Wear nodes: ${nodes.size}")
+                SyncLog.debug(TAG) { "Connected Wear nodes refreshed: ${nodes.size}" }
             }
             .addOnFailureListener { error ->
                 _watchConnected.value = false
-                Log.w(TAG, "Unable to refresh Wear nodes", error)
+                SyncLog.warn(TAG, "Unable to refresh Wear connection state", "Unable to refresh Wear nodes", error)
             }
     }
 
@@ -217,38 +216,38 @@ object RallyScorePhoneHub {
             path != WearSyncContract.COMMAND_START_MATCH_TEAM_A &&
             path != WearSyncContract.COMMAND_START_MATCH_TEAM_B
         ) {
-            Log.w(TAG, "Ignored watch command while no phone match is active: $path")
+            SyncLog.warn(TAG, "Ignored watch command while no phone match is active", "Ignored watch command while no phone match is active: $path")
             publishScoreState(store.state.value)
             return
         }
 
         val next = when (path) {
             WearSyncContract.COMMAND_START_MATCH_TEAM_A -> {
-                Log.d(TAG, "Watch command: START_MATCH_TEAM_A")
+                SyncLog.debug(TAG) { "Watch command: START_MATCH_TEAM_A" }
                 reset(settings = store.state.value.settings, startingTeam = Team.A)
             }
             WearSyncContract.COMMAND_START_MATCH_TEAM_B -> {
-                Log.d(TAG, "Watch command: START_MATCH_TEAM_B")
+                SyncLog.debug(TAG) { "Watch command: START_MATCH_TEAM_B" }
                 reset(settings = store.state.value.settings, startingTeam = Team.B)
             }
             WearSyncContract.COMMAND_A_WON_RALLY -> {
-                Log.d(TAG, "Watch command: A_WON_RALLY")
+                SyncLog.debug(TAG) { "Watch command: A_WON_RALLY" }
                 store.recordRallyWinner(Team.A)
             }
             WearSyncContract.COMMAND_B_WON_RALLY -> {
-                Log.d(TAG, "Watch command: B_WON_RALLY")
+                SyncLog.debug(TAG) { "Watch command: B_WON_RALLY" }
                 store.recordRallyWinner(Team.B)
             }
             WearSyncContract.COMMAND_UNDO -> {
-                Log.d(TAG, "Watch command: UNDO")
+                SyncLog.debug(TAG) { "Watch command: UNDO" }
                 store.undo()
             }
             WearSyncContract.COMMAND_END_MATCH -> {
-                Log.d(TAG, "Watch command: END_MATCH")
+                SyncLog.debug(TAG) { "Watch command: END_MATCH" }
                 endMatch()
             }
             else -> {
-                Log.w(TAG, "Ignored unknown watch command: $path")
+                SyncLog.warn(TAG, "Ignored unknown watch command", "Ignored unknown watch command: $path")
                 return
             }
         }
@@ -261,67 +260,71 @@ object RallyScorePhoneHub {
                 message.command != TabletCommand.StartMatch &&
                 message.command != TabletCommand.ResumeMatch
             ) {
-                Log.w(TAG, "Ignored tablet command while no phone match is active: ${message.command.wireValue}")
+                SyncLog.warn(
+                    TAG,
+                    "Ignored tablet command while no phone match is active",
+                    "Ignored tablet command while no phone match is active: ${message.command.wireValue}"
+                )
                 publishScoreState(store.state.value)
                 return@launch
             }
 
             val next = when (message.command) {
                 TabletCommand.TeamAWonRally -> {
-                    Log.d(TAG, "Tablet command: TABLET_ME_WON_RALLY")
+                    SyncLog.debug(TAG) { "Tablet command: TABLET_ME_WON_RALLY" }
                     store.recordRallyWinner(Team.A)
                 }
                 TabletCommand.TeamBWonRally -> {
-                    Log.d(TAG, "Tablet command: TABLET_OPP_WON_RALLY")
+                    SyncLog.debug(TAG) { "Tablet command: TABLET_OPP_WON_RALLY" }
                     store.recordRallyWinner(Team.B)
                 }
                 TabletCommand.Undo -> {
-                    Log.d(TAG, "Tablet command: TABLET_UNDO")
+                    SyncLog.debug(TAG) { "Tablet command: TABLET_UNDO" }
                     store.undo()
                 }
                 TabletCommand.AdjustTeamAScoreDown -> {
-                    Log.d(TAG, "Tablet command: TABLET_ADJUST_TEAM_A_SCORE_DOWN")
+                    SyncLog.debug(TAG) { "Tablet command: TABLET_ADJUST_TEAM_A_SCORE_DOWN" }
                     store.adjustScore(Team.A, -1)
                 }
                 TabletCommand.AdjustTeamAScoreUp -> {
-                    Log.d(TAG, "Tablet command: TABLET_ADJUST_TEAM_A_SCORE_UP")
+                    SyncLog.debug(TAG) { "Tablet command: TABLET_ADJUST_TEAM_A_SCORE_UP" }
                     store.adjustScore(Team.A, 1)
                 }
                 TabletCommand.AdjustTeamBScoreDown -> {
-                    Log.d(TAG, "Tablet command: TABLET_ADJUST_TEAM_B_SCORE_DOWN")
+                    SyncLog.debug(TAG) { "Tablet command: TABLET_ADJUST_TEAM_B_SCORE_DOWN" }
                     store.adjustScore(Team.B, -1)
                 }
                 TabletCommand.AdjustTeamBScoreUp -> {
-                    Log.d(TAG, "Tablet command: TABLET_ADJUST_TEAM_B_SCORE_UP")
+                    SyncLog.debug(TAG) { "Tablet command: TABLET_ADJUST_TEAM_B_SCORE_UP" }
                     store.adjustScore(Team.B, 1)
                 }
                 TabletCommand.SetServingTeamA -> {
-                    Log.d(TAG, "Tablet command: TABLET_SET_SERVING_TEAM_A")
+                    SyncLog.debug(TAG) { "Tablet command: TABLET_SET_SERVING_TEAM_A" }
                     store.adjustServeState(Team.A, store.state.value.serverNumber)
                 }
                 TabletCommand.SetServingTeamB -> {
-                    Log.d(TAG, "Tablet command: TABLET_SET_SERVING_TEAM_B")
+                    SyncLog.debug(TAG) { "Tablet command: TABLET_SET_SERVING_TEAM_B" }
                     store.adjustServeState(Team.B, store.state.value.serverNumber)
                 }
                 TabletCommand.SetServerOne -> {
-                    Log.d(TAG, "Tablet command: TABLET_SET_SERVER_ONE")
+                    SyncLog.debug(TAG) { "Tablet command: TABLET_SET_SERVER_ONE" }
                     store.adjustServeState(store.state.value.servingTeam, ServerNumber.One)
                 }
                 TabletCommand.SetServerTwo -> {
-                    Log.d(TAG, "Tablet command: TABLET_SET_SERVER_TWO")
+                    SyncLog.debug(TAG) { "Tablet command: TABLET_SET_SERVER_TWO" }
                     store.adjustServeState(store.state.value.servingTeam, ServerNumber.Two)
                 }
                 TabletCommand.EndMatch -> {
-                    Log.d(TAG, "Tablet command: TABLET_END_MATCH")
+                    SyncLog.debug(TAG) { "Tablet command: TABLET_END_MATCH" }
                     endMatch()
                 }
                 TabletCommand.StartMatch -> {
                     val payload = message.toSetupPayload() ?: run {
-                        Log.w(TAG, "Ignored malformed tablet start-match payload")
+                        SyncLog.warn(TAG, "Ignored malformed tablet start-match payload")
                         publishScoreState(store.state.value)
                         return@launch
                     }
-                    Log.d(TAG, "Tablet command: TABLET_START_MATCH")
+                    SyncLog.debug(TAG) { "Tablet command: TABLET_START_MATCH" }
                     val next = startMatch(
                         teamAName = payload.teamAName,
                         teamBName = payload.teamBName,
@@ -340,11 +343,11 @@ object RallyScorePhoneHub {
                 }
                 TabletCommand.ResumeMatch -> {
                     val payload = message.toSetupPayload() ?: run {
-                        Log.w(TAG, "Ignored malformed tablet resume-match payload")
+                        SyncLog.warn(TAG, "Ignored malformed tablet resume-match payload")
                         publishScoreState(store.state.value)
                         return@launch
                     }
-                    Log.d(TAG, "Tablet command: TABLET_RESUME_MATCH")
+                    SyncLog.debug(TAG) { "Tablet command: TABLET_RESUME_MATCH" }
                     updateTeamNames(
                         teamAName = payload.teamAName,
                         teamBName = payload.teamBName,
@@ -433,10 +436,10 @@ object RallyScorePhoneHub {
 
         Wearable.getDataClient(context).putDataItem(request)
             .addOnSuccessListener {
-                Log.d(TAG, "Published score state: ${state.scoreCall}")
+                SyncLog.debug(TAG) { "Published score state" }
             }
             .addOnFailureListener { error ->
-                Log.w(TAG, "Failed to publish score state", error)
+                SyncLog.warn(TAG, "Failed to publish score state", "Failed to publish score state", error)
             }
     }
 
@@ -475,7 +478,7 @@ object RallyScorePhoneHub {
             )
         )
         store.restore(state = state, matchActive = true)
-        Log.d(TAG, "Restored persisted phone match: ${state.scoreCall}")
+        SyncLog.debug(TAG) { "Restored persisted phone match" }
     }
 
     private fun restoreIdentity(context: Context) {
@@ -516,7 +519,7 @@ object RallyScorePhoneHub {
             ?.putString(KEY_HOST_ID, hostId)
             ?.putString(KEY_SESSION_ID, sessionId)
             ?.apply()
-        Log.d(TAG, "Rotated phone session id: $sessionId")
+        SyncLog.debug(TAG) { "Rotated phone session id" }
     }
 
     private fun generateHostId(): String = "phone-${UUID.randomUUID()}"

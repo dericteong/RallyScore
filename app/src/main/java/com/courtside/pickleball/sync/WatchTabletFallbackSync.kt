@@ -2,7 +2,6 @@ package com.courtside.pickleball.sync
 
 import android.content.Context
 import android.net.wifi.WifiManager
-import android.util.Log
 import com.courtside.pickleball.domain.GameState
 import com.courtside.pickleball.domain.Team
 import com.courtside.pickleball.domain.VoiceAnnouncementMode
@@ -106,11 +105,10 @@ object WatchTabletFallbackSync {
             DatagramSocket().use { socket ->
                 socket.broadcast = true
                 while (true) {
-                    val courtCode = courtCodeProvider?.invoke().orEmpty()
                     val payload = listOf(
                         DISCOVERY_PROTOCOL,
                         TCP_PORT.toString(),
-                        courtCode.toWireField(),
+                        courtCodeProvider?.invoke().orEmpty().toWireField(),
                         System.currentTimeMillis().toString()
                     ).joinToString("|")
                     val bytes = payload.toByteArray(StandardCharsets.UTF_8)
@@ -126,12 +124,12 @@ object WatchTabletFallbackSync {
                             )
                         }
                     }
-                    Log.d(TAG, "Broadcast watch-tablet discovery for court $courtCode on $DISCOVERY_PORT")
+                    SyncLog.debug(TAG) { "Broadcast watch-tablet discovery" }
                     delay(BROADCAST_INTERVAL_MS)
                 }
             }
         } catch (error: Exception) {
-            Log.w(TAG, "Watch-tablet discovery broadcaster stopped", error)
+            SyncLog.warn(TAG, "Watch-tablet discovery broadcaster stopped", "Watch-tablet discovery broadcaster stopped", error)
         }
     }
 
@@ -144,10 +142,10 @@ object WatchTabletFallbackSync {
         runCatching { lock.acquire() }
             .onSuccess {
                 multicastLock = lock
-                Log.d(TAG, "Acquired multicast lock for watch-tablet discovery")
+                SyncLog.debug(TAG) { "Acquired multicast lock for watch-tablet discovery" }
             }
             .onFailure { error ->
-                Log.w(TAG, "Unable to acquire multicast lock for watch-tablet discovery", error)
+                SyncLog.warn(TAG, "Unable to acquire multicast lock for watch-tablet discovery", "Unable to acquire multicast lock for watch-tablet discovery", error)
             }
     }
 
@@ -155,13 +153,13 @@ object WatchTabletFallbackSync {
         try {
             ServerSocket(TCP_PORT).use { serverSocket ->
                 serverSocket.soTimeout = CLIENT_TIMEOUT_MS
-                Log.d(TAG, "Watch-tablet TCP server started on $TCP_PORT")
+                SyncLog.debug(TAG) { "Watch-tablet TCP server started" }
                 while (true) {
                     try {
                         val socket = serverSocket.accept()
                         clientSockets += socket
                         updateWatchConnectedState()
-                        Log.d(TAG, "Accepted watch-tablet client from ${socket.inetAddress.hostAddress}")
+                        SyncLog.debug(TAG) { "Accepted watch-tablet client" }
                         scope.launch {
                             handleClient(socket)
                         }
@@ -171,7 +169,7 @@ object WatchTabletFallbackSync {
                 }
             }
         } catch (error: Exception) {
-            Log.w(TAG, "Watch-tablet TCP server stopped", error)
+            SyncLog.warn(TAG, "Watch-tablet TCP server stopped", "Watch-tablet TCP server stopped", error)
         }
     }
 
@@ -189,13 +187,13 @@ object WatchTabletFallbackSync {
                     } ?: break
 
                     val commandPath = line.toWatchCommandPath() ?: continue
-                    Log.d(TAG, "Received watch-tablet command: $commandPath")
+                    SyncLog.debug(TAG) { "Received watch-tablet command" }
                     commandHandler?.invoke(commandPath)
                     publishState(socket)
                 }
             }
         } catch (error: Exception) {
-            Log.w(TAG, "Watch-tablet client disconnected", error)
+            SyncLog.warn(TAG, "Watch-tablet client disconnected", "Watch-tablet client disconnected", error)
         } finally {
             clientSockets.remove(socket)
             socket.closeQuietly()
@@ -225,7 +223,7 @@ object WatchTabletFallbackSync {
         val payload = state.toWatchTabletPayload(matchActive, canUndo, voiceMode)
         try {
             PrintWriter(socket.getOutputStream(), true).println(payload)
-            Log.d(TAG, "Published watch-tablet state: ${state.scoreCall}")
+            SyncLog.debug(TAG) { "Published watch-tablet state" }
         } catch (error: Exception) {
             clientSockets.remove(socket)
             socket.closeQuietly()

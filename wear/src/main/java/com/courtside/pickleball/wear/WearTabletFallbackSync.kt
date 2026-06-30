@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.net.wifi.WifiManager
 import android.os.SystemClock
-import android.util.Log
 import com.courtside.pickleball.domain.Team
 import com.courtside.pickleball.domain.VoiceAnnouncementMode
 import com.courtside.pickleball.domain.WearSyncContract
@@ -113,7 +112,7 @@ object WearTabletFallbackSync {
         val socket = activeSocket
         if (socket == null) {
             val endpoint = connectedEndpoint ?: return false
-            Log.d(TAG, "No active tablet socket, sending one-shot command: $commandPath")
+            WearSyncLog.debug(TAG) { "No active tablet socket, sending one-shot command" }
             scope.launch {
                 sendOneShotCommand(endpoint, commandPath)
             }
@@ -121,12 +120,12 @@ object WearTabletFallbackSync {
         }
         scope.launch {
             try {
-                Log.d(TAG, "Sending tablet command over active socket: $commandPath")
+                WearSyncLog.debug(TAG) { "Sending tablet command over active socket" }
                 PrintWriter(socket.getOutputStream(), true).println(
                     listOf(COMMAND_PROTOCOL, commandPath, System.currentTimeMillis().toString()).joinToString("|")
                 )
             } catch (error: Exception) {
-                Log.w(TAG, "Unable to send watch-tablet command: $commandPath", error)
+                WearSyncLog.warn(TAG, "Unable to send watch-tablet command", "Unable to send watch-tablet command: $commandPath", error)
                 disconnect()
             }
         }
@@ -146,7 +145,7 @@ object WearTabletFallbackSync {
             connect(endpoint)
             true
         } catch (error: Exception) {
-            Log.w(TAG, "Unable to send one-shot tablet command: $commandPath", error)
+            WearSyncLog.warn(TAG, "Unable to send one-shot tablet command", "Unable to send one-shot tablet command: $commandPath", error)
             false
         }
 
@@ -164,10 +163,9 @@ object WearTabletFallbackSync {
                         val payload = String(packet.data, 0, packet.length, StandardCharsets.UTF_8)
                         val candidate = payload.toTabletCandidate(packet) ?: continue
                         observeTabletCandidate(candidate)
-                        Log.d(
-                            TAG,
+                        WearSyncLog.debug(TAG) {
                             "Discovered tablet fallback court ${candidate.courtCode} at ${candidate.endpoint.address.hostAddress}:${candidate.endpoint.port}"
-                        )
+                        }
                         if (connectedEndpoint == candidate.endpoint && activeSocket != null) {
                             markTabletSeen()
                             continue
@@ -184,7 +182,7 @@ object WearTabletFallbackSync {
                 }
             }
         } catch (error: Exception) {
-            Log.w(TAG, "Watch-tablet discovery loop stopped", error)
+            WearSyncLog.warn(TAG, "Watch-tablet discovery loop stopped", "Watch-tablet discovery loop stopped", error)
         }
     }
 
@@ -197,10 +195,10 @@ object WearTabletFallbackSync {
         runCatching { lock.acquire() }
             .onSuccess {
                 multicastLock = lock
-                Log.d(TAG, "Acquired multicast lock for tablet discovery")
+                WearSyncLog.debug(TAG) { "Acquired multicast lock for tablet discovery" }
             }
             .onFailure { error ->
-                Log.w(TAG, "Unable to acquire multicast lock for tablet discovery", error)
+                WearSyncLog.warn(TAG, "Unable to acquire multicast lock for tablet discovery", "Unable to acquire multicast lock for tablet discovery", error)
             }
     }
 
@@ -216,7 +214,7 @@ object WearTabletFallbackSync {
                     activeSocket = socket
                     markTabletSeen()
                     _discoveryStatus.value = DiscoveryStatus.Connected
-                    Log.d(TAG, "Connected watch to tablet fallback at ${endpoint.address.hostAddress}:${endpoint.port}")
+                    WearSyncLog.debug(TAG) { "Connected watch to tablet fallback" }
                     BufferedReader(InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8)).use { reader ->
                         while (true) {
                             val line = try {
@@ -228,12 +226,12 @@ object WearTabletFallbackSync {
                             val state = line.toTabletScoreState() ?: continue
                             markTabletSeen()
                             _tabletScoreState.value = state
-                            Log.d(TAG, "Received tablet fallback state: ${state.scoreCall}")
+                            WearSyncLog.debug(TAG) { "Received tablet fallback state" }
                         }
                     }
                 }
             } catch (error: Exception) {
-                Log.w(TAG, "Watch-tablet fallback connection lost", error)
+                WearSyncLog.warn(TAG, "Watch-tablet fallback connection lost", "Watch-tablet fallback connection lost", error)
             } finally {
                 disconnect()
             }
