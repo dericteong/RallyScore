@@ -48,6 +48,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -160,7 +161,6 @@ fun WearScoreboardApp() {
     var selectedStartMode by remember { mutableStateOf(WatchStartMode.Tablet) }
     var selectedStartingTeam by remember { mutableStateOf<Team?>(null) }
     var selectedStandaloneScoringFormat by remember { mutableStateOf(ScoringFormat.Traditional) }
-    var uiElapsedRealtime by remember { mutableStateOf(SystemClock.elapsedRealtime()) }
     val context = LocalContext.current
     val haptics = LocalHapticFeedback.current
     val tts = remember(context) {
@@ -377,17 +377,38 @@ fun WearScoreboardApp() {
         }
     }
 
-    LaunchedEffect(Unit) {
+    val shouldPollPhoneState = awaitingPhoneConfirmation ||
+        connectedEndRequest ||
+        (selectedStartMode == WatchStartMode.Phone && state == null) ||
+        (connectedRemoteTarget == ConnectedRemoteTarget.Phone &&
+            (phoneConnected || phoneScoreState?.matchActive == true))
+
+    val shouldRunTabletFallbackDiscovery = state == null &&
+        activeConnectedScoreState?.matchActive != true &&
+        (selectedStartMode == WatchStartMode.Tablet ||
+            connectedRemoteTarget == ConnectedRemoteTarget.Tablet ||
+            tabletConnected ||
+            tabletScoreState?.matchActive == true)
+
+    LaunchedEffect(shouldPollPhoneState) {
+        if (!shouldPollPhoneState) return@LaunchedEffect
         while (true) {
             WearPhoneSync.refreshPhoneState()
             delay(PhoneRefreshIntervalMs)
         }
     }
 
-    LaunchedEffect(Unit) {
-        while (true) {
-            uiElapsedRealtime = SystemClock.elapsedRealtime()
-            delay(1_000L)
+    LaunchedEffect(shouldRunTabletFallbackDiscovery) {
+        if (shouldRunTabletFallbackDiscovery) {
+            WearTabletFallbackSync.startDiscovery()
+        } else {
+            WearTabletFallbackSync.stopDiscovery()
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            WearTabletFallbackSync.stop()
         }
     }
 
@@ -407,7 +428,7 @@ fun WearScoreboardApp() {
         }
     }
 
-    LaunchedEffect(phoneConnected, tabletConnected, phoneScoreState?.updatedAt, uiElapsedRealtime, state) {
+    LaunchedEffect(phoneConnected, tabletConnected, phoneScoreState?.updatedAt, state) {
         when {
             phoneConnected && phoneScoreState?.matchActive == true -> {
                 lastStablePhoneMatchState = phoneScoreState
@@ -440,11 +461,17 @@ fun WearScoreboardApp() {
                 tabletConnected -> tabletScoreState
                 else -> null
             }
+            val showConnectedGraceState = rememberConnectedUiGraceState(
+                lastSeenAtElapsed = lastStablePhoneMatchSeenAt,
+                enabled = state == null &&
+                    !tabletConnected &&
+                    phoneScoreState?.matchActive != false
+            )
             val graceConnectedScoreState = lastStablePhoneMatchState?.takeIf {
                 state == null &&
                     !tabletConnected &&
                     phoneScoreState?.matchActive != false &&
-                    uiElapsedRealtime - lastStablePhoneMatchSeenAt <= ConnectedUiGraceMs
+                    showConnectedGraceState
             }
             val connectedScoreState = when {
                 phoneConnected && liveConnectedScoreState?.sourceRole == ConnectedAndroidRole.Phone && liveConnectedScoreState.matchActive == true -> liveConnectedScoreState
@@ -1043,6 +1070,34 @@ private fun WearStartModeButton(
 
 private fun Int.floorMod(modulus: Int): Int =
     if (modulus == 0) 0 else ((this % modulus) + modulus) % modulus
+
+@Composable
+private fun rememberConnectedUiGraceState(
+    lastSeenAtElapsed: Long,
+    enabled: Boolean
+): Boolean {
+    val isGraceActive by produceState(
+        initialValue = enabled && lastSeenAtElapsed > 0L,
+        lastSeenAtElapsed,
+        enabled
+    ) {
+        if (!enabled || lastSeenAtElapsed <= 0L) {
+            value = false
+            return@produceState
+        }
+        while (true) {
+            val remainingMs = ConnectedUiGraceMs -
+                (SystemClock.elapsedRealtime() - lastSeenAtElapsed)
+            if (remainingMs <= 0L) {
+                value = false
+                break
+            }
+            value = true
+            delay(remainingMs.coerceAtMost(1_000L))
+        }
+    }
+    return isGraceActive
+}
 
 @Composable
 private fun WearScoreboardScreen(

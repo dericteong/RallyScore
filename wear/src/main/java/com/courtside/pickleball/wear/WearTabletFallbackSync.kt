@@ -20,10 +20,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 object WearTabletFallbackSync {
@@ -82,10 +84,36 @@ object WearTabletFallbackSync {
         appContext = context.applicationContext
         prefs = appContext?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         _selectedCourtCode.value = prefs?.getString(KEY_SELECTED_COURT_CODE, null)
+    }
+
+    fun startDiscovery() {
+        if (discoveryJob?.isActive == true) return
         ensureMulticastLock()
         discoveryJob = scope.launch {
             runDiscoveryLoop()
         }
+    }
+
+    fun stopDiscovery() {
+        discoveryJob?.cancel()
+        discoveryJob = null
+        releaseMulticastLock()
+        synchronized(discoveredTabletRecords) {
+            discoveredTabletRecords.clear()
+            publishDiscoveredTabletsLocked()
+        }
+        if (!_tabletConnected.value) {
+            _discoveryStatus.value = DiscoveryStatus.Searching
+        }
+    }
+
+    fun stop() {
+        stopDiscovery()
+        socketReaderJob?.cancel()
+        socketReaderJob = null
+        disconnect()
+        connectedEndpoint = null
+        _tabletScoreState.value = null
     }
 
     fun cycleSelectedTablet() {
@@ -156,7 +184,7 @@ object WearTabletFallbackSync {
                 socket.broadcast = true
                 socket.soTimeout = SOCKET_TIMEOUT_MS
                 val buffer = ByteArray(1024)
-                while (true) {
+                while (currentCoroutineContext().isActive) {
                     try {
                         val packet = DatagramPacket(buffer, buffer.size)
                         socket.receive(packet)
@@ -183,6 +211,8 @@ object WearTabletFallbackSync {
             }
         } catch (error: Exception) {
             WearSyncLog.warn(TAG, "Watch-tablet discovery loop stopped", "Watch-tablet discovery loop stopped", error)
+        } finally {
+            releaseMulticastLock()
         }
     }
 
@@ -202,6 +232,12 @@ object WearTabletFallbackSync {
             }
     }
 
+    private fun releaseMulticastLock() {
+        val lock = multicastLock ?: return
+        multicastLock = null
+        runCatching { lock.release() }
+    }
+
     private fun connect(endpoint: InetSocketAddress) {
         if (socketReaderJob?.isActive == true && connectedEndpoint == endpoint) return
         connectedEndpoint = endpoint
@@ -216,7 +252,7 @@ object WearTabletFallbackSync {
                     _discoveryStatus.value = DiscoveryStatus.Connected
                     WearSyncLog.debug(TAG) { "Connected watch to tablet fallback" }
                     BufferedReader(InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8)).use { reader ->
-                        while (true) {
+                        while (currentCoroutineContext().isActive) {
                             val line = try {
                                 reader.readLine()
                             } catch (_: SocketTimeoutException) {
