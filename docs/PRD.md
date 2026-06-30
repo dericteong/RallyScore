@@ -199,12 +199,12 @@ Future synced mode:
 - GameSettings stores individual player names (teamAPlayer1, teamAPlayer2, teamBPlayer1, teamBPlayer2).
 - The phone setup screen is always landscape with a side-by-side layout: team name cards on the left, voice controls and score preview card on the right.
 - A swap teams button (⇅) sits between My Team and Opponent Team cards.
-- The score preview card shows "WE SERVE FIRST" / "OPP SERVE FIRST" / "TAP A TEAM" with team-colored background, tappable to toggle starting team.
+- The score preview card shows "WE SERVE FIRST" / "OPP SERVE FIRST" / "CHOOSE SERVER" with team-colored background, tappable to toggle starting team.
 - Player names on the scoreboard are court-ordered (swap on odd scores to reflect switched court positions).
 - The serving player name is underlined on the scoreboard.
 - The call bar shows the serving player name below the score call (e.g., "P1 SERVES").
 - A "Setup" button on the scoreboard returns to the setup screen to edit names without ending the match.
-- Buttons are "START NEW GAME" and "RESUME GAME" in red-orange (#D84315), no confirmation dialogs.
+- Buttons are "START GAME" and "RESUME GAME" in red-orange (#D84315), no confirmation dialogs.
 - TabletDisplayState includes servingPlayerName, teamACourtOrderedName, and teamBCourtOrderedName (wire protocol bumped to 16 fields).
 - Player names and server indices are persisted in SharedPreferences for match restore after app relaunch.
 - Server rotation uses a simplified fixed-position model: P1/P4 are always right-side starters (Server 1), P2/P3 are left-side (Server 2). First-server exception makes Server 2 act as Server 1 at game start.

@@ -22,17 +22,17 @@ Landscape side-by-side layout:
 ------------------------------------------------------------------
 | [blue square] RallyScore         WATCH CONNECTED | TABLET S... |
 | SET UP GAME                                                    |
-| Enter names, then tap who serves first.                        |
+| Enter players by court position.                               |
 | -------------------------------------------------------------- |
 | [blue card] My Team        | [dark gray circle ⇅] | SCORING    |
-| [P1 input ][P2 input ]     |                       | [TRAD][RLY]|
-|                             |                       |            |
+| [P1 input ][P2 input ]     |                       | [CLASSIC]  |
+|                             |                       | [RALLY]    |
 | [green card] Opponent Team |                       |  VOICE     |
 | [P3 input ][P4 input ]     |                       |  [mode]    |
 |                             |                       |  [WE SERVE |
 |                             |                       |   FIRST]   |
 | -------------------------------------------------------------- |
-|                                        [ START NEW GAME ]       |
+|                                            [ START GAME ]      |
 ------------------------------------------------------------------
 ```
 
@@ -57,7 +57,7 @@ Current setup behavior:
 - Scoring selector appears in the right column with Traditional and Rally options.
 - Traditional is the default selected option.
 - Voice Announcements dropdown appears in the right column.
-- Score Preview Card in the right column shows "WE SERVE FIRST" / "OPP SERVE FIRST" / "TAP A TEAM" with team-colored background, tappable to toggle starting team.
+- Score Preview Card in the right column shows "WE SERVE FIRST" / "OPP SERVE FIRST" / "CHOOSE SERVER" with team-colored background, tappable to toggle starting team.
 
 ## Phone Score Screen
 
@@ -74,7 +74,7 @@ Landscape layout:
 | [green] dots | P3 & P4 (or P4 & P3)       | score [white]  |
 |              | P4 underlined if serving    |                |
 ---------------------------------------------------------------
-| [SETUP] [CORRECT]      8 - 6 - 2                    [UNDO] [END] |
+| [SETUP] [EDIT]         8 - 6 - 2                    [UNDO] [END] |
 ---------------------------------------------------------------
 ```
 
@@ -92,7 +92,7 @@ Interaction:
 - Call bar uses dark-navy background (#111827).
   Score call text is 56sp with Setup/Correct controls on the left and Undo/End controls on the right.
 - Watch and tablet connection status bars shown at top of screen, with a "Setup" button to return to the setup screen.
-- Correct opens a match-correction dialog for score, serving side, and server number.
+- Edit opens a match-adjustment dialog for score, serving side, and server number.
 - Undo reverses last rally or correction.
 - End opens a confirmation dialog.
 - Phone speaker announces the confirmed score after rally input or undo when enabled.
@@ -124,7 +124,7 @@ Round/small-screen optimized primary controller layout:
 
 Standalone Watch Only behavior:
 
-- Supports a local `TRAD` / `RALLY` scoring selector before starting the match.
+- Supports a local `CLASSIC` / `RALLY` scoring selector before starting the match.
 - Starts with `WE SERVE FIRST` / `OPP SERVE FIRST` selection.
 - Uses shared scoring rules.
 - Maintains its own local state.
@@ -140,7 +140,7 @@ Connected Watch + Phone behavior:
   button that cycles through `TABLET MODE`, `WATCH MODE`, and `PHONE MODE`.
 - After selecting the mode, the user chooses `WE SERVE FIRST` or
   `OPP SERVE FIRST`, then taps a separate `START` button.
-- When `WATCH MODE` is selected, the watch also shows a local `TRAD` /
+- When `WATCH MODE` is selected, the watch also shows a local `CLASSIC` /
   `RALLY` scoring selector for standalone watch-owned matches only.
 - In the connected idle state, `PHONE MODE` can start a fresh phone-owned match
   directly from the watch using the existing phone team names unless the names

@@ -66,7 +66,7 @@ Use a real phone when possible.
 - App title "RallyScore" with blue square badge at top left.
 - Swap teams button (⇅) appears between My Team and Opponent Team cards.
 - Team cards use solid blue (My Team) and solid green (Opponent Team) backgrounds.
-- Score preview card shows "TAP A TEAM" when no team selected, "WE SERVE FIRST" or "OPP SERVE FIRST" when selected, with team-colored background.
+- Score preview card shows "CHOOSE SERVER" when no team selected, "WE SERVE FIRST" or "OPP SERVE FIRST" when selected, with team-colored background.
 - Setup screen exposes Traditional and Rally scoring options.
 - Traditional is selected by default.
 - Tapping score preview card toggles starting team.
@@ -86,7 +86,7 @@ Use a real phone when possible.
 - Pressing Enter/Done does not crash or jump focus to another field.
 - Keyboard-visible `DONE` hides the keyboard and returns to the full setup layout.
 - User can select starting server by tapping the team label band or focusing a player field.
-- Start button ("START NEW GAME") is red-orange (#D84315), enabled only when all four player names and starting server are set.
+- Start button ("START GAME") is red-orange (#D84315), enabled only when all four player names and starting server are set.
 - When editing from match, "RESUME GAME" button appears instead (also red-orange).
 - No confirmation dialog on Start or Resume.
 - Voice Announcements setting is visible and usable.
@@ -111,8 +111,8 @@ Use a real phone when possible.
 - Call bar uses team colors for the relevant numbers.
 - Call bar shows serving player below score call (e.g., "P1 SERVES").
 - "Setup" button in top bar returns to setup screen for editing names mid-match.
-- Phone score screen shows a `CORRECT` action.
-- Phone `CORRECT` opens a match-correction dialog for Team A score, Team B score, serving side, and server number.
+- Phone score screen shows an `EDIT` action.
+- Phone `EDIT` opens a match-adjustment dialog for Team A score, Team B score, serving side, and server number.
 - Phone correction updates the visible call row and remains undoable.
 - TTS announces after rally input.
 - Voice Announcements defaults appropriately for Phone Only mode.
@@ -133,7 +133,7 @@ Use a real phone when possible.
 
 - Wear app launches on emulator or watch.
 - Phone connection status indicator is visible.
-- Watch Only setup exposes `TRAD` and `RALLY`.
+- Watch Only setup exposes `CLASSIC` and `RALLY`.
 - Traditional is the default watch-only scoring selection.
 - User can choose ME or OPP to serve first.
 - Score rows fit on round display.
@@ -169,7 +169,7 @@ Initial implementation exists. Required before the connected Watch + Phone produ
 - Watch shows connected phone-idle choices when the phone is connected but has not started a match.
 - From that connected idle state, the watch can still start a standalone local
   match with `WE SERVE FIRST` or `OPP SERVE FIRST`.
-- In connected idle state, `WATCH MODE` exposes `TRAD` and `RALLY` for
+- In connected idle state, `WATCH MODE` exposes `CLASSIC` and `RALLY` for
   standalone watch-owned matches only.
 - Phone owns authoritative match state.
 - Watch rally input updates the phone/shared display.
@@ -226,8 +226,8 @@ Treat Phase 2 as complete enough to move focus to Phase 3 only when all of the f
 - Tablet supports My Team and Opponent Team setup.
 - Tablet player fields default to P1, P2, P3, and P4.
 - Tablet allows first-server selection.
-- Tablet standalone mode shows a `CORRECT` action.
-- Tablet `CORRECT` opens a score-adjustment dialog for My Team and Opponent Team.
+- Tablet standalone mode shows an `EDIT` action.
+- Tablet `EDIT` opens a score-adjustment dialog for My Team and Opponent Team.
 - Tablet score correction updates the visible score and remains undoable.
 - Tablet can start a match at `0 - 0 - 2`.
 - Tablet setup exposes Traditional and Rally scoring options with Traditional as the default.
@@ -240,7 +240,7 @@ Treat Phase 2 as complete enough to move focus to Phase 3 only when all of the f
 - Tapping team score panel records the rally winner through the shared scoring engine.
 - Undo restores the previous rally.
 - Correction mode is available if already implemented for the shared phone/tablet UI.
-- In tablet standalone mode, `CORRECT` can adjust Team A score, Team B score, serving side, and server number.
+- In tablet standalone mode, `EDIT` can adjust Team A score, Team B score, serving side, and server number.
 - After a correction change, `UNDO` restores the full prior state, including serving side and server number.
 - Tablet voice announcement setting is visible and usable.
 - Tablet announces the confirmed score when Tablet only mode is enabled in standalone tablet mode.
@@ -278,8 +278,8 @@ Treat Phase 2 as complete enough to move focus to Phase 3 only when all of the f
 - Phone broadcasts connected tablet score changes back to the tablet and to the watch if connected.
 - Connected tablet UNDO sends a command to the phone and all connected displays update from confirmed phone state.
 - Connected tablet END sends a command to the phone and all connected displays leave the active match after confirmed phone state.
-- Connected tablet shows a `CORRECT` action.
-- Connected tablet `CORRECT` opens the same match-correction dialog.
+- Connected tablet shows an `EDIT` action.
+- Connected tablet `EDIT` opens the same match-adjustment dialog.
 - Score, serving side, and server-number corrections from connected tablet are sent to the phone and only appear after confirmed phone state is broadcast back.
 - Tablet remembers the phone host identity after first successful connected sync.
 - Tablet can intentionally forget the remembered phone host and re-enter discovery without clearing app data.

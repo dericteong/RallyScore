@@ -726,7 +726,7 @@ private fun WearServeSetupScreen(
             connectionMode = connectionMode
         )
         Text(
-            text = "SERVES FIRST",
+            text = "CHOOSE SERVER",
             color = SecondaryText,
             fontSize = 16.sp,
             fontWeight = FontWeight.Black,
@@ -951,7 +951,7 @@ private fun WearScoringFormatSelector(
     ) {
         WearScoringFormatButton(
             modifier = Modifier.weight(1f),
-            label = "TRAD",
+            label = "CLASSIC",
             selected = selectedFormat == ScoringFormat.Traditional,
             onClick = { onFormatSelected(ScoringFormat.Traditional) }
         )
@@ -1229,7 +1229,7 @@ private fun WearConnectionLabel(
     val text = when (feedback) {
         WatchCommandFeedback.Sent -> "SENT"
         WatchCommandFeedback.Confirmed -> "SCORE OK"
-        WatchCommandFeedback.Problem -> "DEVICE?"
+        WatchCommandFeedback.Problem -> "CHECK DEVICE"
         null -> when (connectionMode) {
             WearConnectionMode.TabletConnected -> "TABLET CONNECTED"
             WearConnectionMode.PhoneConnected -> "PHONE CONNECTED"

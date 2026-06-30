@@ -636,11 +636,7 @@ private fun MatchSetupScreen(
     val headerSpacing = if (isTabletLayout) 12.dp else 8.dp
     val teamColumnWeight = if (isTabletLayout) 1.18f else 1.34f
     val controlColumnWeight = if (isTabletLayout) 0.82f else 0.66f
-    val helperText = if (isTabletLayout) {
-        "Enter names by player standing position"
-    } else {
-        "Enter names by standing position"
-    }
+    val helperText = "Enter players by court position"
     val setupScrollState = rememberScrollState()
     val context = LocalContext.current
     val view = LocalView.current
@@ -915,7 +911,7 @@ private fun MatchSetupScreen(
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD84315))
                         ) {
                             Text(
-                                text = "START NEW GAME",
+                                text = "START GAME",
                                 fontSize = if (isTabletLayout) 22.sp else 20.sp,
                                 fontWeight = FontWeight.Black,
                                 textAlign = TextAlign.Center,
@@ -964,7 +960,7 @@ private fun ScoringFormatSelector(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text(
-            text = "SCORING",
+            text = "SCORING STYLE",
             color = Ink,
             fontSize = if (compact) 14.sp else 15.sp,
             fontWeight = FontWeight.Black,
@@ -976,7 +972,7 @@ private fun ScoringFormatSelector(
         ) {
             ScoringFormatButton(
                 modifier = Modifier.weight(1f),
-                label = if (compact) "TRAD" else "TRADITIONAL",
+                label = "CLASSIC",
                 selected = selectedFormat == ScoringFormat.Traditional,
                 compact = compact,
                 onClick = { onFormatSelected(ScoringFormat.Traditional) }
@@ -1226,7 +1222,7 @@ private fun ScorePreviewCard(
             text = when (startingTeam) {
                 Team.A -> "WE SERVE FIRST"
                 Team.B -> "OPP SERVE FIRST"
-                null -> "TAP A TEAM"
+                null -> "CHOOSE SERVER"
             },
             color = Color.White,
             fontSize = when {
@@ -1549,7 +1545,7 @@ private fun TabletControlBar(
                         shape = RoundedCornerShape(8.dp),
                         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
                     ) {
-                        Text("CORRECT", fontSize = 15.sp, fontWeight = FontWeight.Black, maxLines = 1)
+                        Text("EDIT", fontSize = 15.sp, fontWeight = FontWeight.Black, maxLines = 1)
                     }
                 }
                 OutlinedButton(
@@ -1594,7 +1590,7 @@ private fun MatchCorrectionDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
-                text = "Correct Match",
+                text = "Edit Match",
                 fontSize = if (compactPhoneDialog) 16.sp else 22.sp,
                 fontWeight = FontWeight.Black
             )
@@ -2679,7 +2675,7 @@ private fun ControlBar(
                     shape = RoundedCornerShape(8.dp),
                     contentPadding = PaddingValues(horizontal = 2.dp, vertical = 0.dp)
                 ) {
-                    Text("CORRECT", fontSize = 11.sp, fontWeight = FontWeight.Black, maxLines = 1)
+                    Text("EDIT", fontSize = 12.sp, fontWeight = FontWeight.Black, maxLines = 1)
                 }
             }
             Column(

@@ -91,7 +91,7 @@ Status: In development.
 - Tablet scoring controller now records rally wins by tapping score panels
   (no separate ME WON/OPP WON buttons). UNDO and END buttons appear inside
   the call bar in local controller mode.
-- Tablet standalone controller now includes a `CORRECT` action that opens a
+- Tablet standalone controller now includes an `EDIT` action that opens a
   score-adjustment dialog for My Team and Opponent Team. Adjustments route
   through the shared store and remain undoable.
 - Tablet screen routing checks local match state first; a local match
@@ -127,11 +127,11 @@ Status: In development.
 - GameState supports `courtOrderedTeamName()` returning player names in court-position order (swaps on odd scores).
 - Phone setup screen is now always landscape (`SCREEN_ORIENTATION_SENSOR_LANDSCAPE`) with side-by-side layout.
 - Setup screen has app title "RallyScore", swap teams button (⇅), solid team-colored cards, `imePadding()`, and always scrollable form column.
-- Score preview card simplified to "WE SERVE FIRST" / "OPP SERVE FIRST" / "TAP A TEAM" with team-colored background, tappable.
+- Score preview card simplified to "WE SERVE FIRST" / "OPP SERVE FIRST" / "CHOOSE SERVER" with team-colored background, tappable.
 - Scoreboard shows dynamic court-ordered team names, serving player underlined, call bar shows serving player (e.g., "P1 SERVES").
 - Watch score tiles now read `WE WON` and `OPP WON`.
 - "Setup" button on scoreboard returns to setup screen to edit names mid-match.
-- "START NEW GAME" and "RESUME GAME" buttons use red-orange (#D84315), no confirmation dialogs.
+- "START GAME" and "RESUME GAME" buttons use red-orange (#D84315), no confirmation dialogs.
 - TabletDisplayState includes `servingPlayerName`, `teamACourtOrderedName`, and `teamBCourtOrderedName`; wire protocol bumped to 16 fields.
 - Player names and server indices persisted in SharedPreferences for match restore.
 - Phone call score text enlarged to 56sp.
@@ -140,12 +140,12 @@ Status: In development.
 
 - Wear sync is initial and still needs paired real-device hardening.
 - Wear app still contains standalone Watch Only scoring logic when no phone state is available.
-- Tablet Only controller mode supports tap-to-score, CORRECT, UNDO, and END in the
+- Tablet Only controller mode supports tap-to-score, EDIT, UNDO, and END in the
   call bar. Correction mode now supports score edits plus serving-side and
   server-number fixes, and those changes remain undoable.
-- Phone scoreboard now includes the same `CORRECT` capability, using the shared
+- Phone scoreboard now includes the same `EDIT` capability, using the shared
   match-correction dialog for score, serving-side, and server-number edits.
-- Connected tablet mode now also exposes `CORRECT`; correction actions are sent
+- Connected tablet mode now also exposes `EDIT`; correction actions are sent
   to the phone as explicit tablet commands, applied by the phone as source of
   truth, and then broadcast back to tablet and watch as confirmed state.
 - Phone + Tablet synced controller mode is future work and requires conflict handling.
