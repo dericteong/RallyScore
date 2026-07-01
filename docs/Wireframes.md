@@ -89,8 +89,11 @@ Interaction:
 - One serving dot means Server 1.
 - Two serving dots means Server 2.
 - Only the serving team row shows dots.
-- Call bar uses dark-navy background (#111827).
-  Score call text is 56sp with Setup/Correct controls on the left and Undo/End controls on the right.
+- Call bar uses dark charcoal background (#202124) with all-white score-call text.
+  The phone call bar is 174dp high with 120sp score-call text, with a
+  152dp/109sp compact-height fallback. Double-digit calls use slightly smaller
+  adaptive text so the server number remains visible. Setup/Edit controls remain
+  on the left and Undo/End controls remain on the right.
 - Watch and tablet connection status bars shown at top of screen, with a "Setup" button to return to the setup screen.
 - Edit opens a match-adjustment dialog for score, serving side, and server number.
 - Undo reverses last rally or correction.

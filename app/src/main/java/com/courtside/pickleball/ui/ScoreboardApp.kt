@@ -72,7 +72,6 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -113,7 +112,41 @@ private val ServerDot = Color(0xFFECEBE3)
 private val ServerAccent = Color.White
 private val Warning = Color(0xFFB23A48)
 private val TableLine = Color(0xFF242A31)
-private val CallBackground = Color(0xFF111827)
+private val CallBackground = Color(0xFF202124)
+private val PhoneScoreboardVerticalPadding = 12.dp
+private val PhoneScoreboardSectionSpacing = 6.dp
+private val PhoneTeamRowSpacing = 8.dp
+private val PhoneCallBarHeight = 174.dp
+private val PhoneCallBarCompactHeight = 152.dp
+private val PhoneCallBarTextSize = 120.sp
+private val PhoneCallBarCompactTextSize = 109.sp
+private val PhoneCallBarWideTextSize = 106.sp
+private val PhoneCallBarCompactWideTextSize = 96.sp
+private val PhoneCallBarLineHeight = 124.sp
+private val PhoneCallBarCompactLineHeight = 113.sp
+private val PhoneCallBarWideLineHeight = 110.sp
+private val PhoneCallBarCompactWideLineHeight = 100.sp
+private val TabletCallBarHeight = 0.6f
+private val TabletCallBarTextSize = 292.sp
+private val TabletCallBarLineHeight = 296.sp
+private val TabletCallBarControlInset = 154.dp
+private val SetupControlCornerRadius = 8.dp
+private val SetupStatusHeight = 24.dp
+private val SetupStatusIndicatorSize = 8.dp
+private val SetupStatusIndicatorHeight = 16.dp
+private val SetupStatusHorizontalPadding = 12.dp
+private val SetupSectionLabelCompact = 13.sp
+private val SetupSectionLabelRegular = 15.sp
+private val SetupPrimaryButtonPhoneHeight = 50.dp
+private val SetupPrimaryButtonTabletHeight = 60.dp
+private val SetupPrimaryButtonPhoneText = 18.sp
+private val SetupPrimaryButtonTabletText = 22.sp
+private val SetupSecondaryButtonCompactHeight = 36.dp
+private val SetupSecondaryButtonRegularHeight = 40.dp
+private val SetupScoringButtonCompactHeight = 44.dp
+private val SetupScoringButtonRegularHeight = 52.dp
+private val SetupScoringButtonCompactText = 12.sp
+private val SetupScoringButtonRegularText = 15.sp
 private val SetupTeamCardHeight = 104.dp
 private val SetupTeamCardCompactHeight = 98.dp
 private val SetupPlayerInputHeight = 50.dp
@@ -136,6 +169,7 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
     val voiceAnnouncementMode by viewModel.voiceAnnouncementMode.collectAsStateWithLifecycle()
     val remoteTabletDisplayState by viewModel.remoteTabletDisplayState.collectAsStateWithLifecycle()
     val tabletConnectionState by viewModel.tabletConnectionState.collectAsStateWithLifecycle()
+    val tabletHostConnectionState by viewModel.tabletHostConnectionState.collectAsStateWithLifecycle()
     val discoveredTabletPhones by viewModel.discoveredTabletPhones.collectAsStateWithLifecycle()
     val pairedTabletPhoneHost by viewModel.pairedTabletPhoneHost.collectAsStateWithLifecycle()
     val phoneUiSyncRequest by viewModel.phoneUiSyncRequest.collectAsStateWithLifecycle()
@@ -396,7 +430,7 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
                         localCourtCode = localCourtCode,
                         canUndo = viewModel.canUndo(),
                         watchConnected = watchConnected,
-                        tabletConnectionState = tabletConnectionState,
+                        tabletConnectionState = tabletHostConnectionState,
                         onTeamARally = { viewModel.recordRallyWinner(Team.A) },
                         onTeamBRally = { viewModel.recordRallyWinner(Team.B) },
                         onUndo = viewModel::undo,
@@ -433,7 +467,7 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
                         }
                     },
                     watchConnected = effectiveTabletWatchConnected,
-                    tabletConnectionState = tabletConnectionState,
+                    tabletConnectionState = tabletHostConnectionState,
                     voiceAnnouncementMode = voiceAnnouncementMode,
                     onVoiceAnnouncementModeChange = {
                         voiceModeManuallySelected = true
@@ -633,11 +667,14 @@ private fun MatchSetupScreen(
         isTabletLayout -> 12.dp
         else -> 4.dp
     }
-    val headerSpacing = if (isTabletLayout) 12.dp else 8.dp
+    val headerSpacing = if (isTabletLayout) 12.dp else 6.dp
     val teamColumnWeight = if (isTabletLayout) 1.18f else 1.34f
     val controlColumnWeight = if (isTabletLayout) 0.82f else 0.66f
+    val setupSectionSpacing = if (isTabletLayout) 12.dp else 8.dp
+    val secondarySectionSpacing = if (isTabletLayout) 10.dp else 6.dp
     val helperText = "Enter players by court position"
     val setupScrollState = rememberScrollState()
+    val controlScrollState = rememberScrollState()
     val context = LocalContext.current
     val view = LocalView.current
     val inputMethodManager = remember(context) {
@@ -705,17 +742,16 @@ private fun MatchSetupScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 CourtCodeBadge(
-                                    modifier = Modifier.widthIn(min = 108.dp),
+                                    modifier = Modifier.widthIn(min = 136.dp),
                                     code = localCourtCode ?: "0000"
                                 )
                                 WatchConnectionStatusBar(
                                     modifier = Modifier.widthIn(min = 150.dp),
                                     connected = watchConnected
                                 )
-                                PhoneTabletStatusBar(
-                                    modifier = Modifier.widthIn(min = 160.dp),
-                                    connectionState = tabletConnectionState,
-                                    isTabletPerspective = true
+                                TabletPhoneStatusBar(
+                                    modifier = Modifier.widthIn(min = 150.dp),
+                                    connectionState = tabletConnectionState
                                 )
                             }
                         } else {
@@ -836,7 +872,9 @@ private fun MatchSetupScreen(
             }
 
             Column(
-                modifier = Modifier.weight(controlColumnWeight),
+                modifier = Modifier
+                    .weight(controlColumnWeight)
+                    .verticalScroll(controlScrollState),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(if (keyboardVisible) 8.dp else headerSpacing)
             ) {
@@ -849,25 +887,10 @@ private fun MatchSetupScreen(
                             connectionState = tabletConnectionState,
                             compact = true
                         )
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
                     }
                 }
                 if (!keyboardVisible) {
-                    if (isTabletLayout && discoveredPhones.isNotEmpty()) {
-                        AvailablePhonesCard(
-                            phones = discoveredPhones,
-                            selectedPhoneHostId = selectedPhoneHostId,
-                            selectedCourtCode = selectedCourtCode,
-                            connectionState = tabletConnectionState,
-                            onJoinPhoneRequested = onJoinPhoneRequested
-                        )
-                        Spacer(modifier = Modifier.height(10.dp))
-                    }
-                    ScoringFormatSelector(
-                        selectedFormat = scoringFormat,
-                        onFormatSelected = onScoringFormatChange,
-                        compact = !isTabletLayout
-                    )
                     ScorePreviewCard(
                         startingTeam = startingTeam,
                         compact = keyboardVisible,
@@ -883,46 +906,42 @@ private fun MatchSetupScreen(
                             )
                         }
                     )
+                    Spacer(modifier = Modifier.height(setupSectionSpacing))
                     if (editingFromMatch) {
-                        Button(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(if (isTabletLayout) 60.dp else 56.dp),
-                            onClick = onResumeMatch,
-                            shape = RoundedCornerShape(8.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD84315))
-                        ) {
-                            Text(
-                                text = "RESUME GAME",
-                                fontSize = if (isTabletLayout) 22.sp else 20.sp,
-                                fontWeight = FontWeight.Black,
-                                textAlign = TextAlign.Center,
-                                maxLines = 1
-                            )
-                        }
+                        SetupPrimaryActionButton(
+                            label = "RESUME GAME",
+                            isTabletLayout = isTabletLayout,
+                            onClick = onResumeMatch
+                        )
                     } else {
-                        Button(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(if (isTabletLayout) 60.dp else 56.dp),
-                            onClick = onStart,
+                        SetupPrimaryActionButton(
+                            label = "START GAME",
+                            isTabletLayout = isTabletLayout,
                             enabled = canStart,
-                            shape = RoundedCornerShape(8.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD84315))
-                        ) {
-                            Text(
-                                text = "START GAME",
-                                fontSize = if (isTabletLayout) 22.sp else 20.sp,
-                                fontWeight = FontWeight.Black,
-                                textAlign = TextAlign.Center,
-                                maxLines = 2
-                            )
-                        }
+                            onClick = onStart
+                        )
                     }
-                    Spacer(modifier = Modifier.height(if (isTabletLayout) 10.dp else 8.dp))
+                    if (isTabletLayout && discoveredPhones.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(setupSectionSpacing))
+                        AvailablePhonesCard(
+                            phones = discoveredPhones,
+                            selectedPhoneHostId = selectedPhoneHostId,
+                            selectedCourtCode = selectedCourtCode,
+                            connectionState = tabletConnectionState,
+                            onJoinPhoneRequested = onJoinPhoneRequested
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(secondarySectionSpacing))
+                    ScoringFormatSelector(
+                        selectedFormat = scoringFormat,
+                        onFormatSelected = onScoringFormatChange,
+                        compact = !isTabletLayout
+                    )
+                    Spacer(modifier = Modifier.height(secondarySectionSpacing))
                     VoiceAnnouncementControls(
                         selectedMode = voiceAnnouncementMode,
-                        onModeChange = onVoiceAnnouncementModeChange
+                        onModeChange = onVoiceAnnouncementModeChange,
+                        compact = !isTabletLayout
                     )
                 }
                 if (keyboardVisible) {
@@ -959,13 +978,7 @@ private fun ScoringFormatSelector(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Text(
-            text = "SCORING STYLE",
-            color = Ink,
-            fontSize = if (compact) 14.sp else 15.sp,
-            fontWeight = FontWeight.Black,
-            letterSpacing = 0.sp
-        )
+        SetupSectionLabel(text = "SCORING STYLE", compact = compact)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -1001,9 +1014,9 @@ private fun ScoringFormatButton(
     val contentColor = if (selected) ConnectedAmber else Ink
 
     OutlinedButton(
-        modifier = modifier.height(52.dp),
+        modifier = modifier.height(if (compact) SetupScoringButtonCompactHeight else SetupScoringButtonRegularHeight),
         onClick = onClick,
-        shape = RoundedCornerShape(8.dp),
+        shape = RoundedCornerShape(SetupControlCornerRadius),
         border = BorderStroke(2.dp, borderColor),
         colors = ButtonDefaults.outlinedButtonColors(
             containerColor = containerColor,
@@ -1013,7 +1026,7 @@ private fun ScoringFormatButton(
     ) {
         Text(
             text = label,
-            fontSize = if (compact) 13.sp else 15.sp,
+            fontSize = if (compact) SetupScoringButtonCompactText else SetupScoringButtonRegularText,
             fontWeight = FontWeight.Black,
             textAlign = TextAlign.Center,
             maxLines = 1
@@ -1029,7 +1042,7 @@ private fun SwapTeamsButton(onSwap: () -> Unit) {
     ) {
         OutlinedButton(
             onClick = onSwap,
-            shape = RoundedCornerShape(8.dp),
+            shape = RoundedCornerShape(SetupControlCornerRadius),
             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
             border = BorderStroke(2.dp, Color(0xFF374151)),
             colors = ButtonDefaults.outlinedButtonColors(
@@ -1211,12 +1224,13 @@ private fun ScorePreviewCard(
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .height(if (isTabletLayout) SetupPrimaryButtonTabletHeight else SetupPrimaryButtonPhoneHeight)
             .clip(RoundedCornerShape(8.dp))
             .background(bgColor)
             .clickable(enabled = enabled, onClick = onTap)
-            .padding(horizontal = 16.dp, vertical = if (compact) 14.dp else 14.dp),
+            .padding(horizontal = 16.dp, vertical = 0.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 6.dp)
+        verticalArrangement = Arrangement.Center
     ) {
         Text(
             text = when (startingTeam) {
@@ -1226,12 +1240,39 @@ private fun ScorePreviewCard(
             },
             color = Color.White,
             fontSize = when {
-                compact -> 18.sp
-                isTabletLayout -> 19.sp
-                else -> 16.sp
+                compact -> SetupPrimaryButtonPhoneText
+                isTabletLayout -> SetupPrimaryButtonTabletText
+                else -> SetupPrimaryButtonPhoneText
             },
             fontWeight = FontWeight.Black,
-            lineHeight = if (isTabletLayout || compact) 20.sp else 17.sp,
+            lineHeight = if (isTabletLayout) 24.sp else 20.sp,
+            textAlign = TextAlign.Center,
+            maxLines = 1
+        )
+    }
+}
+
+@Composable
+private fun SetupPrimaryActionButton(
+    label: String,
+    isTabletLayout: Boolean,
+    enabled: Boolean = true,
+    onClick: () -> Unit
+) {
+    Button(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(if (isTabletLayout) SetupPrimaryButtonTabletHeight else SetupPrimaryButtonPhoneHeight),
+        onClick = onClick,
+        enabled = enabled,
+        shape = RoundedCornerShape(SetupControlCornerRadius),
+        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD84315)),
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+    ) {
+        Text(
+            text = label,
+            fontSize = if (isTabletLayout) SetupPrimaryButtonTabletText else SetupPrimaryButtonPhoneText,
+            fontWeight = FontWeight.Black,
             textAlign = TextAlign.Center,
             maxLines = 1
         )
@@ -1450,33 +1491,23 @@ private fun TabletStatusHeader(
             modifier = Modifier.weight(1f),
             connected = watchConnected
         )
-        PhoneTabletStatusBar(
+        TabletPhoneStatusBar(
             modifier = Modifier.weight(1f),
-            connectionState = connectionState,
-            isTabletPerspective = true
+            connectionState = connectionState
         )
     }
 }
 
 private fun TabletDisplayState.coloredScoreCall() = buildAnnotatedString {
-    val receivingTeam = servingTeam.opponent()
-    val servingColor = when (servingTeam) { Team.A -> TeamABlue; Team.B -> TeamBGreen }
-    val receivingColor = when (receivingTeam) { Team.A -> TeamABlue; Team.B -> TeamBGreen }
     val (servingScore, receivingScore) = when (servingTeam) {
         Team.A -> teamAScore to teamBScore
         Team.B -> teamBScore to teamAScore
     }
-    withStyle(SpanStyle(color = servingColor, fontWeight = FontWeight.Black)) {
-        append(servingScore.toString())
-    }
-    append(" - ")
-    withStyle(SpanStyle(color = receivingColor, fontWeight = FontWeight.Black)) {
-        append(receivingScore.toString())
-    }
-    append(" - ")
-    withStyle(SpanStyle(color = servingColor, fontWeight = FontWeight.Black)) {
-        append(serverNumber.toString())
-    }
+    append(servingScore.toString())
+    append("-")
+    append(receivingScore.toString())
+    append("-")
+    append(serverNumber.toString())
 }
 
 private fun String.toCourtCode(): String =
@@ -1499,7 +1530,7 @@ private fun TabletControlBar(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .fillMaxHeight(0.54f)
+            .fillMaxHeight(TabletCallBarHeight)
             .clip(RoundedCornerShape(10.dp))
             .background(CallBackground)
             .padding(horizontal = 24.dp, vertical = 14.dp)
@@ -1508,12 +1539,12 @@ private fun TabletControlBar(
             modifier = Modifier
                 .align(Alignment.Center)
                 .fillMaxWidth()
-                .padding(end = if (showControls) 138.dp else 0.dp, start = 12.dp),
+                .padding(end = if (showControls) TabletCallBarControlInset else 0.dp, start = 12.dp),
             text = state.coloredScoreCall(),
             color = Color.White,
-            fontSize = 198.sp,
+            fontSize = TabletCallBarTextSize,
             fontWeight = FontWeight.Black,
-            lineHeight = 202.sp,
+            lineHeight = TabletCallBarLineHeight,
             textAlign = TextAlign.Center,
             maxLines = 1
         )
@@ -1545,7 +1576,7 @@ private fun TabletControlBar(
                         shape = RoundedCornerShape(8.dp),
                         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
                     ) {
-                        Text("EDIT", fontSize = 15.sp, fontWeight = FontWeight.Black, maxLines = 1)
+                        Text("EDIT", fontSize = 18.sp, fontWeight = FontWeight.Black, maxLines = 1)
                     }
                 }
                 OutlinedButton(
@@ -1986,6 +2017,12 @@ private fun TabletScoreTapTarget(
         contentAlignment = Alignment.Center
     ) {
         Text(
+            modifier = Modifier.layout { measurable, constraints ->
+                val placeable = measurable.measure(constraints)
+                layout(placeable.width, placeable.height) {
+                    placeable.placeRelative(0, -10)
+                }
+            },
             text = score.toString(),
             color = color,
             fontSize = 122.sp,
@@ -2012,6 +2049,8 @@ private fun ScoreboardScreen(
     onCorrectionRequested: () -> Unit,
     onNavigateToSetup: () -> Unit = {}
 ) {
+    val compactHeight = LocalConfiguration.current.screenHeightDp < 340
+
     Surface(
         modifier = Modifier
             .fillMaxSize()
@@ -2023,8 +2062,8 @@ private fun ScoreboardScreen(
                 .fillMaxSize()
                 .safeDrawingPadding()
                 .navigationBarsPadding()
-                .padding(horizontal = 22.dp, vertical = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+                .padding(horizontal = 22.dp, vertical = PhoneScoreboardVerticalPadding),
+            verticalArrangement = Arrangement.spacedBy(PhoneScoreboardSectionSpacing)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -2041,13 +2080,13 @@ private fun ScoreboardScreen(
                 )
                 PhoneTabletStatusBar(
                     modifier = Modifier.weight(1f),
-                    connectionState = tabletConnectionState,
-                    isTabletPerspective = true
+                    connectionState = tabletConnectionState
                 )
             }
             ControlBar(
                 state = state,
                 canUndo = canUndo,
+                compactHeight = compactHeight,
                 onNavigateToSetup = onNavigateToSetup,
                 onCorrectionRequested = onCorrectionRequested,
                 onUndo = onUndo,
@@ -2077,9 +2116,8 @@ private fun ScoreboardBody(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(top = 0.dp, bottom = 4.dp)
             .clip(RoundedCornerShape(10.dp)),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(PhoneTeamRowSpacing)
     ) {
         orderedTeams.forEach { team ->
             TeamScoreTableRow(
@@ -2320,33 +2358,28 @@ private fun ConnectionStatusBadge(
 @Composable
 private fun VoiceAnnouncementControls(
     selectedMode: VoiceAnnouncementMode,
-    onModeChange: (VoiceAnnouncementMode) -> Unit
+    onModeChange: (VoiceAnnouncementMode) -> Unit,
+    compact: Boolean = false
 ) {
     var expanded by remember { mutableStateOf(false) }
 
     Column(
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Text(
-            text = "VOICE ANNOUNCEMENTS",
-            color = Ink,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Black,
-            maxLines = 1
-        )
+        SetupSectionLabel(text = "VOICE ANNOUNCEMENTS", compact = compact)
         Box(modifier = Modifier.fillMaxWidth()) {
             OutlinedButton(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(40.dp),
+                    .height(if (compact) SetupSecondaryButtonCompactHeight else SetupSecondaryButtonRegularHeight),
                 onClick = { expanded = true },
-                shape = RoundedCornerShape(8.dp),
+                shape = RoundedCornerShape(SetupControlCornerRadius),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
             ) {
                 Text(
                     text = selectedMode.setupLabel(),
                     color = Ink,
-                    fontSize = 13.sp,
+                    fontSize = if (compact) 12.sp else 13.sp,
                     fontWeight = FontWeight.Black,
                     textAlign = TextAlign.Center,
                     maxLines = 1
@@ -2375,6 +2408,22 @@ private fun VoiceAnnouncementControls(
     }
 }
 
+@Composable
+private fun SetupSectionLabel(
+    text: String,
+    compact: Boolean,
+    color: Color = Ink
+) {
+    Text(
+        text = text,
+        color = color,
+        fontSize = if (compact) SetupSectionLabelCompact else SetupSectionLabelRegular,
+        fontWeight = FontWeight.Black,
+        letterSpacing = 0.sp,
+        maxLines = 1
+    )
+}
+
 private fun VoiceAnnouncementMode.setupLabel(): String = when (this) {
     VoiceAnnouncementMode.Off -> "Off"
     VoiceAnnouncementMode.PhoneOnly -> "Phone"
@@ -2391,73 +2440,40 @@ private fun WatchConnectionStatusBar(
     connected: Boolean,
     compact: Boolean = false
 ) {
-    val color = if (connected) ConnectedAmber else ProblemRed
-    val label = if (connected) "WATCH CONNECTED" else "WATCH OFFLINE"
-
-    Row(
-        modifier = modifier
-            .height(24.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(CallBackground),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center
-    ) {
-        Box(
-            modifier = Modifier
-                .size(width = 8.dp, height = 16.dp)
-                .clip(RoundedCornerShape(4.dp))
-                .background(color)
-        )
-        Text(
-            text = label,
-            color = Color.White,
-            fontSize = if (compact) 8.sp else 12.sp,
-            fontWeight = FontWeight.Black,
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-            modifier = Modifier.padding(start = 6.dp)
-        )
-    }
+    SetupStatusBadge(
+        modifier = modifier,
+        label = if (connected) "WATCH CONNECTED" else "WATCH OFFLINE",
+        color = if (connected) ConnectedAmber else ProblemRed,
+        compact = compact
+    )
 }
 
 @Composable
 private fun PhoneTabletStatusBar(
     modifier: Modifier = Modifier,
     connectionState: TabletConnectionState,
-    isTabletPerspective: Boolean = false,
     compact: Boolean = false
 ) {
-    val color = connectionState.displayColor()
-    val label = if (isTabletPerspective) {
-        connectionState.displayLabel(pairedCourtCode = null)
-    } else {
-        connectionState.phoneDisplayLabel()
-    }
+    SetupStatusBadge(
+        modifier = modifier,
+        label = connectionState.phoneDisplayLabel(),
+        color = connectionState.displayColor(),
+        compact = compact
+    )
+}
 
-    Row(
-        modifier = modifier
-            .height(24.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(CallBackground),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center
-    ) {
-        Box(
-            modifier = Modifier
-                .size(width = 8.dp, height = 16.dp)
-                .clip(RoundedCornerShape(4.dp))
-                .background(color)
-        )
-        Text(
-            text = label,
-            color = Color.White,
-            fontSize = if (compact) 8.sp else 12.sp,
-            fontWeight = FontWeight.Black,
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-            modifier = Modifier.padding(start = 6.dp)
-        )
-    }
+@Composable
+private fun TabletPhoneStatusBar(
+    modifier: Modifier = Modifier,
+    connectionState: TabletConnectionState,
+    compact: Boolean = false
+) {
+    SetupStatusBadge(
+        modifier = modifier,
+        label = connectionState.displayLabel(pairedCourtCode = null),
+        color = connectionState.displayColor(),
+        compact = compact
+    )
 }
 
 @Composable
@@ -2466,30 +2482,12 @@ private fun CourtCodeBadge(
     code: String,
     compact: Boolean = false
 ) {
-    Row(
-        modifier = modifier
-            .height(24.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(CallBackground),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center
-    ) {
-        Box(
-            modifier = Modifier
-                .size(width = 8.dp, height = 16.dp)
-                .clip(RoundedCornerShape(4.dp))
-                .background(ConnectedAmber)
-        )
-        Text(
-            text = "COURT $code",
-            color = Color.White,
-            fontSize = if (compact) 8.sp else 12.sp,
-            fontWeight = FontWeight.Black,
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-            modifier = Modifier.padding(start = 6.dp)
-        )
-    }
+    SetupStatusBadge(
+        modifier = modifier,
+        label = "COURT $code",
+        color = ConnectedAmber,
+        compact = compact
+    )
 }
 
 @Composable
@@ -2511,7 +2509,7 @@ private fun AvailablePhonesCard(
         Text(
             text = "AVAILABLE PHONES",
             color = Color.White,
-            fontSize = 14.sp,
+            fontSize = SetupSectionLabelRegular,
             fontWeight = FontWeight.Black
         )
         phones.forEach { phone ->
@@ -2567,6 +2565,40 @@ private fun AvailablePhonesCard(
 }
 
 @Composable
+private fun SetupStatusBadge(
+    modifier: Modifier = Modifier,
+    label: String,
+    color: Color,
+    compact: Boolean
+) {
+    Row(
+        modifier = modifier
+            .height(SetupStatusHeight)
+            .clip(RoundedCornerShape(SetupControlCornerRadius))
+            .background(CallBackground)
+            .padding(horizontal = SetupStatusHorizontalPadding),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .size(width = SetupStatusIndicatorSize, height = SetupStatusIndicatorHeight)
+                .clip(RoundedCornerShape(4.dp))
+                .background(color)
+        )
+        Text(
+            text = label,
+            color = Color.White,
+            fontSize = if (compact) 9.sp else 12.sp,
+            fontWeight = FontWeight.Black,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            modifier = Modifier.padding(start = 6.dp)
+        )
+    }
+}
+
+@Composable
 private fun ServeDots(color: Color, isServing: Boolean, serverNumber: ServerNumber) {
     Row(
         modifier = Modifier.size(width = 78.dp, height = 38.dp),
@@ -2603,7 +2635,7 @@ private fun ScoreTapTarget(
             modifier = Modifier.layout { measurable, constraints ->
                 val placeable = measurable.measure(constraints)
                 layout(placeable.width, placeable.height) {
-                    placeable.placeRelative(0, -4)
+                    placeable.placeRelative(0, -8)
                 }
             },
             text = score.toString(),
@@ -2621,15 +2653,30 @@ private fun ScoreTapTarget(
 private fun ControlBar(
     state: GameState,
     canUndo: Boolean,
+    compactHeight: Boolean,
     onNavigateToSetup: () -> Unit,
     onCorrectionRequested: () -> Unit,
     onUndo: () -> Unit,
     onEndMatchRequested: () -> Unit
 ) {
+    val useWideCallText = state.callHasDoubleDigitScore()
+    val callFontSize = when {
+        compactHeight && useWideCallText -> PhoneCallBarCompactWideTextSize
+        compactHeight -> PhoneCallBarCompactTextSize
+        useWideCallText -> PhoneCallBarWideTextSize
+        else -> PhoneCallBarTextSize
+    }
+    val callLineHeight = when {
+        compactHeight && useWideCallText -> PhoneCallBarCompactWideLineHeight
+        compactHeight -> PhoneCallBarCompactLineHeight
+        useWideCallText -> PhoneCallBarWideLineHeight
+        else -> PhoneCallBarLineHeight
+    }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .height(102.dp)
+            .height(if (compactHeight) PhoneCallBarCompactHeight else PhoneCallBarHeight)
             .background(CallBackground, RoundedCornerShape(8.dp))
             .padding(horizontal = 14.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.Center
@@ -2643,12 +2690,12 @@ private fun ControlBar(
                 modifier = Modifier
                     .align(Alignment.Center)
                     .fillMaxWidth()
-                    .padding(start = 86.dp, end = 86.dp),
+                    .padding(start = 78.dp, end = 78.dp),
                 text = state.scoreOnlyCallBarText(),
                 color = Color.White,
-                fontSize = 72.sp,
+                fontSize = callFontSize,
                 fontWeight = FontWeight.Black,
-                lineHeight = 74.sp,
+                lineHeight = callLineHeight,
                 maxLines = 1,
                 textAlign = TextAlign.Center
             )
@@ -2675,7 +2722,7 @@ private fun ControlBar(
                     shape = RoundedCornerShape(8.dp),
                     contentPadding = PaddingValues(horizontal = 2.dp, vertical = 0.dp)
                 ) {
-                    Text("EDIT", fontSize = 12.sp, fontWeight = FontWeight.Black, maxLines = 1)
+                    Text("EDIT", fontSize = 13.sp, fontWeight = FontWeight.Black, maxLines = 1)
                 }
             }
             Column(
@@ -2709,25 +2756,15 @@ private fun ControlBar(
     }
 }
 
-private fun GameState.teamColor(team: Team): Color =
-    when (team) {
-        Team.A -> TeamABlue
-        Team.B -> TeamBGreen
-    }
+private fun GameState.callHasDoubleDigitScore(): Boolean =
+    servingScore >= 10 || receivingScore >= 10
 
 private fun GameState.scoreOnlyCallBarText() = buildAnnotatedString {
-    val receivingTeam = servingTeam.opponent()
-    pushStyle(SpanStyle(color = teamColor(servingTeam)))
     append(servingScore.toString())
-    pop()
-    append(" - ")
-    pushStyle(SpanStyle(color = teamColor(receivingTeam)))
+    append("-")
     append(receivingScore.toString())
-    pop()
-    append(" - ")
-    pushStyle(SpanStyle(color = teamColor(servingTeam)))
+    append("-")
     append(serverNumber.displayValue.toString())
-    pop()
 }
 
 private fun GameState.servingSummary(): String {

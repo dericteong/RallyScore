@@ -31,7 +31,8 @@ class ScoreboardViewModel(
     val tabletWatchConnected: StateFlow<Boolean> = WatchTabletFallbackSync.watchConnected
     val voiceAnnouncementMode: StateFlow<VoiceAnnouncementMode> = RallyScorePhoneHub.voiceAnnouncementMode
     val remoteTabletDisplayState: StateFlow<TabletDisplayState?> = TabletDisplaySync.remoteDisplayState
-    val tabletConnectionState: StateFlow<TabletConnectionState> = TabletDisplaySync.connectionState
+    val tabletConnectionState: StateFlow<TabletConnectionState> = TabletDisplaySync.clientConnectionState
+    val tabletHostConnectionState: StateFlow<TabletConnectionState> = TabletDisplaySync.hostConnectionState
     val discoveredTabletPhones: StateFlow<List<TabletPhoneCandidate>> = TabletDisplaySync.discoveredPhones
     val pairedTabletPhoneHost: StateFlow<String?> = TabletDisplaySync.pairedPhoneHost
     val phoneUiSyncRequest: StateFlow<PhoneUiSyncRequest?> = RallyScorePhoneHub.phoneUiSyncRequest

@@ -145,8 +145,10 @@ object TabletDisplaySync {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val _remoteDisplayState = MutableStateFlow<TabletDisplayState?>(null)
     val remoteDisplayState: StateFlow<TabletDisplayState?> = _remoteDisplayState.asStateFlow()
-    private val _connectionState = MutableStateFlow(TabletConnectionState.Searching)
-    val connectionState: StateFlow<TabletConnectionState> = _connectionState.asStateFlow()
+    private val _hostConnectionState = MutableStateFlow(TabletConnectionState.Searching)
+    val hostConnectionState: StateFlow<TabletConnectionState> = _hostConnectionState.asStateFlow()
+    private val _clientConnectionState = MutableStateFlow(TabletConnectionState.Searching)
+    val clientConnectionState: StateFlow<TabletConnectionState> = _clientConnectionState.asStateFlow()
     private val _discoveredPhones = MutableStateFlow<List<TabletPhoneCandidate>>(emptyList())
     val discoveredPhones: StateFlow<List<TabletPhoneCandidate>> = _discoveredPhones.asStateFlow()
     private val _pairedPhoneHost = MutableStateFlow<String?>(null)
@@ -248,7 +250,7 @@ object TabletDisplaySync {
                 connectToRememberedPhoneWebSocket()
                 connectToGatewayPhoneWebSocket()
             }
-            setConnectionState(
+            setClientConnectionState(
                 if (_remoteDisplayState.value == null) {
                     TabletConnectionState.Searching
                 } else {
@@ -274,7 +276,7 @@ object TabletDisplaySync {
                 SyncLog.warn(TAG, "Failed to send tablet command", "Failed to send tablet command: ${command.wireValue}", error)
                 phoneWebSocketConnected = false
                 connectedPhoneWebSocket = null
-                setConnectionState(TabletConnectionState.Reconnecting)
+                setClientConnectionState(TabletConnectionState.Reconnecting)
             }
         }
     }
@@ -303,7 +305,7 @@ object TabletDisplaySync {
         tabletDisplayAvailable = available
         if (available) {
             stopLocalHubPublisher()
-            setConnectionState(TabletConnectionState.Searching)
+            setClientConnectionState(TabletConnectionState.Searching)
             startListener()
             connectToRememberedPhoneWebSocket()
             connectToGatewayPhoneWebSocket()
@@ -322,7 +324,7 @@ object TabletDisplaySync {
             phoneWebSocketConnected = false
             connectedPhoneWebSocket = null
             connectedPhoneWebSocketEndpoint = null
-            setConnectionState(TabletConnectionState.Searching)
+            setHostConnectionState(TabletConnectionState.Searching)
         }
     }
 
@@ -348,7 +350,7 @@ object TabletDisplaySync {
             ?.remove(KEY_LAST_PHONE_PORT)
             ?.apply()
 
-        setConnectionState(TabletConnectionState.Searching)
+        setHostConnectionState(TabletConnectionState.Searching)
         SyncLog.debug(TAG) { "Forgot paired phone identity and reset tablet discovery" }
 
         if (tabletDisplayAvailable) {
@@ -378,7 +380,7 @@ object TabletDisplaySync {
                 SyncLog.warn(TAG, "Failed to send pending tablet setup command", "Failed to send pending tablet setup command", error)
                 phoneWebSocketConnected = false
                 connectedPhoneWebSocket = null
-                setConnectionState(TabletConnectionState.Reconnecting)
+                setClientConnectionState(TabletConnectionState.Reconnecting)
             }
         }
     }
@@ -528,7 +530,7 @@ object TabletDisplaySync {
         }
         SyncLog.debug(TAG) { "Attempting reconnection to remembered phone endpoint" }
         if (!hasFreshRemoteSnapshot()) {
-            setConnectionState(TabletConnectionState.Reconnecting)
+            setClientConnectionState(TabletConnectionState.Reconnecting)
         }
         connectToPhoneWebSocket(endpoint.address, endpoint.port)
     }
@@ -580,7 +582,7 @@ object TabletDisplaySync {
             socket.getOutputStream().flush()
             socket.soTimeout = 0
             webSocketClients += socket
-            setConnectionState(TabletConnectionState.Connected)
+            setHostConnectionState(TabletConnectionState.Connected)
             latestPhonePayload?.let { payload ->
                 socket.writeWebSocketTextFrame(payload)
             }
@@ -608,7 +610,7 @@ object TabletDisplaySync {
         } finally {
             webSocketClients -= socket
             if (webSocketClients.isEmpty()) {
-                setConnectionState(TabletConnectionState.Reconnecting)
+                setHostConnectionState(TabletConnectionState.Reconnecting)
             }
             socket.closeQuietly()
         }
@@ -669,7 +671,7 @@ object TabletDisplaySync {
         SyncLog.debug(TAG) { "Initiating phone WebSocket connection" }
         connectedPhoneWebSocketEndpoint = endpoint
         if (!phoneWebSocketConnected && !hasFreshRemoteSnapshot()) {
-            setConnectionState(
+            setClientConnectionState(
                 if (_remoteDisplayState.value == null) {
                     TabletConnectionState.Searching
                 } else {
@@ -687,6 +689,7 @@ object TabletDisplaySync {
         var consecutiveFailures = 0
         while (currentCoroutineContext().isActive && tabletDisplayAvailable) {
             var activeSocket: Socket? = null
+            var completedNormally = false
             try {
                 Socket().use { socket ->
                     activeSocket = socket
@@ -701,7 +704,7 @@ object TabletDisplaySync {
                     connectedPhoneWebSocket = socket
                     consecutiveFailures = 0
                     rememberPhoneEndpoint(endpoint.address, endpoint.port)
-                    setConnectionState(TabletConnectionState.Connected)
+                    setClientConnectionState(TabletConnectionState.Connected)
                     SyncLog.debug(TAG) { "Connected to phone tablet WebSocket" }
                     flushPendingTabletCommand()
                     while (currentCoroutineContext().isActive && tabletDisplayAvailable) {
@@ -725,12 +728,13 @@ object TabletDisplaySync {
                             )
                             phoneWebSocketConnected = false
                             connectedPhoneWebSocket = null
-                            setConnectionState(TabletConnectionState.Reconnecting)
+                            setClientConnectionState(TabletConnectionState.Reconnecting)
                             break
                         }
                         registerDiscoveredPhone(state, endpoint.address, endpoint.port)
                         updateRemoteDisplayState(state, "WebSocket")
                     }
+                    completedNormally = true
                 }
             } catch (error: Exception) {
                 consecutiveFailures++
@@ -752,7 +756,7 @@ object TabletDisplaySync {
                 if (connectedPhoneWebSocket == activeSocket) {
                     connectedPhoneWebSocket = null
                 }
-                if (consecutiveFailures < MAX_WS_RECONNECT_ATTEMPTS) {
+                if (!completedNormally && consecutiveFailures < MAX_WS_RECONNECT_ATTEMPTS) {
                     markStaleRemoteState()
                 }
             }
@@ -1075,7 +1079,7 @@ object TabletDisplaySync {
     private fun updateRemoteDisplayState(state: TabletDisplayState, source: String) {
         val pairedHost = pairedPhoneHostId
         if (pairedHost == null) {
-            setConnectionState(TabletConnectionState.Searching)
+            setClientConnectionState(TabletConnectionState.Searching)
             SyncLog.debug(TAG) { "Observed phone snapshot while tablet is not yet paired" }
             return
         }
@@ -1092,7 +1096,7 @@ object TabletDisplaySync {
         }
         lastRemoteSnapshotReceivedAt = System.currentTimeMillis()
         _remoteDisplayState.value = state
-        setConnectionState(TabletConnectionState.Connected)
+        setClientConnectionState(TabletConnectionState.Connected)
         if (tabletDisplayAvailable && !phoneWebSocketConnected) {
             connectToPairedDiscoveredPhoneWebSocket()
             connectToRememberedPhoneWebSocket()
@@ -1101,11 +1105,19 @@ object TabletDisplaySync {
         SyncLog.debug(TAG) { "Received tablet score snapshot over $source" }
     }
 
-    private fun setConnectionState(state: TabletConnectionState) {
-        if (_connectionState.value != state) {
-            val previous = _connectionState.value
-            _connectionState.value = state
-            SyncLog.debug(TAG) { "Tablet connection state: $previous -> $state" }
+    private fun setHostConnectionState(state: TabletConnectionState) {
+        if (_hostConnectionState.value != state) {
+            val previous = _hostConnectionState.value
+            _hostConnectionState.value = state
+            SyncLog.debug(TAG) { "Tablet host connection state: $previous -> $state" }
+        }
+    }
+
+    private fun setClientConnectionState(state: TabletConnectionState) {
+        if (_clientConnectionState.value != state) {
+            val previous = _clientConnectionState.value
+            _clientConnectionState.value = state
+            SyncLog.debug(TAG) { "Tablet client connection state: $previous -> $state" }
         }
     }
 
@@ -1251,9 +1263,10 @@ object TabletDisplaySync {
     private fun markStaleRemoteState() {
         pruneDiscoveredPhones()
         if (_remoteDisplayState.value == null) return
+        if (phoneWebSocketConnected) return
         val ageMs = System.currentTimeMillis() - lastRemoteSnapshotReceivedAt
         if (ageMs > STALE_REMOTE_STATE_MS) {
-            setConnectionState(TabletConnectionState.Reconnecting)
+            setClientConnectionState(TabletConnectionState.Reconnecting)
             SyncLog.debug(TAG) { "Tablet score snapshot is stale; keeping last score while reconnecting" }
         }
     }
