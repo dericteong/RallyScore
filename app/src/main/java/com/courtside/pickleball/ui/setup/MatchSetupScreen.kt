@@ -324,7 +324,7 @@ internal fun MatchSetupScreen(
 
                 if (myTeamOnTop) {
                     SetupTeamNameFields(
-                        label = "My Team",
+                        label = "MY TEAM (BLUE)",
                         player1 = teamAPlayer1,
                         player2 = teamAPlayer2,
                         color = TeamABlue,
@@ -343,7 +343,7 @@ internal fun MatchSetupScreen(
                     )
                     SwapTeamsButton(onSwap = onSwapTeams)
                     SetupTeamNameFields(
-                        label = "Opponent Team",
+                        label = "OPPONENT (GREEN)",
                         player1 = teamBPlayer1,
                         player2 = teamBPlayer2,
                         color = TeamBGreen,
@@ -362,7 +362,7 @@ internal fun MatchSetupScreen(
                     )
                 } else {
                     SetupTeamNameFields(
-                        label = "Opponent Team",
+                        label = "OPPONENT (GREEN)",
                         player1 = teamBPlayer1,
                         player2 = teamBPlayer2,
                         color = TeamBGreen,
@@ -381,7 +381,7 @@ internal fun MatchSetupScreen(
                     )
                     SwapTeamsButton(onSwap = onSwapTeams)
                     SetupTeamNameFields(
-                        label = "My Team",
+                        label = "MY TEAM (BLUE)",
                         player1 = teamAPlayer1,
                         player2 = teamAPlayer2,
                         color = TeamABlue,
@@ -945,8 +945,8 @@ private fun ScorePreviewCard(
     ) {
         Text(
             text = when (startingTeam) {
-                Team.A -> "WE SERVE FIRST"
-                Team.B -> "OPP SERVE FIRST"
+                Team.A -> if (isTabletLayout) "WE SERVE FIRST (BLUE)" else "WE SERVE FIRST"
+                Team.B -> if (isTabletLayout) "OPP SERVE FIRST (GREEN)" else "OPP SERVE FIRST"
                 null -> "CHOOSE SERVER"
             },
             color = Color.White,
