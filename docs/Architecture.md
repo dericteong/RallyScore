@@ -46,7 +46,10 @@ Phone Only and Tablet Only are first-class experiences. Watch Only may own stand
 - Adds `FLAG_KEEP_SCREEN_ON`.
 - Enables edge-to-edge.
 - Hosts `ScoreboardApp`.
-- Uses `ScoreboardViewModel`.
+- Uses `ScoreboardViewModel`, constructed through a `viewModelFactory` that
+  wires `ScoreboardStore`, `RallyScorePhoneHub`, `TabletDisplaySync`,
+  `WatchTabletFallbackSync`, and `PlayerRepository` explicitly instead of the
+  ViewModel reaching for those singletons itself.
 
 `ScoreboardViewModel`
 
@@ -57,6 +60,8 @@ Phone Only and Tablet Only are first-class experiences. Watch Only may own stand
 - Maintains undo history.
 - Resets/end match state.
 - Shares phone-owned state with watch command handling.
+- Takes its dependencies as constructor parameters (see `MainActivity` above)
+  rather than defaulting to singletons internally.
 
 `RallyScorePhoneHub`
 
@@ -68,7 +73,23 @@ Phone Only and Tablet Only are first-class experiences. Watch Only may own stand
 - Publishes phone-owned score snapshots through `DataClient`.
 - Exposes watch connection status for phone UI.
 
-`ScoreboardApp`
+`ScoreboardApp` (`ui/ScoreboardApp.kt`)
+
+The UI layer is split into per-screen files instead of one monolithic file:
+
+- `ui/ScoreboardApp.kt` — root composable only: state hoisting, TTS setup,
+  and top-level screen routing (setup vs. scoreboard vs. tablet display vs.
+  player management).
+- `ui/GameStateExtensions.kt` — shared `GameState`/`VoiceAnnouncementMode`
+  extensions used across screens.
+- `ui/theme/` — shared colors, dimensions, constants.
+- `ui/status/` — shared connection-status badge composables.
+- `ui/setup/` — `MatchSetupScreen` (including the player-autocomplete
+  dropdown) and `PlayerManagementScreen`.
+- `ui/tablet/` — `TabletDisplayScreen` and tablet score/control composables.
+- `ui/scoreboard/` — phone `ScoreboardScreen` and `MatchCorrectionDialog`.
+
+Responsibilities (unchanged from before the split):
 
 - Owns transient UI-only setup state.
 - Lets the user choose the scoring format on setup.
@@ -80,6 +101,16 @@ Phone Only and Tablet Only are first-class experiences. Watch Only may own stand
 - Provides the score screen that can be mirrored or shown on a larger Android display.
 - On tablet-sized Android screens, renders normal setup/scoring when used standalone.
 - On tablet-sized Android screens, renders the same score UI as a secondary controller when a connected phone-owned match is active.
+
+`player/PlayerRepository`
+
+- Local, per-device SharedPreferences-backed player list (id, name,
+  createdAt, lastPlayed). Powers the setup-screen autocomplete dropdown and
+  the Manage Players screen.
+- `TabletDisplaySync` calls `markPlayersPlayed(...)` (debounced) whenever a
+  passively-displaying tablet receives fresh state for an active match, so a
+  tablet that never itself started a match still learns those players.
+  Manual add/rename/delete on one device does not sync to the other.
 
 ## Tablet App Mode
 
@@ -142,6 +173,17 @@ tablet clients and Wear OS watches.
 The phone ignores tablet commands whose session ID does not match the current
 phone-owned match. The tablet ignores score snapshots from non-paired host IDs.
 This is the first safeguard against multiple courts sharing the same network.
+
+Because the state broadcast is plaintext and readable by anyone on the same
+Wi-Fi, session-ID equality alone does not prove a command came from the
+paired device. The WebSocket command channel additionally requires a
+per-connection HMAC-SHA256 signature (secret minted and handed to the peer
+once, directly over that connection, never broadcast — `sync/MessageAuthenticator`),
+and both the WebSocket and TCP accept loops apply per-IP rate limiting
+(`sync/RateLimiter`) to slow down brute-forcing the court code. See
+`docs/TDD.md` ("Command channel hardening") for the full design and a note on
+why the TCP snapshot channel needs a much higher rate-limit budget than the
+WebSocket channel.
 
 The tablet display client tracks explicit connection states: Searching for phone, Reconnecting, and Connected. It remembers the last phone WebSocket endpoint, retries that endpoint after app relaunch, treats incoming score snapshots as heartbeat, detects stale connections with a read timeout, and keeps the last received score visible while reconnecting. The phone accepts reconnecting tablet clients and immediately sends the latest phone-owned snapshot when one is available. This transport should be agnostic to whether the local network is a router-backed Wi-Fi network or the phone hotspot.
 

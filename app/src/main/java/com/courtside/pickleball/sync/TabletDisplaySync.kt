@@ -8,6 +8,7 @@ import com.courtside.pickleball.domain.Team
 import com.courtside.pickleball.domain.VoiceAnnouncementMode
 import com.courtside.pickleball.domain.displayValue
 import com.courtside.pickleball.domain.spokenScoreCall
+import com.courtside.pickleball.player.PlayerRepository
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.Inet4Address
@@ -43,6 +44,10 @@ data class TabletDisplayState(
     val teamBName: String,
     val teamACourtOrderedName: String,
     val teamBCourtOrderedName: String,
+    val teamAPlayer1: String,
+    val teamAPlayer2: String,
+    val teamBPlayer1: String,
+    val teamBPlayer2: String,
     val teamAScore: Int,
     val teamBScore: Int,
     val servingTeam: Team,
@@ -100,6 +105,8 @@ enum class TabletCommand(val wireValue: String) {
 data class TabletCommandMessage(
     val command: TabletCommand,
     val sessionId: String?,
+    val timestamp: String?,
+    val mac: String?,
     val args: List<String>
 )
 
@@ -129,6 +136,12 @@ object TabletDisplaySync {
     private const val TABLET_COMMAND_PROTOCOL = "RALLYSCORE_TABLET_COMMAND_V1"
     private const val TABLET_HELLO_PROTOCOL = "RALLYSCORE_TABLET_HELLO_V1"
     private const val PHONE_WS_PROTOCOL = "RALLYSCORE_PHONE_WS_V1"
+    private const val TABLET_WELCOME_PROTOCOL = "RALLYSCORE_TABLET_WELCOME_V1"
+    private const val MAX_NAME_FIELD_LENGTH = 60
+    private const val MAX_SCORE = 99
+    private const val MAX_CONNECTIONS_PER_MINUTE = 10
+    private const val MAX_TCP_PUSHES_PER_MINUTE = 150
+    private const val RATE_LIMIT_WINDOW_MS = 60_000L
     private const val WEBSOCKET_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
     private const val BROADCAST_INTERVAL_MS = 1_000L
     private const val TABLET_HELLO_INTERVAL_MS = 2_000L
@@ -174,12 +187,21 @@ object TabletDisplaySync {
     @Volatile private var phoneSessionIdProvider: (() -> String)? = null
     @Volatile private var latestPhonePayload: String? = null
     @Volatile private var lastRemoteSnapshotReceivedAt: Long = 0L
+    @Volatile private var lastLearnedPlayerNamesKey: String? = null
     @Volatile private var pairedPhoneHostId: String? = null
     @Volatile private var pairedPhoneSessionId: String? = null
     private val webSocketClients = Collections.synchronizedSet(mutableSetOf<Socket>())
     private val tabletEndpoints = ConcurrentHashMap<InetSocketAddress, Long>()
     private val tabletTcpEndpoints = ConcurrentHashMap<InetSocketAddress, Long>()
     private val discoveredPhonesByHostId = ConcurrentHashMap<String, DiscoveredPhone>()
+    private val connectionSecrets = ConcurrentHashMap<Socket, String>()
+    private val webSocketConnectionRateLimiter = RateLimiter(MAX_CONNECTIONS_PER_MINUTE, RATE_LIMIT_WINDOW_MS)
+
+    // The paired phone opens a brand-new short-lived TCP connection for every broadcast tick
+    // (once per BROADCAST_INTERVAL_MS), so this needs enough headroom over that legitimate rate -
+    // unlike the WebSocket server, which only sees one connection per pairing session.
+    private val tcpConnectionRateLimiter = RateLimiter(MAX_TCP_PUSHES_PER_MINUTE, RATE_LIMIT_WINDOW_MS)
+    @Volatile private var activeConnectionSecret: String? = null
 
     private data class DiscoveredPhone(
         val hostId: String,
@@ -270,7 +292,7 @@ object TabletDisplaySync {
 
         scope.launch {
             try {
-                socket.writeWebSocketTextFrame(command.toWirePayload(sessionId))
+                socket.writeWebSocketTextFrame(command.toWirePayload(sessionId, activeConnectionSecret))
                 SyncLog.debug(TAG) { "Sent tablet command: ${command.wireValue}" }
             } catch (error: Exception) {
                 SyncLog.warn(TAG, "Failed to send tablet command", "Failed to send tablet command: ${command.wireValue}", error)
@@ -291,7 +313,7 @@ object TabletDisplaySync {
             pairToDiscoveredPhone(hostId)
         }
         val sessionId = pairedPhoneSessionId ?: _remoteDisplayState.value?.sessionId.orEmpty()
-        pendingTabletCommandPayload = command.toWirePayload(sessionId, payload)
+        pendingTabletCommandPayload = command.toWirePayload(sessionId, payload, activeConnectionSecret)
         flushPendingTabletCommand()
         if (!phoneWebSocketConnected) {
             connectToPairedDiscoveredPhoneWebSocket()
@@ -561,6 +583,17 @@ object TabletDisplaySync {
                         continue
                     }
 
+                    val remoteKey = socket.inetAddress?.hostAddress ?: "unknown"
+                    if (!webSocketConnectionRateLimiter.allow(remoteKey)) {
+                        SyncLog.warn(
+                            TAG,
+                            "Rate limited a WebSocket connection attempt",
+                            "Rate limited WebSocket connection attempt from $remoteKey"
+                        )
+                        socket.closeQuietly()
+                        continue
+                    }
+
                     scope.launch {
                         acceptWebSocketClient(socket)
                     }
@@ -582,6 +615,9 @@ object TabletDisplaySync {
             socket.getOutputStream().flush()
             socket.soTimeout = 0
             webSocketClients += socket
+            val connectionSecret = MessageAuthenticator.newSecret()
+            connectionSecrets[socket] = connectionSecret
+            socket.writeWebSocketTextFrame("$TABLET_WELCOME_PROTOCOL|$connectionSecret")
             setHostConnectionState(TabletConnectionState.Connected)
             latestPhonePayload?.let { payload ->
                 socket.writeWebSocketTextFrame(payload)
@@ -593,14 +629,19 @@ object TabletDisplaySync {
                 val expectedSessionId = phoneSessionIdProvider?.invoke()
                 val requiresActiveSession = commandMessage.command != TabletCommand.StartMatch &&
                     commandMessage.command != TabletCommand.ResumeMatch
-                if (requiresActiveSession && (expectedSessionId.isNullOrBlank() || commandMessage.sessionId != expectedSessionId)) {
-                    SyncLog.warn(
-                        TAG,
-                        "Ignored tablet command for mismatched session",
-                        "Ignored tablet command for mismatched session: ${commandMessage.command.wireValue} " +
-                            "expected=$expectedSessionId actual=${commandMessage.sessionId}"
-                    )
-                    continue
+                if (requiresActiveSession) {
+                    val sessionMatches = !expectedSessionId.isNullOrBlank() &&
+                        commandMessage.sessionId == expectedSessionId
+                    val authenticated = commandMessage.verify(connectionSecret)
+                    if (!sessionMatches || !authenticated) {
+                        SyncLog.warn(
+                            TAG,
+                            "Ignored unauthenticated or mismatched tablet command",
+                            "Ignored tablet command: ${commandMessage.command.wireValue} " +
+                                "sessionMatches=$sessionMatches authenticated=$authenticated"
+                        )
+                        continue
+                    }
                 }
                 SyncLog.debug(TAG) { "Received tablet command: ${commandMessage.command.wireValue}" }
                 tabletCommandHandler?.invoke(commandMessage)
@@ -609,6 +650,7 @@ object TabletDisplaySync {
             SyncLog.warn(TAG, "Unable to accept tablet WebSocket client", "Unable to accept tablet WebSocket client: ${error.message}", error)
         } finally {
             webSocketClients -= socket
+            connectionSecrets.remove(socket)
             if (webSocketClients.isEmpty()) {
                 setHostConnectionState(TabletConnectionState.Reconnecting)
             }
@@ -700,6 +742,8 @@ object TabletDisplaySync {
                         throw IllegalStateException("Invalid WebSocket handshake")
                     }
                     socket.soTimeout = WEBSOCKET_READ_TIMEOUT_MS
+                    activeConnectionSecret = runCatching { readWebSocketTextFrame(socket)?.toWelcomeSecret() }
+                        .getOrNull()
                     phoneWebSocketConnected = true
                     connectedPhoneWebSocket = socket
                     consecutiveFailures = 0
@@ -753,6 +797,7 @@ object TabletDisplaySync {
                 delay(TABLET_HELLO_INTERVAL_MS)
             } finally {
                 phoneWebSocketConnected = false
+                activeConnectionSecret = null
                 if (connectedPhoneWebSocket == activeSocket) {
                     connectedPhoneWebSocket = null
                 }
@@ -875,6 +920,17 @@ object TabletDisplaySync {
                         serverSocket.accept()
                     } catch (_: SocketTimeoutException) {
                         markStaleRemoteState()
+                        continue
+                    }
+
+                    val remoteKey = socket.inetAddress?.hostAddress ?: "unknown"
+                    if (!tcpConnectionRateLimiter.allow(remoteKey)) {
+                        SyncLog.warn(
+                            TAG,
+                            "Rate limited a tablet TCP connection attempt",
+                            "Rate limited tablet TCP connection attempt from $remoteKey"
+                        )
+                        socket.closeQuietly()
                         continue
                     }
 
@@ -1097,12 +1153,27 @@ object TabletDisplaySync {
         lastRemoteSnapshotReceivedAt = System.currentTimeMillis()
         _remoteDisplayState.value = state
         setClientConnectionState(TabletConnectionState.Connected)
+        learnPlayerNamesIfChanged(state)
         if (tabletDisplayAvailable && !phoneWebSocketConnected) {
             connectToPairedDiscoveredPhoneWebSocket()
             connectToRememberedPhoneWebSocket()
             connectToGatewayPhoneWebSocket()
         }
         SyncLog.debug(TAG) { "Received tablet score snapshot over $source" }
+    }
+
+    /**
+     * Lets a passively-displaying tablet learn the paired phone's player names for its own
+     * autocomplete list, without writing to SharedPreferences on every broadcast tick.
+     */
+    private fun learnPlayerNamesIfChanged(state: TabletDisplayState) {
+        if (!state.matchActive) return
+        val names = listOf(state.teamAPlayer1, state.teamAPlayer2, state.teamBPlayer1, state.teamBPlayer2)
+        if (names.all { it.isBlank() }) return
+        val key = "${state.hostId}|${state.sessionId}|${names.joinToString("|")}"
+        if (key == lastLearnedPlayerNamesKey) return
+        lastLearnedPlayerNamesKey = key
+        PlayerRepository.markPlayersPlayed(names)
     }
 
     private fun setHostConnectionState(state: TabletConnectionState) {
@@ -1127,20 +1198,23 @@ object TabletDisplaySync {
     private fun String.toPhoneWebSocketPort(): Int? =
         split("|").getOrNull(1)?.toIntOrNull()
 
-    private fun TabletCommand.toWirePayload(sessionId: String): String =
-        listOf(
+    private fun TabletCommand.toWirePayload(sessionId: String, secret: String?): String {
+        val timestamp = System.currentTimeMillis().toString()
+        val mac = secret?.let {
+            MessageAuthenticator.sign(it, listOf(wireValue, sessionId, timestamp).joinToString("|"))
+        }.orEmpty()
+        return listOf(
             TABLET_COMMAND_PROTOCOL,
             wireValue,
             sessionId.toWireField(),
-            System.currentTimeMillis().toString()
+            timestamp,
+            mac.toWireField()
         ).joinToString("|")
+    }
 
-    private fun TabletCommand.toWirePayload(sessionId: String, payload: TabletSetupPayload): String =
-        listOf(
-            TABLET_COMMAND_PROTOCOL,
-            wireValue,
-            sessionId.toWireField(),
-            System.currentTimeMillis().toString(),
+    private fun TabletCommand.toWirePayload(sessionId: String, payload: TabletSetupPayload, secret: String?): String {
+        val timestamp = System.currentTimeMillis().toString()
+        val payloadFields = listOf(
             payload.teamAName.toWireField(),
             payload.teamBName.toWireField(),
             payload.teamAPlayer1.toWireField(),
@@ -1150,17 +1224,42 @@ object TabletDisplaySync {
             payload.scoringFormat.name.toWireField(),
             (payload.startingTeam?.toWireValue() ?: "").toWireField(),
             payload.myTeamOnTop.toString()
-        ).joinToString("|")
+        )
+        val mac = secret?.let {
+            MessageAuthenticator.sign(it, (listOf(wireValue, sessionId, timestamp) + payloadFields).joinToString("|"))
+        }.orEmpty()
+        return (
+            listOf(TABLET_COMMAND_PROTOCOL, wireValue, sessionId.toWireField(), timestamp) +
+                payloadFields +
+                listOf(mac.toWireField())
+            ).joinToString("|")
+    }
 
     private fun String.toTabletCommandMessage(): TabletCommandMessage? {
         val fields = split("|")
-        if (fields.size < 2 || fields[0] != TABLET_COMMAND_PROTOCOL) return null
+        if (fields.size < 5 || fields[0] != TABLET_COMMAND_PROTOCOL) return null
         val command = TabletCommand.fromWireValue(fields[1]) ?: return null
         return TabletCommandMessage(
             command = command,
             sessionId = fields.getOrNull(2)?.fromWireField(),
-            args = fields.drop(4)
+            timestamp = fields.getOrNull(3),
+            mac = fields.last().fromWireField(),
+            args = fields.drop(4).dropLast(1)
         )
+    }
+
+    /** Verifies the message's MAC was produced with [secret]; args/sessionId/timestamp are the raw wire fields. */
+    private fun TabletCommandMessage.verify(secret: String): Boolean {
+        val mac = mac ?: return false
+        val timestampValue = timestamp ?: return false
+        val signedMessage = (listOf(command.wireValue, sessionId.orEmpty(), timestampValue) + args).joinToString("|")
+        return MessageAuthenticator.matches(MessageAuthenticator.sign(secret, signedMessage), mac)
+    }
+
+    private fun String.toWelcomeSecret(): String? {
+        val fields = split("|")
+        if (fields.size < 2 || fields[0] != TABLET_WELCOME_PROTOCOL) return null
+        return fields[1]
     }
 
     private fun acquireMulticastLock() {
@@ -1418,31 +1517,36 @@ object TabletDisplaySync {
             voiceAnnouncementMode.wireValue,
             servingPlayerName().toWireField(),
             courtOrderedTeamName(Team.A).toWireField(),
-            courtOrderedTeamName(Team.B).toWireField()
+            courtOrderedTeamName(Team.B).toWireField(),
+            settings.teamAPlayer1.toWireField(),
+            settings.teamAPlayer2.toWireField(),
+            settings.teamBPlayer1.toWireField(),
+            settings.teamBPlayer2.toWireField()
         ).joinToString("|")
 
     private fun String.toTabletDisplayState(): TabletDisplayState? {
         val fields = split("|")
-        if ((fields.size != 10 && fields.size != 11 && fields.size != 13 && fields.size != 14 && fields.size != 16 && fields.size != 18 && fields.size != 19 && fields.size != 20) || fields[0] != PROTOCOL) return null
-        val hasCanUndo = fields.size == 11 || fields.size == 13 || fields.size == 14 || fields.size == 16 || fields.size == 18 || fields.size == 19 || fields.size == 20
-        val hasVoiceFields = fields.size == 13 || fields.size == 14 || fields.size == 16 || fields.size == 18 || fields.size == 19 || fields.size == 20
-        val hasServingPlayerName = fields.size == 14 || fields.size == 16 || fields.size == 18 || fields.size == 19 || fields.size == 20
-        val hasCourtNames = fields.size == 16 || fields.size == 18 || fields.size == 19 || fields.size == 20
-        val hasIdentityFields = fields.size == 18 || fields.size == 19 || fields.size == 20
-        val hasMyTeamOnTop = fields.size == 19 || fields.size == 20
-        val hasWatchConnected = fields.size == 20
+        if ((fields.size != 10 && fields.size != 11 && fields.size != 13 && fields.size != 14 && fields.size != 16 && fields.size != 18 && fields.size != 19 && fields.size != 20 && fields.size != 24) || fields[0] != PROTOCOL) return null
+        val hasPlayerNames = fields.size == 24
+        val hasCanUndo = fields.size == 11 || fields.size == 13 || fields.size == 14 || fields.size == 16 || fields.size == 18 || fields.size == 19 || fields.size == 20 || hasPlayerNames
+        val hasVoiceFields = fields.size == 13 || fields.size == 14 || fields.size == 16 || fields.size == 18 || fields.size == 19 || fields.size == 20 || hasPlayerNames
+        val hasServingPlayerName = fields.size == 14 || fields.size == 16 || fields.size == 18 || fields.size == 19 || fields.size == 20 || hasPlayerNames
+        val hasCourtNames = fields.size == 16 || fields.size == 18 || fields.size == 19 || fields.size == 20 || hasPlayerNames
+        val hasIdentityFields = fields.size == 18 || fields.size == 19 || fields.size == 20 || hasPlayerNames
+        val hasMyTeamOnTop = fields.size == 19 || fields.size == 20 || hasPlayerNames
+        val hasWatchConnected = fields.size == 20 || hasPlayerNames
         val offset = if (hasCanUndo) 1 else 0
         val identityOffset = if (hasIdentityFields) 2 else 0
         val sideOffset = if (hasMyTeamOnTop) 1 else 0
         val watchOffset = if (hasWatchConnected) 1 else 0
-        val scoreCall = fields[9 + offset + identityOffset + sideOffset + watchOffset].fromWireField()
+        val scoreCall = fields[9 + offset + identityOffset + sideOffset + watchOffset].fromWireFieldCapped()
 
         return TabletDisplayState(
             updatedAt = fields[1].toLongOrNull() ?: return null,
             matchActive = fields[2].toBooleanStrictOrNull() ?: return null,
             canUndo = if (hasCanUndo) fields[3].toBooleanStrictOrNull() ?: false else false,
-            hostId = if (hasIdentityFields) fields[3 + offset].fromWireField() else "",
-            sessionId = if (hasIdentityFields) fields[4 + offset].fromWireField() else "",
+            hostId = if (hasIdentityFields) fields[3 + offset].fromWireFieldCapped() else "",
+            sessionId = if (hasIdentityFields) fields[4 + offset].fromWireFieldCapped() else "",
             myTeamOnTop = if (hasMyTeamOnTop) {
                 fields[3 + offset + identityOffset].toBooleanStrictOrNull() ?: true
             } else {
@@ -1453,20 +1557,24 @@ object TabletDisplaySync {
             } else {
                 false
             },
-            teamAName = fields[3 + offset + identityOffset + sideOffset + watchOffset].fromWireField(),
-            teamBName = fields[4 + offset + identityOffset + sideOffset + watchOffset].fromWireField(),
-            teamACourtOrderedName = if (hasCourtNames) fields[13 + offset + identityOffset + sideOffset + watchOffset].fromWireField() else fields[3 + offset + identityOffset + sideOffset + watchOffset].fromWireField(),
-            teamBCourtOrderedName = if (hasCourtNames) fields[14 + offset + identityOffset + sideOffset + watchOffset].fromWireField() else fields[4 + offset + identityOffset + sideOffset + watchOffset].fromWireField(),
-            teamAScore = fields[5 + offset + identityOffset + sideOffset + watchOffset].toIntOrNull() ?: return null,
-            teamBScore = fields[6 + offset + identityOffset + sideOffset + watchOffset].toIntOrNull() ?: return null,
+            teamAName = fields[3 + offset + identityOffset + sideOffset + watchOffset].fromWireFieldCapped(),
+            teamBName = fields[4 + offset + identityOffset + sideOffset + watchOffset].fromWireFieldCapped(),
+            teamACourtOrderedName = if (hasCourtNames) fields[13 + offset + identityOffset + sideOffset + watchOffset].fromWireFieldCapped() else fields[3 + offset + identityOffset + sideOffset + watchOffset].fromWireFieldCapped(),
+            teamBCourtOrderedName = if (hasCourtNames) fields[14 + offset + identityOffset + sideOffset + watchOffset].fromWireFieldCapped() else fields[4 + offset + identityOffset + sideOffset + watchOffset].fromWireFieldCapped(),
+            teamAPlayer1 = if (hasPlayerNames) fields[fields.size - 4].fromWireFieldCapped() else "",
+            teamAPlayer2 = if (hasPlayerNames) fields[fields.size - 3].fromWireFieldCapped() else "",
+            teamBPlayer1 = if (hasPlayerNames) fields[fields.size - 2].fromWireFieldCapped() else "",
+            teamBPlayer2 = if (hasPlayerNames) fields[fields.size - 1].fromWireFieldCapped() else "",
+            teamAScore = fields[5 + offset + identityOffset + sideOffset + watchOffset].toIntOrNull()?.coerceIn(0, MAX_SCORE) ?: return null,
+            teamBScore = fields[6 + offset + identityOffset + sideOffset + watchOffset].toIntOrNull()?.coerceIn(0, MAX_SCORE) ?: return null,
             servingTeam = fields[7 + offset + identityOffset + sideOffset + watchOffset].toTeam(),
-            serverNumber = fields[8 + offset + identityOffset + sideOffset + watchOffset].toIntOrNull() ?: return null,
+            serverNumber = fields[8 + offset + identityOffset + sideOffset + watchOffset].toIntOrNull()?.coerceIn(1, 2) ?: return null,
             scoreCall = scoreCall,
-            spokenScoreCall = if (hasVoiceFields) fields[10 + offset + identityOffset + sideOffset + watchOffset].fromWireField() else scoreCall,
+            spokenScoreCall = if (hasVoiceFields) fields[10 + offset + identityOffset + sideOffset + watchOffset].fromWireFieldCapped() else scoreCall,
             voiceAnnouncementMode = VoiceAnnouncementMode.fromWireValue(
                 if (hasVoiceFields) fields[11 + offset + identityOffset + sideOffset + watchOffset] else null
             ),
-            servingPlayerName = if (hasServingPlayerName) fields[12 + offset + identityOffset + sideOffset + watchOffset].fromWireField() else ""
+            servingPlayerName = if (hasServingPlayerName) fields[12 + offset + identityOffset + sideOffset + watchOffset].fromWireFieldCapped() else ""
         )
     }
 
@@ -1489,6 +1597,10 @@ object TabletDisplaySync {
     private fun String.fromWireField(): String =
         replace("%7C", "|")
             .replace("%25", "%")
+
+    /** Decodes a wire field and caps its length so a malformed/oversized peer payload can't grow unbounded. */
+    private fun String.fromWireFieldCapped(): String =
+        fromWireField().take(MAX_NAME_FIELD_LENGTH)
 
     private fun String.toCourtCode(): String =
         filter { it.isLetterOrDigit() }

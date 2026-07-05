@@ -117,8 +117,9 @@ Large shared scoreboard
 - Setup-time scoring format selection: Traditional or Rally.
 - Traditional scoring remains unchanged and is the default.
 - Rally scoring uses RallyScore's social-play variant: every rally awards a point, while two serves, side-out flow, and court-position swapping remain the same as Traditional scoring.
-- Setup screen for My Team and Opponent Team player names, with two player fields per team.
-- Short development/social-play defaults pre-populate setup fields so a user can start immediately.
+- Setup screen for My Team and Opponent Team player names, with two searchable player selectors per team.
+- Persistent local player management with add, edit, delete, search, alphabetical browsing, and recent-player quick selection.
+- Setup player fields start blank, while saved players and recent players keep repeat-game setup fast.
 - Select which team serves first before starting.
 - Start score call is `0 - 0 - 2`.
 - User records rally winner only.
@@ -195,7 +196,10 @@ Future synced mode:
 
 - The phone app uses team-colored score rows: blue background for Team A,
   green background for Team B, with white text and serving dots.
-- Setup defaults are P1, P2, P3, and P4, with My Team selected to serve first by default.
+- Setup player fields start blank, with My Team selected to serve first by default.
+- Saved players are stored locally on the device with stable IDs, name, created timestamp, and last-played timestamp.
+- Setup player fields open searchable selectors that show recent players before the full alphabetical player list, while still allowing new typed names.
+- New typed player names are trimmed, saved automatically when a game starts or resumes, and de-duplicated case-insensitively.
 - GameSettings stores individual player names (teamAPlayer1, teamAPlayer2, teamBPlayer1, teamBPlayer2).
 - The phone setup screen is always landscape with a side-by-side layout: team name cards on the left, voice controls and score preview card on the right.
 - A swap teams button (⇅) sits between My Team and Opponent Team cards.
@@ -254,6 +258,10 @@ Future synced mode:
   takes priority over remote display state. Disconnected or inactive remote
   state falls through to setup.
 - Phone-to-tablet display sync is local-network based and should work over external Wi-Fi or a phone hotspot as long as both devices are on the same IP network.
+- Player-name fields show a searchable dropdown with a "RECENT PLAYERS" section (marked with a small dot) and an "ALL PLAYERS" section, each row showing a color-coded initials chip; typing a name that doesn't match anyone offers a "Use '...'" option to confirm it as new. A clear (`×`) control appears once a field has text.
+- A tablet passively displaying a phone-hosted match automatically adds the four players it observes to its own local player list (debounced so it only records once per match, not on every score update), so its own player suggestions stay useful even if the tablet never itself started a match. Manual edits via "Manage Players" still do not sync between devices.
+- The phone-tablet WebSocket command channel authenticates live-match commands (rally winner, undo, score/serve adjustment, end match) with a per-connection HMAC signature in addition to the session-ID check, and both the WebSocket and TCP snapshot channels apply per-IP rate limiting. The periodic state broadcast itself remains unencrypted.
+- Tablet Set Up Game screen uses larger team cards and player-name fields than the phone layout, vertically centers the whole screen in the available height, shows the RallyScore icon/title on its own larger top row with the connection-status badges on a second row, and uses a bigger "MANAGE PLAYERS" button.
 
 ## Non-Goals For Current MVP
 

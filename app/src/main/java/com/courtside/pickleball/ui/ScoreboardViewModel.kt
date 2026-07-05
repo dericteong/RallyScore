@@ -7,6 +7,8 @@ import com.courtside.pickleball.domain.ScoringFormat
 import com.courtside.pickleball.domain.ServerNumber
 import com.courtside.pickleball.domain.Team
 import com.courtside.pickleball.domain.VoiceAnnouncementMode
+import com.courtside.pickleball.player.Player
+import com.courtside.pickleball.player.PlayerRepository
 import com.courtside.pickleball.sync.RallyScorePhoneHub
 import com.courtside.pickleball.sync.PhoneUiSyncRequest
 import com.courtside.pickleball.sync.ScoreboardStore
@@ -21,21 +23,26 @@ import kotlinx.coroutines.flow.StateFlow
 
 /** ViewModel façade for RallyScore phone and tablet screens. */
 class ScoreboardViewModel(
-    private val store: ScoreboardStore = RallyScorePhoneHub.store
+    private val store: ScoreboardStore,
+    private val phoneHub: RallyScorePhoneHub,
+    private val tabletDisplaySync: TabletDisplaySync,
+    private val watchTabletFallbackSync: WatchTabletFallbackSync,
+    private val playerRepository: PlayerRepository
 ) : ViewModel() {
-    private val usesPhoneHub: Boolean = store === RallyScorePhoneHub.store
+    private val usesPhoneHub: Boolean = store === phoneHub.store
 
     val state: StateFlow<GameState> = store.state
     val matchActive: StateFlow<Boolean> = store.matchActive
-    val watchConnected: StateFlow<Boolean> = RallyScorePhoneHub.watchConnected
-    val tabletWatchConnected: StateFlow<Boolean> = WatchTabletFallbackSync.watchConnected
-    val voiceAnnouncementMode: StateFlow<VoiceAnnouncementMode> = RallyScorePhoneHub.voiceAnnouncementMode
-    val remoteTabletDisplayState: StateFlow<TabletDisplayState?> = TabletDisplaySync.remoteDisplayState
-    val tabletConnectionState: StateFlow<TabletConnectionState> = TabletDisplaySync.clientConnectionState
-    val tabletHostConnectionState: StateFlow<TabletConnectionState> = TabletDisplaySync.hostConnectionState
-    val discoveredTabletPhones: StateFlow<List<TabletPhoneCandidate>> = TabletDisplaySync.discoveredPhones
-    val pairedTabletPhoneHost: StateFlow<String?> = TabletDisplaySync.pairedPhoneHost
-    val phoneUiSyncRequest: StateFlow<PhoneUiSyncRequest?> = RallyScorePhoneHub.phoneUiSyncRequest
+    val watchConnected: StateFlow<Boolean> = phoneHub.watchConnected
+    val tabletWatchConnected: StateFlow<Boolean> = watchTabletFallbackSync.watchConnected
+    val voiceAnnouncementMode: StateFlow<VoiceAnnouncementMode> = phoneHub.voiceAnnouncementMode
+    val remoteTabletDisplayState: StateFlow<TabletDisplayState?> = tabletDisplaySync.remoteDisplayState
+    val tabletConnectionState: StateFlow<TabletConnectionState> = tabletDisplaySync.clientConnectionState
+    val tabletHostConnectionState: StateFlow<TabletConnectionState> = tabletDisplaySync.hostConnectionState
+    val discoveredTabletPhones: StateFlow<List<TabletPhoneCandidate>> = tabletDisplaySync.discoveredPhones
+    val pairedTabletPhoneHost: StateFlow<String?> = tabletDisplaySync.pairedPhoneHost
+    val phoneUiSyncRequest: StateFlow<PhoneUiSyncRequest?> = phoneHub.phoneUiSyncRequest
+    val players: StateFlow<List<Player>> = playerRepository.players
 
     /** Starts a new local or phone-owned match from setup values. */
     fun startMatch(
@@ -49,7 +56,7 @@ class ScoreboardViewModel(
         startingTeam: Team
     ) {
         if (usesPhoneHub) {
-            RallyScorePhoneHub.startMatch(
+            phoneHub.startMatch(
                 teamAName,
                 teamBName,
                 teamAPlayer1,
@@ -99,7 +106,7 @@ class ScoreboardViewModel(
         startingTeam: Team = Team.A
     ) {
         if (usesPhoneHub) {
-            RallyScorePhoneHub.reset(settings, startingTeam)
+            phoneHub.reset(settings, startingTeam)
         } else {
             store.reset(settings, startingTeam)
         }
@@ -108,7 +115,7 @@ class ScoreboardViewModel(
     /** Ends the active match. */
     fun endMatch() {
         if (usesPhoneHub) {
-            RallyScorePhoneHub.endMatch()
+            phoneHub.endMatch()
         } else {
             store.endMatch()
         }
@@ -137,7 +144,7 @@ class ScoreboardViewModel(
 
     /** Sends a connected-tablet command through the current sync transport. */
     fun sendTabletCommand(command: TabletCommand) {
-        TabletDisplaySync.sendTabletCommand(command)
+        tabletDisplaySync.sendTabletCommand(command)
     }
 
     /** Sends setup intent from a connected tablet to the paired phone host. */
@@ -145,30 +152,46 @@ class ScoreboardViewModel(
         hostId: String?,
         command: TabletCommand,
         payload: TabletSetupPayload
-    ): Boolean = TabletDisplaySync.sendTabletSetupCommand(hostId, command, payload)
+    ): Boolean = tabletDisplaySync.sendTabletSetupCommand(hostId, command, payload)
 
     /** Clears the currently paired phone host on tablet-sized devices. */
     fun forgetPairedTabletPhone() {
-        TabletDisplaySync.forgetPairedPhone()
+        tabletDisplaySync.forgetPairedPhone()
     }
 
     /** Pairs a tablet client with a discovered phone host. */
     fun pairTabletToPhone(hostId: String): Boolean =
-        TabletDisplaySync.pairToDiscoveredPhone(hostId)
+        tabletDisplaySync.pairToDiscoveredPhone(hostId)
 
     /** Exposes the local court code used for pairing and court selection. */
-    fun localCourtCode(): String = RallyScorePhoneHub.courtCode()
+    fun localCourtCode(): String = phoneHub.courtCode()
 
     /** Updates the shared connected voice-announcement mode. */
     fun setVoiceAnnouncementMode(mode: VoiceAnnouncementMode) {
-        RallyScorePhoneHub.setVoiceAnnouncementMode(mode)
+        phoneHub.setVoiceAnnouncementMode(mode)
     }
 
     /** Refreshes the current Wear connection state from Google Play Services. */
     fun refreshWatchConnection() {
-        RallyScorePhoneHub.refreshConnectedNodes()
+        phoneHub.refreshConnectedNodes()
     }
 
     /** Indicates whether undo is currently available for the active match. */
     fun canUndo(): Boolean = store.canUndo()
+
+    fun addPlayer(name: String) {
+        playerRepository.addPlayer(name)
+    }
+
+    fun renamePlayer(id: String, name: String) {
+        playerRepository.renamePlayer(id, name)
+    }
+
+    fun deletePlayer(id: String) {
+        playerRepository.deletePlayer(id)
+    }
+
+    fun saveMatchPlayers(names: List<String>) {
+        playerRepository.markPlayersPlayed(names)
+    }
 }

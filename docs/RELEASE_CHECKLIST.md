@@ -43,6 +43,12 @@ This checklist is a low-risk release-readiness guide for publishing RallyScore t
 - Wear app supports standalone scoring and connected scoring.
 - Phone backup is intentionally disabled to avoid restoring stale live match/player state across devices.
 
+## Build Hardening
+
+- Release builds (`app` module) run with `isMinifyEnabled = true` (R8 code shrinking/obfuscation on); verified `assembleRelease` succeeds with the existing `proguard-rules.pro`.
+- `android:allowBackup="false"` remains set; no explicit `android:debuggable` override exists for release.
+- Phone-tablet WebSocket command channel requires a per-connection HMAC signature plus session-ID match for live-match commands; the periodic state broadcast itself remains plaintext (see `docs/TDD.md` "Command channel hardening").
+
 ## Permissions and Local Network Explanation
 
 - `INTERNET` is used for phone-tablet and watch-tablet local network sync paths.

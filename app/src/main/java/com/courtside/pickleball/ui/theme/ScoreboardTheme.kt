@@ -1,0 +1,68 @@
+package com.courtside.pickleball.ui.theme
+
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+
+internal val Ink = Color(0xFF050607)
+internal val Paper = Color(0xFFFFFFFF)
+internal val PanelWhite = Color(0xFFFFFFFF)
+internal val TeamABlue = Color(0xFF005BBB)
+internal val TeamBGreen = Color(0xFF007A3D)
+internal val ConnectedAmber = Color(0xFFFFC107)
+internal val ProblemRed = Color(0xFFB00020)
+internal val ServerDot = Color(0xFFECEBE3)
+internal val ServerAccent = Color.White
+internal val Warning = Color(0xFFB23A48)
+internal val TableLine = Color(0xFF242A31)
+internal val CallBackground = Color(0xFF202124)
+internal val PhoneScoreboardVerticalPadding = 12.dp
+internal val PhoneScoreboardSectionSpacing = 6.dp
+internal val PhoneTeamRowSpacing = 8.dp
+internal val PhoneCallBarHeight = 174.dp
+internal val PhoneCallBarCompactHeight = 152.dp
+internal val PhoneCallBarTextSize = 120.sp
+internal val PhoneCallBarCompactTextSize = 109.sp
+internal val PhoneCallBarWideTextSize = 106.sp
+internal val PhoneCallBarCompactWideTextSize = 96.sp
+internal val PhoneCallBarLineHeight = 124.sp
+internal val PhoneCallBarCompactLineHeight = 113.sp
+internal val PhoneCallBarWideLineHeight = 110.sp
+internal val PhoneCallBarCompactWideLineHeight = 100.sp
+internal val TabletCallBarHeight = 0.6f
+internal val TabletCallBarTextSize = 292.sp
+internal val TabletCallBarLineHeight = 296.sp
+internal val TabletCallBarControlInset = 154.dp
+internal val SetupControlCornerRadius = 8.dp
+internal val SetupStatusHeight = 24.dp
+internal val SetupStatusIndicatorSize = 8.dp
+internal val SetupStatusIndicatorHeight = 16.dp
+internal val SetupStatusHorizontalPadding = 12.dp
+internal val SetupSectionLabelCompact = 13.sp
+internal val SetupSectionLabelRegular = 15.sp
+internal val SetupPrimaryButtonPhoneHeight = 50.dp
+internal val SetupPrimaryButtonTabletHeight = 60.dp
+internal val SetupPrimaryButtonPhoneText = 18.sp
+internal val SetupPrimaryButtonTabletText = 22.sp
+internal val SetupSecondaryButtonCompactHeight = 36.dp
+internal val SetupSecondaryButtonRegularHeight = 40.dp
+internal val SetupScoringButtonCompactHeight = 44.dp
+internal val SetupScoringButtonRegularHeight = 52.dp
+internal val SetupScoringButtonCompactText = 12.sp
+internal val SetupScoringButtonRegularText = 15.sp
+internal val SetupTeamCardHeight = 104.dp
+internal val SetupTeamCardTabletHeight = 168.dp
+internal val SetupTeamCardCompactHeight = 98.dp
+internal val SetupPlayerInputHeight = 50.dp
+internal val SetupPlayerInputTabletHeight = 78.dp
+internal val SetupPlayerInputCompactHeight = 48.dp
+internal val SetupTeamLabelTabletText = 18.sp
+internal val SetupPlayerInputTabletText = 28.sp
+internal val ScoreCellWidth = 156.dp
+internal val ServeCellWidth = 96.dp
+internal val ScoreControlButtonWidth = 92.dp
+internal const val SecondaryVoiceDelayMs = 2_000L
+internal const val WatchConnectionRefreshIntervalMs = 5_000L
+internal const val TabletSmallestWidthDp = 600
+internal const val ScoreSpeechRate = 0.9f
+internal const val VoiceTag = "RallyScoreVoice"

@@ -22,13 +22,13 @@ Landscape side-by-side layout:
 ------------------------------------------------------------------
 | [blue square] RallyScore         WATCH CONNECTED | TABLET S... |
 | SET UP GAME                                                    |
-| Enter players by court position.                               |
+| Enter players by court position. [ MANAGE PLAYERS ]            |
 | -------------------------------------------------------------- |
 | [blue card] My Team        | [dark gray circle ⇅] | SCORING    |
-| [P1 input ][P2 input ]     |                       | [CLASSIC]  |
+| [Player 1 ][Player 2 ]     |                       | [CLASSIC]  |
 |                             |                       | [RALLY]    |
 | [green card] Opponent Team |                       |  VOICE     |
-| [P3 input ][P4 input ]     |                       |  [mode]    |
+| [Player 1 ][Player 2 ]     |                       |  [mode]    |
 |                             |                       |  [WE SERVE |
 |                             |                       |   FIRST]   |
 | -------------------------------------------------------------- |
@@ -45,9 +45,14 @@ Current setup behavior:
 - Solid team-colored cards (blue for My Team, green for Opponent Team).
 - `imePadding()` applied so keyboard does not crop content.
 - The team form column is always vertically scrollable.
-- Each team has separate Player 1 and Player 2 fields, side by side within the team card.
-- Player fields are pre-populated with defaults: P1, P2, P3, P4.
+- Each team has separate Player 1 and Player 2 searchable selectors, side by side within the team card.
+- Player fields start blank and show Player 1 / Player 2 hints.
 - Names are normalized to uppercase.
+- Tapping/focusing a player selector opens a dropdown with matching saved players: a "RECENT PLAYERS" section (rows carry a small amber dot marker) before an "ALL PLAYERS" section, each row showing a color-coded initials chip next to the name.
+- Once a field has text, a clear (`×`) control appears to reset it without select-all.
+- If the typed text doesn't exactly match a saved player, a "NEW PLAYER — Use '...'" option appears at the bottom of the dropdown.
+- Users may type a new player name directly; new names are saved automatically when Start or Resume is tapped.
+- Manage Players opens a dedicated player list screen with add, edit, delete, search, recent players, and alphabetical browsing.
 - Tapping the team label band or focusing a team field selects that team as the first server.
 - Team A is selected as the default first server.
 - Start button is enabled when all four player names are non-empty and a starting team is selected.
@@ -194,20 +199,40 @@ Display behavior:
 
 Tablet-sized Android screens should support standalone setup and scoring. Tablet Only owns its own match state and uses the shared scoring engine, matching the Phone Only rules and behavior.
 
-Tablet setup:
+Tablet setup uses the same shared `MatchSetupScreen` composable as the phone
+setup screen, sized up for the larger display rather than a separate layout:
 
 ```text
----------------------------------------------------------------
-| SET UP GAME                                                  |
-|                                                             |
-| My Team                     Opponent Team                    |
-| [ P1 ][ P2 ]                [ P3 ][ P4 ]                     |
-|                                                             |
-| Who serves first?       [ ME ] [ OPP ]                       |
-|                                                             |
-|                     [ START 0 - 0 - 2 ]                      |
----------------------------------------------------------------
+-----------------------------------------------------------------
+| [icon] RallyScore  (large, its own row)                        |
+| COURT 35DD | WATCH CONNECTED | TABLET CONNECTED                |
+| SET UP GAME   Enter players by court position [MANAGE PLAYERS] |
+| ---------------------------------------------------------------|
+| [blue card] My Team               |  [ WE SERVE FIRST ]        |
+| [ Player 1        ][ Player 2    ]|  [ RESUME GAME    ]        |
+|                                    |  COURT 35DD · ... · JOINING|
+|         [ ⇅ SWAP SIDE ]           |  SCORING STYLE             |
+| [green card] Opponent Team        |  [CLASSIC] [RALLY]         |
+| [ Player 1        ][ Player 2    ]|  VOICE ANNOUNCEMENTS       |
+|                                    |  [ Tablet          ]      |
+-----------------------------------------------------------------
 ```
+
+Tablet-specific setup differences from phone:
+
+- Team cards and player-name fields are larger (`SetupTeamCardTabletHeight`,
+  `SetupPlayerInputTabletHeight`) than the phone equivalents, and the whole
+  screen (team-card column + controls column) centers vertically in the
+  available height instead of pinning to the top.
+- The RallyScore icon/title get their own full-width row at a larger size
+  (48dp icon, 34sp title); the COURT/WATCH/TABLET status badges sit on their
+  own row below it, each showing its full label (unlike the phone layout,
+  which shortens labels to fit three badges on one narrow row).
+- "MANAGE PLAYERS" is a larger button (48dp tall, 16sp text) than on phone.
+- "AVAILABLE PHONES" collapses to a single status-badge line
+  ("COURT 35DD · <label> · JOINING/SELECTED/CONNECTED") when there is exactly
+  one already-selected candidate, and only shows the full selectable-list
+  card when there are multiple discovered phones to choose between.
 
 Tablet score controller:
 
@@ -238,8 +263,14 @@ Tablet controller behavior:
   left of the score, and serving/server status now lives in the call bar.
 - Call bar uses dark-navy background (#111827). CALL label sits left of the
   score call, which is oversized for distance readability.
-- UNDO and END buttons appear inside the call bar in local
-  controller mode. In remote-display mode, no controls are shown.
+- SETUP/EDIT/UNDO/END buttons appear inside the call bar in local
+  controller mode, grouped inside a subtle translucent panel (`Color.White`
+  at 6% alpha) rather than floating directly on the black call-bar
+  background. In remote-display mode, no controls are shown.
+- UNDO has an explicit disabled content color (`Color.White` at 35% alpha)
+  so it reads as visibly-but-dimly disabled when no rally has been scored
+  yet, instead of the Material3 default disabled color becoming invisible
+  against the dark call-bar background.
 - Provides correction mode when available.
 - Provides voice announcements when enabled.
 - Uses Team A blue and Team B green.

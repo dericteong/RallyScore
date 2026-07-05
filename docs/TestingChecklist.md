@@ -29,6 +29,12 @@ Install only the affected app on real hardware:
 
 Do not use root `./gradlew installDebug` on a phone; it installs both phone and Wear modules and creates multiple launcher icons.
 
+Since release builds run with R8 (`isMinifyEnabled = true`), also run a release build before shipping to catch obfuscation/shrinking issues that debug builds won't surface:
+
+```bash
+./gradlew :app:assembleRelease
+```
+
 ## Scoring Rules
 
 Verify:
@@ -72,8 +78,14 @@ Use a real phone when possible.
 - Tapping score preview card toggles starting team.
 - Team A Player 1 and Player 2 fields accept more than two characters.
 - Team B Player 1 and Player 2 fields accept more than two characters.
-- Player fields default to P1, P2, P3, and P4.
-- Team A is selected by default so Start is available immediately.
+- Player fields start blank and show Player 1 / Player 2 hints.
+- Manage Players opens from setup and can add, edit, delete, search, and browse saved players.
+- Saved players appear alphabetically in All Players.
+- Starting or resuming a game with a newly typed player name saves that player locally.
+- Duplicate saved players are prevented by case-insensitive name comparison.
+- Recently used players appear before All Players in setup player selectors after a game starts.
+- Saved player data remains available after app restart.
+- Team A is selected by default, but Start remains disabled until all four player names are filled.
 - Defaults can be edited normally.
 - Delete/backspace works.
 - Names are uppercased.
@@ -91,6 +103,22 @@ Use a real phone when possible.
 - No confirmation dialog on Start or Resume.
 - Voice Announcements setting is visible and usable.
 - Voice Announcements includes Off, Phone, Watch, Tablet, Watch > Phone, Watch > Tablet, and Phone > Tablet.
+- Tapping a player field shows a dropdown with RECENT PLAYERS (dot marker) and ALL PLAYERS sections, each row with a color-coded initials chip.
+- Typing a name with no exact match shows a "Use '...'" new-player option in the dropdown.
+- Once a field has text, tapping the `×` control clears it.
+- Selecting a dropdown row fills the field and dismisses the keyboard.
+- On a phone-width screen, COURT/WATCH/TABLET status badges all fit on one row with no visual clipping (shortened labels: "35DD"/"WATCH"/"TABLET").
+
+## Tablet Setup Manual Test
+
+- Team cards and player-name fields are visibly larger than the phone layout.
+- The whole setup screen (team cards + right-side controls) is vertically centered in the available height, not pinned to the top with empty space below.
+- RallyScore icon/title render on their own row near the top, clearly larger than on phone.
+- COURT/WATCH/TABLET status badges render on their own row below the RallyScore row, each showing its full label with no truncation.
+- "MANAGE PLAYERS" button is visibly larger than on phone.
+- "Enter players by court position" sits between the "SET UP GAME" title and "MANAGE PLAYERS" button, not glued next to the button.
+- With exactly one discovered phone already selected, "AVAILABLE PHONES" shows as a single status-badge line, not the full card.
+- With more than one discovered phone, the full "AVAILABLE PHONES" card with selectable rows still appears.
 
 ## Phone Score / Display Manual Test
 
@@ -224,7 +252,7 @@ Treat Phase 2 as complete enough to move focus to Phase 3 only when all of the f
 
 - On a tablet-sized Android device or emulator, app launches in landscape.
 - Tablet supports My Team and Opponent Team setup.
-- Tablet player fields default to P1, P2, P3, and P4.
+- Tablet player fields start blank and show Player 1 / Player 2 hints.
 - Tablet allows first-server selection.
 - Tablet standalone mode shows an `EDIT` action.
 - Tablet `EDIT` opens a score-adjustment dialog for My Team and Opponent Team.
@@ -239,6 +267,8 @@ Treat Phase 2 as complete enough to move focus to Phase 3 only when all of the f
 - Tablet scoring controls are large, readable, and easy to tap.
 - Tapping team score panel records the rally winner through the shared scoring engine.
 - Undo restores the previous rally.
+- Before any rally is scored (`UNDO` disabled), the UNDO button is legible as dimmed text, not invisible/blank, against the dark call-bar background.
+- SETUP/EDIT/UNDO/END buttons appear grouped inside a subtle panel on the call bar, not floating loosely on the black background.
 - Correction mode is available if already implemented for the shared phone/tablet UI.
 - In tablet standalone mode, `EDIT` can adjust Team A score, Team B score, serving side, and server number.
 - After a correction change, `UNDO` restores the full prior state, including serving side and server number.
@@ -297,6 +327,9 @@ Treat Phase 2 as complete enough to move focus to Phase 3 only when all of the f
 - Tablet-to-phone commands include the current phone-owned match session identity.
 - Phone ignores connected tablet commands whose session identity does not match the current phone-owned match.
 - Tablet ignores phone-owned score snapshots from a different phone host once it has paired to one host.
+- After the tablet connects, a normal single-pairing session (one phone, one tablet, scoring continuously for several minutes) is never rate-limited: scores and player-name changes keep syncing past the first ~10-15 seconds, not just briefly at connection time.
+- A tablet command sent without a valid per-connection HMAC (or with a stale/mismatched session ID) is rejected by the phone and logged as ignored, not silently applied.
+- While a tablet is passively displaying an active phone-hosted match, opening "Manage Players" on the tablet shows the four players from that match, without any manual entry on the tablet.
 - Stopping phone broadcasts clears stale tablet display state after a short timeout.
 - Tablet shows Searching for phone before discovering a phone endpoint.
 - Tablet shows Connected after receiving confirmed phone-owned score snapshots.

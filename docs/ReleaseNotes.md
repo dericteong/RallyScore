@@ -127,6 +127,9 @@ Status: In development.
 - GameState supports `courtOrderedTeamName()` returning player names in court-position order (swaps on odd scores).
 - Phone setup screen is now always landscape (`SCREEN_ORIENTATION_SENSOR_LANDSCAPE`) with side-by-side layout.
 - Setup screen has app title "RallyScore", swap teams button (⇅), solid team-colored cards, `imePadding()`, and always scrollable form column.
+- Setup screen now supports persistent local player management and searchable player selectors on phone and tablet layouts.
+- Player selectors show recent players before the full saved-player list, while still accepting new typed names.
+- New setup player names are saved automatically on Start/Resume with case-insensitive duplicate prevention.
 - Score preview card simplified to "WE SERVE FIRST" / "OPP SERVE FIRST" / "CHOOSE SERVER" with team-colored background, tappable.
 - Scoreboard shows dynamic court-ordered team names, serving player underlined, call bar shows serving player (e.g., "P1 SERVES").
 - Watch score tiles now read `WE WON` and `OPP WON`.
@@ -135,6 +138,21 @@ Status: In development.
 - TabletDisplayState includes `servingPlayerName`, `teamACourtOrderedName`, and `teamBCourtOrderedName`; wire protocol bumped to 16 fields.
 - Player names and server indices persisted in SharedPreferences for match restore.
 - Phone call score text enlarged to 56sp.
+- Player-name autocomplete dropdown on Set Up Game: recent-players section (amber dot marker) and all-players section, each row showing a color-coded initials chip; a "Use '...'" option to confirm a brand-new typed name; and a clear (`×`) button once a field has text.
+- Set Up Game screen restructured into per-file Compose modules (`ui/setup`, `ui/scoreboard`, `ui/tablet`, `ui/status`, `ui/theme`) instead of one monolithic `ScoreboardApp.kt`, with no behavior change intended.
+- `ScoreboardViewModel` now takes its sync/store/player-repository dependencies as explicit constructor parameters (wired once in `MainActivity`) instead of reaching for singletons internally.
+- Phone-tablet WebSocket command channel is now authenticated: on connect, the host mints a random per-connection secret and hands it to the peer once directly over that connection (never broadcast); live-match commands (rally winner, undo, score/serve adjust, end match) must carry a valid HMAC-SHA256 signature using that secret.
+- Per-IP rate limiting added to the phone-tablet WebSocket and TCP accept loops to slow down connection-flood/brute-force attempts against the pairing court code.
+- Wire-format payload validation added: team/player name fields are length-capped, scores are clamped to a sane range, and server number is restricted to 1 or 2, so a malformed or oversized peer packet can't corrupt local state.
+- Release builds now run with R8/`isMinifyEnabled = true` (previously disabled).
+- A tablet passively displaying a phone-hosted match now learns the four player names from the existing state broadcast (debounced, not on every tick) and adds them to its own local player list automatically, without needing a new sync channel.
+- Tablet Set Up Game screen: team cards and player-name fields are noticeably larger and the whole layout centers vertically in the available height, instead of the phone layout stretched wider with excess bottom whitespace.
+- Tablet Set Up Game header: the RallyScore icon/title now gets its own full-width row at a much larger size, with the COURT / WATCH / TABLET status badges moved to their own row below it; "MANAGE PLAYERS" is a larger button on tablet.
+- "Enter players by court position" helper text is now spaced between the "SET UP GAME" title and the "MANAGE PLAYERS" button instead of sitting immediately next to the button.
+- "AVAILABLE PHONES" collapses to a single lightweight status badge when there is exactly one already-selected candidate, instead of always showing the full dark card.
+- Fixed: the UNDO button on both phone and tablet scoreboards was invisible (not just dimmed) when disabled, because no explicit disabled content color was set against the dark call-bar background.
+- Fixed: on phone, the tablet-connection status badge rendered at the top of the right-hand controls column instead of alongside the COURT/WATCH badges; all three now sit together in one row.
+- Fixed: compact (phone) status badges now use shortened labels ("35DD", "WATCH", "TABLET") and `TextOverflow.Ellipsis`, since three full-length badges ("COURT 35DD", "WATCH CONNECTED", "TABLET CONNECTED") don't fit on a phone-width row even at the smallest supported font size.
 
 ### Known Gaps
 
@@ -150,6 +168,8 @@ Status: In development.
   truth, and then broadcast back to tablet and watch as confirmed state.
 - Phone + Tablet synced controller mode is future work and requires conflict handling.
 - Wireless tablet sync is an initial local-network prototype and still needs real-venue hardening. Some Wi-Fi paths can block local WebSocket/discovery delivery between phone and tablet.
+- The periodic UDP state broadcast (scores, team/player names) is still sent in plaintext; only the WebSocket command channel is HMAC-authenticated. A passive listener on the same Wi-Fi can still read match data, just not inject commands.
+- Manual player add/rename/delete via "Manage Players" on one device still does not propagate to the other device; only players seen through an active match broadcast are auto-learned.
 - Undo history is not persisted after app restart.
 - No in-app TTS voice selector.
 - No dedicated Bluetooth speaker mode yet; Android audio routing may handle connected speakers.

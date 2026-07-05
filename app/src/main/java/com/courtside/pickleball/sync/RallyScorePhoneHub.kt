@@ -11,6 +11,7 @@ import com.courtside.pickleball.domain.VoiceAnnouncementMode
 import com.courtside.pickleball.domain.WearSyncContract
 import com.courtside.pickleball.domain.displayValue
 import com.courtside.pickleball.domain.spokenScoreCall
+import com.courtside.pickleball.player.PlayerRepository
 import com.google.android.gms.wearable.PutDataMapRequest
 import com.google.android.gms.wearable.Wearable
 import java.util.UUID
@@ -57,6 +58,7 @@ object RallyScorePhoneHub {
     private const val KEY_SCORING_FORMAT = "scoring_format"
     private const val KEY_HOST_ID = "host_id"
     private const val KEY_SESSION_ID = "session_id"
+    private const val MAX_NAME_FIELD_LENGTH = 60
 
     val store = ScoreboardStore()
 
@@ -78,6 +80,7 @@ object RallyScorePhoneHub {
         if (initialized) return
         initialized = true
         appContext = context.applicationContext
+        PlayerRepository.initialize(context.applicationContext)
         deviceRole = if (context.resources.configuration.smallestScreenWidthDp >= 600) {
             WearSyncContract.DEVICE_ROLE_TABLET
         } else {
@@ -325,6 +328,7 @@ object RallyScorePhoneHub {
                         return@launch
                     }
                     SyncLog.debug(TAG) { "Tablet command: TABLET_START_MATCH" }
+                    PlayerRepository.markPlayersPlayed(payload.playerNames())
                     val next = startMatch(
                         teamAName = payload.teamAName,
                         teamBName = payload.teamBName,
@@ -348,6 +352,7 @@ object RallyScorePhoneHub {
                         return@launch
                     }
                     SyncLog.debug(TAG) { "Tablet command: TABLET_RESUME_MATCH" }
+                    PlayerRepository.markPlayersPlayed(payload.playerNames())
                     updateTeamNames(
                         teamAName = payload.teamAName,
                         teamBName = payload.teamBName,
@@ -385,15 +390,18 @@ object RallyScorePhoneHub {
         )
     }
 
+    private fun TabletSetupPayload.playerNames(): List<String> =
+        listOf(teamAPlayer1, teamAPlayer2, teamBPlayer1, teamBPlayer2)
+
     private fun TabletCommandMessage.toSetupPayload(): TabletSetupPayload? {
         if (args.size < 9) return null
         return TabletSetupPayload(
-            teamAName = args[0].fromWireField(),
-            teamBName = args[1].fromWireField(),
-            teamAPlayer1 = args[2].fromWireField(),
-            teamAPlayer2 = args[3].fromWireField(),
-            teamBPlayer1 = args[4].fromWireField(),
-            teamBPlayer2 = args[5].fromWireField(),
+            teamAName = args[0].fromWireField().take(MAX_NAME_FIELD_LENGTH),
+            teamBName = args[1].fromWireField().take(MAX_NAME_FIELD_LENGTH),
+            teamAPlayer1 = args[2].fromWireField().take(MAX_NAME_FIELD_LENGTH),
+            teamAPlayer2 = args[3].fromWireField().take(MAX_NAME_FIELD_LENGTH),
+            teamBPlayer1 = args[4].fromWireField().take(MAX_NAME_FIELD_LENGTH),
+            teamBPlayer2 = args[5].fromWireField().take(MAX_NAME_FIELD_LENGTH),
             scoringFormat = args[6].fromWireField().toScoringFormat(),
             startingTeam = args[7].fromWireField().toTeamOrNull(),
             myTeamOnTop = args[8].toBooleanStrictOrNull() ?: true

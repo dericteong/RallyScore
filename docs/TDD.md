@@ -45,12 +45,19 @@ Responsibilities:
 
 Contains:
 
-- `MainActivity`
-- `ScoreboardViewModel`
-- `ScoreboardStore`
-- `RallyScorePhoneHub`
-- `PhoneWearListenerService`
-- `ScoreboardApp` and phone Compose UI
+- `MainActivity` — composition root; wires `ScoreboardViewModel`'s dependencies explicitly via a `viewModelFactory` instead of the ViewModel reaching for singletons internally.
+- `ScoreboardViewModel` — takes `ScoreboardStore`, `RallyScorePhoneHub`, `TabletDisplaySync`, `WatchTabletFallbackSync`, and `PlayerRepository` as constructor parameters.
+- `sync/ScoreboardStore`, `sync/RallyScorePhoneHub`, `sync/TabletDisplaySync`, `sync/WatchTabletFallbackSync`, `sync/PhoneWearListenerService`, `sync/SyncLog`
+- `sync/MessageAuthenticator` — HMAC-SHA256 signing/verification for the phone-tablet WebSocket command channel.
+- `sync/RateLimiter` — sliding-window rate limiter applied to the WebSocket and TCP accept loops.
+- `player/PlayerRepository` — local per-device SharedPreferences-backed player list (name, id, createdAt, lastPlayed), also auto-populated by `TabletDisplaySync` when a passive tablet observes an active match broadcast.
+- `ui/ScoreboardApp.kt` — root composable: state hoisting, TTS setup, and top-level screen routing only.
+- `ui/GameStateExtensions.kt` — shared `GameState`/`VoiceAnnouncementMode` extension functions used by both phone and tablet screens.
+- `ui/theme/` — shared colors, dimensions, and constants.
+- `ui/status/` — shared connection-status badge composables (`SetupStatusBadge`, `CourtCodeBadge`, `WatchConnectionStatusBar`, `PhoneTabletStatusBar`, `TabletPhoneStatusBar`).
+- `ui/setup/` — `MatchSetupScreen` (player-autocomplete dropdown, team cards) and `PlayerManagementScreen`.
+- `ui/tablet/` — `TabletDisplayScreen` and tablet-specific scoreboard/control-bar composables.
+- `ui/scoreboard/` — phone `ScoreboardScreen` and `MatchCorrectionDialog`.
 
 Responsibilities:
 
@@ -330,6 +337,45 @@ matches the current phone-owned match session. The tablet ignores snapshots
 from non-paired host IDs and updates its remembered session ID when the paired
 phone rotates to a new match.
 
+### Command channel hardening
+
+Because the periodic UDP state broadcast (including `sessionId`) is plaintext
+and readable by anyone on the same Wi-Fi, session-ID equality alone is not
+sufficient to authenticate a command — a third device could sniff a valid
+`sessionId` off the broadcast without ever pairing. The WebSocket command
+channel therefore adds:
+
+- **Per-connection HMAC (`sync/MessageAuthenticator`):** immediately after a
+  WebSocket handshake succeeds, the host mints a random 256-bit secret and
+  sends it once as a `RALLYSCORE_TABLET_WELCOME_V1` frame directly over that
+  connection (never broadcast). Every subsequent command that requires an
+  active session (rally winner, undo, score/serve adjust, end match — but not
+  `StartMatch`/`ResumeMatch`, which have no session yet) must include an
+  HMAC-SHA256 signature over its fields, computed with that connection's
+  secret. The receiver requires both a matching `sessionId` **and** a valid
+  HMAC before applying the command. A device that only observed the broadcast
+  never received a secret, so it cannot forge a valid signature.
+- **Per-IP rate limiting (`sync/RateLimiter`):** the WebSocket command-server
+  accept loop and the tablet's TCP snapshot-receiver accept loop each apply a
+  sliding-window limiter keyed by remote IP, so brute-forcing the 4-character
+  court code or flooding connection attempts is slowed rather than instant.
+  The TCP snapshot channel needs a much higher budget than the WebSocket
+  channel (`MAX_TCP_PUSHES_PER_MINUTE` vs `MAX_CONNECTIONS_PER_MINUTE`)
+  because the phone legitimately opens a fresh short-lived TCP connection
+  once per broadcast tick (roughly once per second) as part of normal
+  operation — an earlier version applied the same low limit to both and broke
+  live sync after about ten seconds of normal use.
+- **Payload bounds-checking:** decoded name fields are length-capped
+  (`fromWireFieldCapped()`), scores are clamped to `0..MAX_SCORE`, and server
+  number is restricted to `1..2`, so a malformed or oversized peer packet
+  can't corrupt local state or grow memory unbounded.
+
+The periodic UDP/TCP/WebSocket state broadcast itself (scores, team and
+player names) remains plaintext — only the command channel is authenticated.
+Encrypting the broadcast would need its own key-exchange story and was judged
+disproportionate for a casual courtside app; revisit if RallyScore is ever
+used somewhere adversarial (e.g. open tournament Wi-Fi).
+
 This is now exposed as an explicit MVP pairing flow for multi-court use on one
 hotspot or shared Wi-Fi:
 
@@ -377,9 +423,14 @@ Tablet standalone correction mode may adjust score, serving side, and server num
 
 Undo is implemented by keeping prior `GameState` values in a list for the current match. Undo is unlimited within the in-memory match session.
 
+`ScoreboardViewModel` does not reach for `RallyScorePhoneHub`/`TabletDisplaySync`/`WatchTabletFallbackSync`/`PlayerRepository` as implicit singleton defaults; those are passed in as constructor parameters and wired once in `MainActivity`'s `viewModelFactory`. This is a deliberately lightweight "poor man's DI" — it does not make the underlying sync singletons swappable with test fakes (they still own real process-lifetime socket/state), but it makes the coupling explicit at the composition root instead of hidden inside the ViewModel. A full DI framework (Hilt) was judged disproportionate for a single-Activity, single-ViewModel app.
+
 ## Text Input Notes
 
 Setup name input normalizes names to uppercase and replaces line breaks with spaces.
+Player setup uses a local SharedPreferences-backed player repository (`player/PlayerRepository`) in the Android app. Each saved player has a stable ID, name, created timestamp, and optional last-played timestamp. Setup selectors show recent players first, then the alphabetical saved-player list, and still permit new typed names. Starting or resuming a game upserts the four setup names and updates their last-played timestamps using case-insensitive duplicate prevention. The player-name selector renders each candidate with a color-coded initials chip (color derived deterministically from the name) and a small marker on recent-player rows.
+
+`PlayerRepository` is per-device — the phone and tablet each keep their own independent list. A player added or renamed manually via "Manage Players" on one device does not propagate to the other. As a partial mitigation, `TabletDisplaySync` calls `PlayerRepository.markPlayersPlayed(...)` whenever a passively-displaying tablet receives a fresh state broadcast for an active match, so a tablet that never itself started a match still learns the players it has seen play, without requiring the heavier bidirectional sync (conflict resolution, offline queueing) that a full cross-device player database would need.
 
 Do not reintroduce automatic focus jumps from Team A to Team B without device testing. Samsung keyboard plus Compose focus previously crashed with:
 
@@ -400,3 +451,5 @@ Current behavior: pressing Enter/Done does not auto-focus the next field.
 - Phone + Tablet synced scoring is future work and needs conflict handling.
 - Tablet display WebSocket sync is an initial prototype and still needs venue/hotspot hardening if retained.
 - Phone app restores active match score state and player names after app relaunch, but undo history is not persisted yet.
+- `PlayerRepository` is per-device; manual add/rename/delete via "Manage Players" does not sync across devices. Only players seen through an active match broadcast are auto-learned by a passively-displaying tablet.
+- The periodic UDP/TCP/WebSocket state broadcast (scores, team/player names) is plaintext; only the WebSocket command channel is HMAC-authenticated.

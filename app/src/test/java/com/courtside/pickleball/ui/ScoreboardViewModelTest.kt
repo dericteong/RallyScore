@@ -6,7 +6,11 @@ import com.courtside.pickleball.domain.ScoringFormat
 import com.courtside.pickleball.domain.ServerNumber
 import com.courtside.pickleball.domain.Team
 import com.courtside.pickleball.domain.VoiceAnnouncementMode
+import com.courtside.pickleball.player.PlayerRepository
+import com.courtside.pickleball.sync.RallyScorePhoneHub
 import com.courtside.pickleball.sync.ScoreboardStore
+import com.courtside.pickleball.sync.TabletDisplaySync
+import com.courtside.pickleball.sync.WatchTabletFallbackSync
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -284,5 +288,11 @@ class ScoreboardViewModelTest {
     }
 
     private fun newViewModel(): ScoreboardViewModel =
-        ScoreboardViewModel(ScoreboardStore())
+        ScoreboardViewModel(
+            store = ScoreboardStore(),
+            phoneHub = RallyScorePhoneHub,
+            tabletDisplaySync = TabletDisplaySync,
+            watchTabletFallbackSync = WatchTabletFallbackSync,
+            playerRepository = PlayerRepository
+        )
 }
