@@ -139,17 +139,27 @@ object TabletDisplaySync {
     private const val TABLET_WELCOME_PROTOCOL = "RALLYSCORE_TABLET_WELCOME_V1"
     private const val MAX_NAME_FIELD_LENGTH = 60
     private const val MAX_SCORE = 99
-    private const val MAX_CONNECTIONS_PER_MINUTE = 10
+    private const val MAX_WEBSOCKET_CONNECTIONS_PER_MINUTE = 30
     private const val MAX_TCP_PUSHES_PER_MINUTE = 150
     private const val RATE_LIMIT_WINDOW_MS = 60_000L
     private const val WEBSOCKET_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
     private const val BROADCAST_INTERVAL_MS = 1_000L
+    // Used instead of BROADCAST_INTERVAL_MS whenever there's no active match, no tablet
+    // currently connected, and no tablet has been heard from recently - avoids spinning the UDP
+    // broadcaster at 1 Hz forever just because the phone app (or the Wear listener service) is
+    // running with nobody around to see it. A freshly opened tablet still discovers the phone
+    // within a few seconds, which is fine for a one-time pairing action.
+    private const val IDLE_BROADCAST_INTERVAL_MS = 5_000L
     private const val TABLET_HELLO_INTERVAL_MS = 2_000L
     private const val TABLET_SUBNET_SCAN_INTERVAL_MS = 15_000L
     private const val TABLET_SUBNET_SCAN_TIMEOUT_MS = 80
     private const val STALE_REMOTE_STATE_MS = 5_000L
     private const val STALE_DISCOVERED_PHONE_MS = 10_000L
-    private const val WEBSOCKET_READ_TIMEOUT_MS = 4_000
+    // Must comfortably exceed IDLE_BROADCAST_INTERVAL_MS: this is the tablet client's read
+    // timeout while connected, and the phone now sometimes waits a full idle interval between
+    // snapshots. A timeout too close to (or shorter than) that interval makes a perfectly healthy
+    // idle connection look dead - the tablet would tear it down and reconnect every cycle.
+    private const val WEBSOCKET_READ_TIMEOUT_MS = 8_000
     private const val STALE_TABLET_ADDRESS_MS = 30_000L
     private const val LISTEN_TIMEOUT_MS = 1_000
     private const val MAX_WS_RECONNECT_ATTEMPTS = 5
@@ -167,7 +177,7 @@ object TabletDisplaySync {
     private val _pairedPhoneHost = MutableStateFlow<String?>(null)
     val pairedPhoneHost: StateFlow<String?> = _pairedPhoneHost.asStateFlow()
     @Volatile private var myTeamOnTopForSync: Boolean = true
-    @Volatile private var pendingTabletCommandPayload: String? = null
+    @Volatile private var pendingTabletSetupCommand: Pair<TabletCommand, TabletSetupPayload>? = null
 
     private var appContext: Context? = null
     private var multicastLock: WifiManager.MulticastLock? = null
@@ -195,11 +205,17 @@ object TabletDisplaySync {
     private val tabletTcpEndpoints = ConcurrentHashMap<InetSocketAddress, Long>()
     private val discoveredPhonesByHostId = ConcurrentHashMap<String, DiscoveredPhone>()
     private val connectionSecrets = ConcurrentHashMap<Socket, String>()
-    private val webSocketConnectionRateLimiter = RateLimiter(MAX_CONNECTIONS_PER_MINUTE, RATE_LIMIT_WINDOW_MS)
+    // While the connection is stable this only sees one connection per pairing session, but a
+    // disconnected tablet retries through several independent, concurrent loops (hello
+    // broadcaster, subnet scanner, gateway probe, the reconnect loop's own internal retries) -
+    // during real connection trouble that can legitimately exceed 10 attempts/minute, which
+    // caused a self-inflicted lockout (rate-limited reconnect attempts prevented recovery from
+    // the very instability the retries were trying to fix). 30/min still makes brute-forcing the
+    // 4-char court code take hours instead of being instant.
+    private val webSocketConnectionRateLimiter = RateLimiter(MAX_WEBSOCKET_CONNECTIONS_PER_MINUTE, RATE_LIMIT_WINDOW_MS)
 
     // The paired phone opens a brand-new short-lived TCP connection for every broadcast tick
-    // (once per BROADCAST_INTERVAL_MS), so this needs enough headroom over that legitimate rate -
-    // unlike the WebSocket server, which only sees one connection per pairing session.
+    // (once per BROADCAST_INTERVAL_MS), so this needs enough headroom over that legitimate rate.
     private val tcpConnectionRateLimiter = RateLimiter(MAX_TCP_PUSHES_PER_MINUTE, RATE_LIMIT_WINDOW_MS)
     @Volatile private var activeConnectionSecret: String? = null
 
@@ -312,8 +328,7 @@ object TabletDisplaySync {
         if (hostId != null && pairedPhoneHostId != hostId) {
             pairToDiscoveredPhone(hostId)
         }
-        val sessionId = pairedPhoneSessionId ?: _remoteDisplayState.value?.sessionId.orEmpty()
-        pendingTabletCommandPayload = command.toWirePayload(sessionId, payload, activeConnectionSecret)
+        pendingTabletSetupCommand = command to payload
         flushPendingTabletCommand()
         if (!phoneWebSocketConnected) {
             connectToPairedDiscoveredPhoneWebSocket()
@@ -387,7 +402,7 @@ object TabletDisplaySync {
     }
 
     private fun flushPendingTabletCommand() {
-        val payload = pendingTabletCommandPayload ?: return
+        val (command, setupPayload) = pendingTabletSetupCommand ?: return
         val socket = connectedPhoneWebSocket
         if (!tabletDisplayAvailable || !phoneWebSocketConnected || socket == null) {
             return
@@ -395,8 +410,11 @@ object TabletDisplaySync {
 
         scope.launch {
             try {
-                socket.writeWebSocketTextFrame(payload)
-                pendingTabletCommandPayload = null
+                // Built at flush time (not enqueue time) so the payload is signed with the
+                // live connection's secret - the phone rejects unsigned Start/Resume commands.
+                val sessionId = pairedPhoneSessionId ?: _remoteDisplayState.value?.sessionId.orEmpty()
+                socket.writeWebSocketTextFrame(command.toWirePayload(sessionId, setupPayload, activeConnectionSecret))
+                pendingTabletSetupCommand = null
                 SyncLog.debug(TAG) { "Sent pending tablet setup command" }
             } catch (error: Exception) {
                 SyncLog.warn(TAG, "Failed to send pending tablet setup command", "Failed to send pending tablet setup command", error)
@@ -412,6 +430,18 @@ object TabletDisplaySync {
         rememberPairedPhoneIdentity(candidate.hostId, candidate.sessionId)
         rememberPhoneEndpoint(candidate.address, candidate.port)
         updateRemoteDisplayState(candidate.state, "manual-pair")
+        // A tap here is a deliberate user request to retry right now, so it must not be
+        // swallowed by connectToPhoneWebSocket's dedup guard (which exists to stop the
+        // automatic hello broadcaster/subnet scanner/gateway probe from racing each other on
+        // the same endpoint). Tear down any stuck reconnect job first so the tap always
+        // launches a genuinely fresh attempt instead of silently no-opping while the old job
+        // sits in its retry backoff.
+        tabletWebSocketClientJob?.cancel()
+        tabletWebSocketClientJob = null
+        connectedPhoneWebSocket?.let { runCatching { it.close() } }
+        connectedPhoneWebSocket = null
+        connectedPhoneWebSocketEndpoint = null
+        phoneWebSocketConnected = false
         connectToPhoneWebSocket(candidate.address, candidate.port)
         SyncLog.debug(TAG) { "Manually paired tablet to discovered phone host" }
         return true
@@ -487,8 +517,9 @@ object TabletDisplaySync {
                 socket.broadcast = true
                 while (currentCoroutineContext().isActive) {
                     val state = stateProvider()
+                    val matchActive = matchActiveProvider()
                     val payload = state.toTabletDisplayPayload(
-                        matchActive = matchActiveProvider(),
+                        matchActive = matchActive,
                         canUndo = canUndoProvider(),
                         watchConnected = watchConnectedProvider(),
                         voiceAnnouncementMode = voiceModeProvider(),
@@ -498,7 +529,8 @@ object TabletDisplaySync {
                     latestPhonePayload = payload
                     val bytes = payload.toByteArray(StandardCharsets.UTF_8)
                     broadcastPhoneWebSocketAvailability(socket)
-                    val targets = broadcastEndpoints() + currentTabletEndpoints()
+                    val recentTabletEndpoints = currentTabletEndpoints()
+                    val targets = broadcastEndpoints() + recentTabletEndpoints
                     targets.forEach { endpoint ->
                         val packet = DatagramPacket(bytes, bytes.size, endpoint.address, endpoint.port)
                         socket.send(packet)
@@ -506,7 +538,11 @@ object TabletDisplaySync {
                     publishToTabletTcpEndpoints(payload)
                     publishToWebSocketClients(payload)
                     SyncLog.debug(TAG) { "Published tablet score snapshot to ${targets.size} targets" }
-                    delay(BROADCAST_INTERVAL_MS)
+                    val idle = !matchActive &&
+                        webSocketClients.isEmpty() &&
+                        recentTabletEndpoints.isEmpty() &&
+                        currentTabletTcpEndpoints().isEmpty()
+                    delay(if (idle) IDLE_BROADCAST_INTERVAL_MS else BROADCAST_INTERVAL_MS)
                 }
             }
         } catch (error: Exception) {
@@ -627,21 +663,22 @@ object TabletDisplaySync {
                 val payload = readWebSocketTextFrame(socket) ?: break
                 val commandMessage = payload.toTabletCommandMessage() ?: continue
                 val expectedSessionId = phoneSessionIdProvider?.invoke()
+                // Start/Resume are exempt from the session check (a fresh tablet has no session
+                // yet) but never from the HMAC: without this, any unauthenticated LAN client
+                // could reset a live match by sending StartMatch.
                 val requiresActiveSession = commandMessage.command != TabletCommand.StartMatch &&
                     commandMessage.command != TabletCommand.ResumeMatch
-                if (requiresActiveSession) {
-                    val sessionMatches = !expectedSessionId.isNullOrBlank() &&
-                        commandMessage.sessionId == expectedSessionId
-                    val authenticated = commandMessage.verify(connectionSecret)
-                    if (!sessionMatches || !authenticated) {
-                        SyncLog.warn(
-                            TAG,
-                            "Ignored unauthenticated or mismatched tablet command",
-                            "Ignored tablet command: ${commandMessage.command.wireValue} " +
-                                "sessionMatches=$sessionMatches authenticated=$authenticated"
-                        )
-                        continue
-                    }
+                val sessionMatches = !requiresActiveSession ||
+                    (!expectedSessionId.isNullOrBlank() && commandMessage.sessionId == expectedSessionId)
+                val authenticated = commandMessage.verify(connectionSecret)
+                if (!sessionMatches || !authenticated) {
+                    SyncLog.warn(
+                        TAG,
+                        "Ignored unauthenticated or mismatched tablet command",
+                        "Ignored tablet command: ${commandMessage.command.wireValue} " +
+                            "sessionMatches=$sessionMatches authenticated=$authenticated"
+                    )
+                    continue
                 }
                 SyncLog.debug(TAG) { "Received tablet command: ${commandMessage.command.wireValue}" }
                 tabletCommandHandler?.invoke(commandMessage)

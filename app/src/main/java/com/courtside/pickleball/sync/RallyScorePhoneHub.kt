@@ -215,6 +215,16 @@ object RallyScorePhoneHub {
     }
 
     fun handleWatchCommand(path: String) {
+        // Callers arrive on binder/network threads (PhoneWearListenerService,
+        // WatchTabletFallbackSync); hop to the main-immediate scope so watch commands
+        // serialize with tablet commands and phone UI taps instead of racing them
+        // inside ScoreboardStore.
+        scope.launch {
+            handleWatchCommandOnMain(path)
+        }
+    }
+
+    private fun handleWatchCommandOnMain(path: String) {
         if (!store.matchActive.value &&
             path != WearSyncContract.COMMAND_START_MATCH_TEAM_A &&
             path != WearSyncContract.COMMAND_START_MATCH_TEAM_B

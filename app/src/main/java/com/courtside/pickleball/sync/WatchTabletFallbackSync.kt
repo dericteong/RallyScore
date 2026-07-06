@@ -34,13 +34,18 @@ object WatchTabletFallbackSync {
     private const val DISCOVERY_PROTOCOL = "RALLYSCORE_WATCH_TABLET_DISCOVERY_V1"
     private const val STATE_PROTOCOL = "RALLYSCORE_WATCH_TABLET_STATE_V1"
     private const val COMMAND_PROTOCOL = "RALLYSCORE_WATCH_TABLET_COMMAND_V1"
+    private const val WELCOME_PROTOCOL = "RALLYSCORE_WATCH_TABLET_WELCOME_V1"
     private const val DISCOVERY_PORT = 45461
     private const val TCP_PORT = 45462
     private const val BROADCAST_INTERVAL_MS = 1_000L
     private const val CLIENT_TIMEOUT_MS = 1_000
+    private const val MAX_CONNECTIONS_PER_MINUTE = 30
+    private const val RATE_LIMIT_WINDOW_MS = 60_000L
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val clientSockets = Collections.synchronizedSet(mutableSetOf<Socket>())
+    private val connectionSecrets = java.util.concurrent.ConcurrentHashMap<Socket, String>()
+    private val connectionRateLimiter = RateLimiter(MAX_CONNECTIONS_PER_MINUTE, RATE_LIMIT_WINDOW_MS)
     private val _started = MutableStateFlow(false)
     private val _watchConnected = MutableStateFlow(false)
     val started = _started.asStateFlow()
@@ -95,6 +100,7 @@ object WatchTabletFallbackSync {
             clientSockets.forEach { it.closeQuietly() }
             clientSockets.clear()
         }
+        connectionSecrets.clear()
         _started.value = false
         _watchConnected.value = false
     }
@@ -157,6 +163,17 @@ object WatchTabletFallbackSync {
                 while (true) {
                     try {
                         val socket = serverSocket.accept()
+                        val remoteKey = socket.inetAddress?.hostAddress ?: "unknown"
+                        if (!connectionRateLimiter.allow(remoteKey)) {
+                            SyncLog.warn(
+                                TAG,
+                                "Rate limited a watch-tablet connection attempt",
+                                "Rate limited watch-tablet connection from $remoteKey"
+                            )
+                            socket.closeQuietly()
+                            continue
+                        }
+                        connectionSecrets[socket] = MessageAuthenticator.newSecret()
                         clientSockets += socket
                         updateWatchConnectedState()
                         SyncLog.debug(TAG) { "Accepted watch-tablet client" }
@@ -174,8 +191,15 @@ object WatchTabletFallbackSync {
     }
 
     private suspend fun handleClient(socket: Socket) {
+        val secret = connectionSecrets[socket]
         try {
             socket.soTimeout = CLIENT_TIMEOUT_MS
+            // Hand the per-connection secret to the watch once, directly over this socket,
+            // before any state - it is never broadcast, so a LAN attacker who only sees the
+            // UDP discovery packet cannot forge a signed command.
+            if (secret != null) {
+                sendLine(socket, "$WELCOME_PROTOCOL|$secret")
+            }
             publishState(socket)
             BufferedReader(InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8)).use { reader ->
                 while (true) {
@@ -186,7 +210,15 @@ object WatchTabletFallbackSync {
                         continue
                     } ?: break
 
-                    val commandPath = line.toWatchCommandPath() ?: continue
+                    val commandPath = line.toVerifiedWatchCommandPath(secret)
+                    if (commandPath == null) {
+                        SyncLog.warn(
+                            TAG,
+                            "Ignored unauthenticated or malformed watch-tablet command",
+                            "Ignored unauthenticated or malformed watch-tablet command"
+                        )
+                        continue
+                    }
                     SyncLog.debug(TAG) { "Received watch-tablet command" }
                     commandHandler?.invoke(commandPath)
                     publishState(socket)
@@ -196,6 +228,7 @@ object WatchTabletFallbackSync {
             SyncLog.warn(TAG, "Watch-tablet client disconnected", "Watch-tablet client disconnected", error)
         } finally {
             clientSockets.remove(socket)
+            connectionSecrets.remove(socket)
             socket.closeQuietly()
             updateWatchConnectedState()
         }
@@ -221,14 +254,29 @@ object WatchTabletFallbackSync {
         val canUndo = canUndoProvider?.invoke() ?: false
         val voiceMode = voiceModeProvider?.invoke() ?: VoiceAnnouncementMode.TabletOnly
         val payload = state.toWatchTabletPayload(matchActive, canUndo, voiceMode)
-        try {
-            PrintWriter(socket.getOutputStream(), true).println(payload)
+        if (sendLine(socket, payload)) {
             SyncLog.debug(TAG) { "Published watch-tablet state" }
-        } catch (error: Exception) {
+        } else {
             clientSockets.remove(socket)
+            connectionSecrets.remove(socket)
             socket.closeQuietly()
+            updateWatchConnectedState()
         }
     }
+
+    /**
+     * Writes one newline-terminated line and reports success. `PrintWriter` never throws on
+     * write failure (it only sets an internal error flag), so callers must check the result to
+     * detect and prune a dead connection.
+     */
+    private fun sendLine(socket: Socket, line: String): Boolean =
+        try {
+            val writer = PrintWriter(socket.getOutputStream(), true)
+            writer.println(line)
+            !writer.checkError()
+        } catch (_: Exception) {
+            false
+        }
 
     private fun GameState.toWatchTabletPayload(
         matchActive: Boolean,
@@ -251,10 +299,17 @@ object WatchTabletFallbackSync {
         voiceMode.wireValue
     ).joinToString("|")
 
-    private fun String.toWatchCommandPath(): String? {
+    /**
+     * Parses `COMMAND_PROTOCOL|commandPath|timestamp|mac` and returns the command path only if
+     * the whitelist matches and the HMAC (over `commandPath|timestamp`, keyed by this
+     * connection's [secret]) verifies. Without this an unauthenticated LAN client could inject
+     * END_MATCH/START_MATCH into a tablet-hosted match.
+     */
+    private fun String.toVerifiedWatchCommandPath(secret: String?): String? {
+        if (secret == null) return null
         val fields = split("|")
-        if (fields.size < 2 || fields[0] != COMMAND_PROTOCOL) return null
-        return when (fields[1]) {
+        if (fields.size < 4 || fields[0] != COMMAND_PROTOCOL) return null
+        val commandPath = when (fields[1]) {
             WearSyncContract.COMMAND_A_WON_RALLY,
             WearSyncContract.COMMAND_B_WON_RALLY,
             WearSyncContract.COMMAND_UNDO,
@@ -262,7 +317,12 @@ object WatchTabletFallbackSync {
             WearSyncContract.COMMAND_START_MATCH_TEAM_A,
             WearSyncContract.COMMAND_START_MATCH_TEAM_B -> fields[1]
             else -> null
-        }
+        } ?: return null
+        val timestamp = fields[2]
+        val mac = fields[3]
+        val expected = MessageAuthenticator.sign(secret, "$commandPath|$timestamp")
+        if (!MessageAuthenticator.matches(expected, mac)) return null
+        return commandPath
     }
 
     private fun Team.toWireValue(): String = when (this) {

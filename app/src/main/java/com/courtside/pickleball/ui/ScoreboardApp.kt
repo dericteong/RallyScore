@@ -373,7 +373,15 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
                         }
                     },
                     watchConnected = effectiveTabletWatchConnected,
-                    tabletConnectionState = tabletHostConnectionState,
+                    // A tablet cares about its own client-role pairing to a phone
+                    // (tabletConnectionState); a phone cares about whether a tablet has joined
+                    // its hosted service (tabletHostConnectionState) - MatchSetupScreen is
+                    // shared by both roles, so pick the state that matches this device's role.
+                    tabletConnectionState = if (useTabletDisplayLayout) {
+                        tabletConnectionState
+                    } else {
+                        tabletHostConnectionState
+                    },
                     voiceAnnouncementMode = voiceAnnouncementMode,
                     onVoiceAnnouncementModeChange = {
                         voiceModeManuallySelected = true

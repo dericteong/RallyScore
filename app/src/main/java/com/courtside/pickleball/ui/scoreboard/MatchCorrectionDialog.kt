@@ -80,7 +80,7 @@ internal fun MatchCorrectionDialog(
                     ) {
                         CorrectionScoreCard(
                             modifier = Modifier.weight(1f),
-                            label = "My Team",
+                            label = "My Team (Blue)",
                             score = state.teamAScore,
                             color = TeamABlue,
                             onDecrease = { onAdjustTeamA(-1) },
@@ -88,7 +88,7 @@ internal fun MatchCorrectionDialog(
                         )
                         CorrectionScoreCard(
                             modifier = Modifier.weight(1f),
-                            label = "Opponent",
+                            label = "Opponent (Green)",
                             score = state.teamBScore,
                             color = TeamBGreen,
                             onDecrease = { onAdjustTeamB(-1) },
@@ -105,13 +105,13 @@ internal fun MatchCorrectionDialog(
                             label = "Serving",
                             options = listOf(
                                 CorrectionChoiceOption(
-                                    label = "My Team",
+                                    label = "My Team (Blue)",
                                     selected = state.servingTeam == Team.A,
                                     accent = TeamABlue,
                                     onClick = { onServingTeamSelected(Team.A) }
                                 ),
                                 CorrectionChoiceOption(
-                                    label = "Opponent",
+                                    label = "Opponent (Green)",
                                     selected = state.servingTeam == Team.B,
                                     accent = TeamBGreen,
                                     onClick = { onServingTeamSelected(Team.B) }
@@ -139,7 +139,7 @@ internal fun MatchCorrectionDialog(
                     }
                 } else {
                     CorrectionScoreRow(
-                        label = "My Team",
+                        label = "My Team (Blue)",
                         score = state.teamAScore,
                         color = TeamABlue,
                         compact = false,
@@ -147,7 +147,7 @@ internal fun MatchCorrectionDialog(
                         onIncrease = { onAdjustTeamA(1) }
                     )
                     CorrectionScoreRow(
-                        label = "Opponent Team",
+                        label = "Opponent Team (Green)",
                         score = state.teamBScore,
                         color = TeamBGreen,
                         compact = false,
@@ -159,13 +159,13 @@ internal fun MatchCorrectionDialog(
                         compact = false,
                         options = listOf(
                             CorrectionChoiceOption(
-                                label = "My Team",
+                                label = "My Team (Blue)",
                                 selected = state.servingTeam == Team.A,
                                 accent = TeamABlue,
                                 onClick = { onServingTeamSelected(Team.A) }
                             ),
                             CorrectionChoiceOption(
-                                label = "Opponent",
+                                label = "Opponent (Green)",
                                 selected = state.servingTeam == Team.B,
                                 accent = TeamBGreen,
                                 onClick = { onServingTeamSelected(Team.B) }

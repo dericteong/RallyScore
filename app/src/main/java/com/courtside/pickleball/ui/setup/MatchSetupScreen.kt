@@ -199,12 +199,12 @@ internal fun MatchSetupScreen(
                         Image(
                             painter = painterResource(id = R.drawable.ic_launcher_foreground),
                             contentDescription = "RallyScore icon",
-                            modifier = Modifier.size(48.dp)
+                            modifier = Modifier.size(68.dp)
                         )
                         Text(
                             text = "RallyScore",
                             color = Ink,
-                            fontSize = 34.sp,
+                            fontSize = 46.sp,
                             fontWeight = FontWeight.Black,
                             maxLines = 1
                         )
@@ -404,12 +404,17 @@ internal fun MatchSetupScreen(
             Column(
                 modifier = Modifier
                     .weight(controlColumnWeight)
+                    // On phone the control column is noticeably shorter than the team column
+                    // it sits beside, so centering it in the Row (the tablet-appropriate look)
+                    // pushed Voice Announcements toward the bottom edge with no room to breathe.
+                    // Anchoring it to the top on phone instead gives it that room back.
+                    .then(if (isTabletLayout) Modifier else Modifier.align(Alignment.Top))
                     .verticalScroll(controlScrollState),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(if (keyboardVisible) 8.dp else headerSpacing)
             ) {
                 if (!keyboardVisible) {
-                    Spacer(modifier = Modifier.height(44.dp))
+                    Spacer(modifier = Modifier.height(if (isTabletLayout) 44.dp else 28.dp))
                 }
                 if (!keyboardVisible) {
                     ScorePreviewCard(
@@ -1014,7 +1019,7 @@ private fun VoiceAnnouncementControls(
                 Text(
                     text = selectedMode.setupLabel(),
                     color = Ink,
-                    fontSize = if (compact) 12.sp else 13.sp,
+                    fontSize = if (compact) 15.sp else 16.sp,
                     fontWeight = FontWeight.Black,
                     textAlign = TextAlign.Center,
                     maxLines = 1
@@ -1029,6 +1034,7 @@ private fun VoiceAnnouncementControls(
                         text = {
                             Text(
                                 text = mode.setupLabel(),
+                                fontSize = 16.sp,
                                 fontWeight = if (mode == selectedMode) FontWeight.Black else FontWeight.Medium
                             )
                         },
@@ -1079,14 +1085,25 @@ private fun AvailablePhonesCard(
 ) {
     val onlyCandidate = phones.singleOrNull()
     if (onlyCandidate != null && onlyCandidate.hostId == selectedPhoneHostId) {
+        val isConnected = connectionState == TabletConnectionState.Connected
         val suffix = when {
-            connectionState == TabletConnectionState.Connected -> "CONNECTED"
+            isConnected -> "CONNECTED"
             selectedCourtCode != null -> "JOINING"
             else -> "SELECTED"
         }
+        // Stays tappable (re-sends pairToDiscoveredPhone for the same host) even once already
+        // "selected," since selection just means this tablet remembers a pairing - it says
+        // nothing about whether the connection is actually healthy. Without this, a stuck
+        // pairing had no in-UI way to force a retry.
         SetupStatusBadge(
-            modifier = Modifier.fillMaxWidth(),
-            label = "COURT ${onlyCandidate.courtCode} · ${onlyCandidate.label} · $suffix",
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onJoinPhoneRequested(onlyCandidate.hostId) },
+            label = if (isConnected) {
+                "COURT ${onlyCandidate.courtCode} · ${onlyCandidate.label} · $suffix"
+            } else {
+                "COURT ${onlyCandidate.courtCode} · ${onlyCandidate.label} · $suffix · TAP TO RETRY"
+            },
             color = ConnectedAmber,
             compact = false
         )

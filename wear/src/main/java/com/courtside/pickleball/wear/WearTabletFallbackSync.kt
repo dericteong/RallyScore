@@ -33,6 +33,7 @@ object WearTabletFallbackSync {
     private const val DISCOVERY_PROTOCOL = "RALLYSCORE_WATCH_TABLET_DISCOVERY_V1"
     private const val STATE_PROTOCOL = "RALLYSCORE_WATCH_TABLET_STATE_V1"
     private const val COMMAND_PROTOCOL = "RALLYSCORE_WATCH_TABLET_COMMAND_V1"
+    private const val WELCOME_PROTOCOL = "RALLYSCORE_WATCH_TABLET_WELCOME_V1"
     private const val DISCOVERY_PORT = 45461
     private const val SOCKET_TIMEOUT_MS = 1_200
     private const val CONNECTION_GRACE_MS = 12_000L
@@ -75,6 +76,7 @@ object WearTabletFallbackSync {
     private var socketReaderJob: Job? = null
     @Volatile private var multicastLock: WifiManager.MulticastLock? = null
     @Volatile private var activeSocket: Socket? = null
+    @Volatile private var activeSecret: String? = null
     @Volatile private var lastTabletSeenAtElapsed: Long = 0L
     @Volatile private var connectedEndpoint: InetSocketAddress? = null
     private val discoveredTabletRecords = linkedMapOf<String, TabletCandidateRecord>()
@@ -138,9 +140,13 @@ object WearTabletFallbackSync {
 
     fun sendCommand(commandPath: String): Boolean {
         val socket = activeSocket
-        if (socket == null) {
+        val secret = activeSecret
+        // A signed command needs both a live socket and the welcome secret received on it. If
+        // either is missing (e.g. the welcome line hasn't arrived yet), fall back to a one-shot
+        // connection that reads a fresh welcome before sending.
+        if (socket == null || secret == null) {
             val endpoint = connectedEndpoint ?: return false
-            WearSyncLog.debug(TAG) { "No active tablet socket, sending one-shot command" }
+            WearSyncLog.debug(TAG) { "No authenticated tablet socket, sending one-shot command" }
             scope.launch {
                 sendOneShotCommand(endpoint, commandPath)
             }
@@ -149,9 +155,13 @@ object WearTabletFallbackSync {
         scope.launch {
             try {
                 WearSyncLog.debug(TAG) { "Sending tablet command over active socket" }
-                PrintWriter(socket.getOutputStream(), true).println(
-                    listOf(COMMAND_PROTOCOL, commandPath, System.currentTimeMillis().toString()).joinToString("|")
-                )
+                val writer = PrintWriter(socket.getOutputStream(), true)
+                writer.println(signedCommandLine(commandPath, secret))
+                // PrintWriter swallows write failures into an internal flag; without this
+                // check a command over a half-dead socket vanished silently.
+                if (writer.checkError()) {
+                    throw java.io.IOException("Watch-tablet command write failed")
+                }
             } catch (error: Exception) {
                 WearSyncLog.warn(TAG, "Unable to send watch-tablet command", "Unable to send watch-tablet command: $commandPath", error)
                 disconnect()
@@ -160,13 +170,25 @@ object WearTabletFallbackSync {
         return true
     }
 
+    private fun signedCommandLine(commandPath: String, secret: String): String {
+        val timestamp = System.currentTimeMillis().toString()
+        val mac = WearMessageAuthenticator.sign(secret, "$commandPath|$timestamp")
+        return listOf(COMMAND_PROTOCOL, commandPath, timestamp, mac).joinToString("|")
+    }
+
     private fun sendOneShotCommand(endpoint: InetSocketAddress, commandPath: String): Boolean =
         try {
             Socket().use { socket ->
                 socket.connect(endpoint, SOCKET_TIMEOUT_MS)
-                PrintWriter(socket.getOutputStream(), true).println(
-                    listOf(COMMAND_PROTOCOL, commandPath, System.currentTimeMillis().toString()).joinToString("|")
-                )
+                socket.soTimeout = SOCKET_TIMEOUT_MS
+                val reader = BufferedReader(InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8))
+                val secret = readWelcomeSecret(reader)
+                    ?: throw java.io.IOException("No welcome secret from tablet")
+                val writer = PrintWriter(socket.getOutputStream(), true)
+                writer.println(signedCommandLine(commandPath, secret))
+                if (writer.checkError()) {
+                    throw java.io.IOException("One-shot tablet command write failed")
+                }
             }
             markTabletSeen()
             _discoveryStatus.value = DiscoveryStatus.Found
@@ -176,6 +198,21 @@ object WearTabletFallbackSync {
             WearSyncLog.warn(TAG, "Unable to send one-shot tablet command", "Unable to send one-shot tablet command: $commandPath", error)
             false
         }
+
+    /** Reads the tablet's first line(s) until the welcome secret arrives, or gives up. */
+    private fun readWelcomeSecret(reader: BufferedReader): String? {
+        repeat(5) {
+            val line = try {
+                reader.readLine()
+            } catch (_: SocketTimeoutException) {
+                return null
+            } ?: return null
+            if (line.startsWith(WELCOME_PROTOCOL)) {
+                return line.substringAfter("|").takeIf { it.isNotBlank() }
+            }
+        }
+        return null
+    }
 
     private suspend fun runDiscoveryLoop() {
         try {
@@ -259,6 +296,11 @@ object WearTabletFallbackSync {
                                 updateConnectionWithGrace()
                                 continue
                             } ?: break
+                            if (line.startsWith(WELCOME_PROTOCOL)) {
+                                activeSecret = line.substringAfter("|").takeIf { it.isNotBlank() }
+                                WearSyncLog.debug(TAG) { "Received tablet fallback welcome secret" }
+                                continue
+                            }
                             val state = line.toTabletScoreState() ?: continue
                             markTabletSeen()
                             _tabletScoreState.value = state
@@ -277,6 +319,7 @@ object WearTabletFallbackSync {
     private fun disconnect() {
         activeSocket?.let { runCatching { it.close() } }
         activeSocket = null
+        activeSecret = null
         if (!_tabletConnected.value) {
             _discoveryStatus.value = DiscoveryStatus.Searching
         }

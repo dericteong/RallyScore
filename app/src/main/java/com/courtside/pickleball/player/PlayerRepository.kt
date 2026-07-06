@@ -38,6 +38,7 @@ object PlayerRepository {
     fun addPlayer(name: String, now: Long = System.currentTimeMillis()): Player? =
         upsertPlayer(name = name, markPlayed = false, now = now)
 
+    @Synchronized
     fun upsertPlayer(
         name: String,
         markPlayed: Boolean,
@@ -61,10 +62,12 @@ object PlayerRepository {
         return player
     }
 
+    @Synchronized
     fun markPlayersPlayed(names: List<String>, now: Long = System.currentTimeMillis()) {
         names.forEach { upsertPlayer(name = it, markPlayed = true, now = now) }
     }
 
+    @Synchronized
     fun renamePlayer(id: String, name: String) {
         val cleanName = name.cleanPlayerName()
         if (cleanName.isEmpty()) return
@@ -77,12 +80,14 @@ object PlayerRepository {
         replacePlayer(updated)
     }
 
+    @Synchronized
     fun deletePlayer(id: String) {
         val next = _players.value.filterNot { it.id == id }.sortedForDisplay()
         _players.value = next
         persist(next)
     }
 
+    @Synchronized
     private fun replacePlayer(player: Player) {
         val next = (_players.value.filterNot { it.id == player.id } + player).sortedForDisplay()
         _players.value = next

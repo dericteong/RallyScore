@@ -153,6 +153,70 @@ Status: In development.
 - Fixed: the UNDO button on both phone and tablet scoreboards was invisible (not just dimmed) when disabled, because no explicit disabled content color was set against the dark call-bar background.
 - Fixed: on phone, the tablet-connection status badge rendered at the top of the right-hand controls column instead of alongside the COURT/WATCH badges; all three now sit together in one row.
 - Fixed: compact (phone) status badges now use shortened labels ("35DD", "WATCH", "TABLET") and `TextOverflow.Ellipsis`, since three full-length badges ("COURT 35DD", "WATCH CONNECTED", "TABLET CONNECTED") don't fit on a phone-width row even at the smallest supported font size.
+- Team labels on Set Up Game now include color: "MY TEAM (BLUE)" / "OPPONENT (GREEN)". The serve-first button reads "WE SERVE FIRST"/"OPP SERVE FIRST" on phone (its own blue/green background conveys the color) and adds "(BLUE)"/"(GREEN)" on tablet where there's room.
+- Security fix: `StartMatch`/`ResumeMatch` tablet commands now require a valid per-connection HMAC (they remain exempt from the session-ID check since a fresh tablet has no session). Previously they were exempt from both checks, so any unauthenticated device on the same Wi-Fi could reset a live match by sending a `StartMatch`. This is a lockstep protocol change — upgrade phone and tablet together.
+- Concurrency fix: watch commands received over the Wear Data Layer (and the watch-tablet TCP fallback) are now marshalled onto the phone hub's main-immediate scope before touching `ScoreboardStore`, instead of mutating undo history and score state directly from a binder/network thread while phone/tablet commands ran on the main thread.
+- Reliability fix: the watch-tablet and tablet-watch fallback sync paths now check `PrintWriter.checkError()` after each write. `PrintWriter` never throws on write failure — it only sets an internal flag — so dead connections were previously never pruned and a watch command over a half-dead socket vanished silently with the connection still shown as green.
+- See `docs/CodeReviewFindings.md` for the full 2026-07-05 codebase review, including still-open items (always-on 1 Hz UDP broadcast, sync-singleton lifecycle teardown, wire-format versioning fragility).
+- Security fix: the watch-tablet fallback channel (direct watch → tablet, no phone) now uses the same per-connection HMAC + rate-limiting pattern as the phone-tablet channel. Previously any TCP client on the same Wi-Fi could send `END_MATCH`/`START_MATCH` to a tablet-hosted match with no authentication at all. This is a lockstep protocol change for the `wear` module — upgrade the watch and tablet builds together. Verified: both modules compile, unit tests pass, both release builds succeed with R8, both APKs installed and launched cleanly on real hardware. The live handshake was not exercised end-to-end (the test watch went to sleep and didn't respond to remote wake) — please manually verify direct watch-to-tablet commands still work after upgrading.
+- Concurrency fix: `PlayerRepository`'s mutating methods are now `@Synchronized`, since the tablet's player auto-learn path calls them from a network thread while Manage Players can be edited from the main thread at the same time.
+- Wear release builds now also run with R8 (`isMinifyEnabled = true`), matching the phone app.
+- Regression fix: after the security hardening above shipped, the tablet appeared to hang (no
+  response tapping END or adjusting scores). Root cause was the phone-tablet WebSocket rate
+  limiter (`MAX_CONNECTIONS_PER_MINUTE = 10`, added for the pairing-brute-force fix) being too
+  strict for legitimate reconnect traffic: a disconnected tablet retries through several
+  concurrent loops (hello broadcaster, subnet scanner, gateway probe, the reconnect loop's own
+  retries), which can exceed 10 attempts/minute during real connection trouble and cause a
+  self-inflicted lockout. Renamed to `MAX_WEBSOCKET_CONNECTIONS_PER_MINUTE` and raised to 30.
+- Fix: the tablet's "AVAILABLE PHONES" pairing badge could get stuck showing "JOINING" forever
+  with a "TAP TO RETRY" affordance that did nothing when tapped. Three compounding bugs, found via
+  live on-device diagnosis: (1) the retry tap called into `pairToDiscoveredPhone`, which didn't
+  cancel an already-active (but failing) reconnect job, so the dedup guard in
+  `connectToPhoneWebSocket` silently absorbed the manual retry most of the time; (2) `SyncLog`
+  debug logging was silently dead in every build variant, including debug builds, because neither
+  `app` nor `wear` had the `buildConfig` build feature enabled, so the reflection-based
+  `BuildConfig.DEBUG` check always fell through to `false`; (3) the actual root cause -
+  `MatchSetupScreen` was always fed `tabletHostConnectionState` (this device's state as a host
+  being joined by other displays) instead of the tablet's own client-role connection state, so the
+  UI could never show "CONNECTED" for a tablet pairing to a phone no matter how many times the
+  underlying connection actually succeeded. All three fixed; verified live that a tablet now
+  reaches "CONNECTED" within about a second and the state survives an app relaunch.
+
+- Refactor: `wear/WearScoreboardApp.kt` split from a 1,653-line monolith into a slim ~900-line
+  root (state hoisting + `LaunchedEffect`s) plus `theme/WearTheme.kt`, `setup/WearSetupScreens.kt`,
+  and `scoreboard/WearScoreboardScreens.kt` - the same per-screen split the phone app already got.
+  Mechanical move only, no behavior change; verified via clean compiles (including R8 release) and
+  a live device/emulator smoke test of the connected scoreboard screen.
+- Fix: `MatchCorrectionDialog.kt`'s team labels now include the color suffix used everywhere
+  else ("My Team (Blue)"/"Opponent (Green)"), matching the setup screen's convention.
+- Fix: `RateLimiter`'s per-IP tracking map now self-evicts stale entries instead of growing
+  forever as new source IPs are seen.
+- Fix: the phone's UDP score/discovery broadcast no longer runs at 1 Hz forever regardless of
+  whether anyone's around to see it. It now drops to a 5s idle cadence whenever there's no active
+  match and no tablet connected or recently seen, and returns to 1 Hz the moment a match starts or
+  a tablet shows up. Also fixed a regression this surfaced: the tablet's WebSocket read timeout
+  (4s) was tuned for the old 1 Hz cadence, so a healthy idle connection started looking dead and
+  reconnecting every cycle once broadcasts could be 5s apart - raised to 8s to fix.
+- Added: the watch now implements Wear OS Ambient Mode (`AmbientModeSupport`) instead of just
+  going black once the system decides to dim/sleep the display despite `FLAG_KEEP_SCREEN_ON`.
+  While ambient, it shows a low-power, burn-in-safe readout (dim gray text on black, no filled
+  color blocks) of whichever score is currently active - standalone Watch Only, or the
+  phone/tablet-connected match - instead of the normal interactive buttons. No new permissions
+  needed; `androidx.wear:wear:1.3.0` (already a dependency) provides the API.
+- Fix: the watch screen could still fall asleep mid-use despite `FLAG_KEEP_SCREEN_ON` already
+  being requested in `onResume`. `MainActivity` (wear) now also re-asserts it in
+  `onWindowFocusChanged` whenever the window regains focus, closing a gap where transient
+  system-level focus loss (without a full onPause/onResume cycle) could let the display's own
+  inactivity timeout sneak in. Verified live on real watch hardware: the screen stayed on and
+  `dumpsys power` reported `mWakefulness=Awake` after 25+ seconds of no input on the setup screen
+  (previously the system default ~15s timeout would have put it to sleep).
+- Fix: the watch's "TABLET MODE" option could disappear from the mode switcher permanently (only
+  recoverable by relaunching the watch app) after switching away from it while no tablet was
+  connected. Root cause: the watch's direct tablet-discovery UDP listener only ran while Tablet
+  mode was already selected, but Tablet mode could only be selected once a tablet was already
+  discovered - a deadlock. `shouldRunTabletFallbackDiscovery` in `WearScoreboardApp.kt` no longer
+  depends on the current mode; it now only checks that no match is active, since the discovery
+  socket is passive listen-only and cheap to leave running. Verified live on real watch hardware.
 
 ### Known Gaps
 
