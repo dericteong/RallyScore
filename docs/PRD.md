@@ -10,7 +10,7 @@ Tagline: Wear. Play. Score.
 
 Pickleball games often need a clear, portable scoreboard that players can update without leaving the court. Existing manual scoreboards require physical handling, and generic scoring apps often require the operator to understand side outs, server number changes, and score-call order.
 
-RallyScore is a flexible pickleball scoring ecosystem. It should work with different combinations of devices, and additional devices should enhance the experience rather than being mandatory. There must be only one active source of truth per match. Phone Only, Tablet Only, and Watch Only may each own standalone match state when used alone. When a watch is connected, the phone remains the primary hub. Future Phone + Tablet synced modes must share one canonical match state rather than independently scoring separate copies of the same match.
+RallyScore is a flexible pickleball scoring ecosystem. It should work with different combinations of devices, and additional devices should enhance the experience rather than being mandatory. There must be only one active source of truth per match. Phone Only, Tablet Only, and Watch Only may each own standalone match state when used alone. When a watch is connected, the phone remains the primary hub. Phone + Tablet synced modes already share one canonical match state rather than independently scoring separate copies of the same match; deterministic handling of near-simultaneous input from multiple devices is the remaining work (see Mode 4/5 below).
 
 Canonical connected system flow:
 

@@ -79,7 +79,7 @@
 - As a player, I want a connected tablet to score rallies and undo by sending commands to the phone so all devices keep one shared score.
 - As a player, I want the connected tablet to update only after the phone confirms the score so it never shows a predicted or conflicting score.
 
-## Future Phone + Tablet Sync
+## Phone + Tablet Peer Conflict Handling (Remaining Work)
 
 The command/state-sync foundation for this section already shipped as part of Phase 3 hardening
 (see "Shared Display" above, and `docs/Roadmap.md` Phase 5): the tablet already sends rally/Undo/

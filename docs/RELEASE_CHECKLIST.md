@@ -51,7 +51,7 @@ This checklist is a low-risk release-readiness guide for publishing RallyScore t
   `app` and `wear` modules; verified `assembleRelease` succeeds for both with their respective
   `proguard-rules.pro`.
 - `android:allowBackup="false"` remains set; no explicit `android:debuggable` override exists for release.
-- Phone-tablet WebSocket command channel requires a per-connection HMAC signature plus session-ID match for live-match commands; the periodic state broadcast itself remains plaintext (see `docs/TDD.md` "Command channel hardening").
+- Phone-tablet WebSocket command channel and the direct watch-tablet fallback TCP channel both require a per-connection HMAC signature (plus session-ID match for the phone-tablet channel) for live-match commands, and both accept loops apply per-IP rate limiting; the periodic state broadcast itself remains plaintext (see `docs/TDD.md` "Command channel hardening" and "Watch-tablet fallback channel hardening").
 
 ## Permissions and Local Network Explanation
 

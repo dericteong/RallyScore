@@ -8,7 +8,7 @@ The project is a Kotlin multi-module Gradle Android project.
 - `wear`: Wear OS application, Watch Only scorer, and connected command controller.
 - `shared`: pure Kotlin scoring domain shared by phone and Wear.
 
-RallyScore supports multiple product modes: Watch Only, Phone Only, Tablet Only, Watch + Phone, Phone + Tablet synced, Watch + Phone + Android Tablet synced, and Watch + Phone + Portable Monitor. Additional devices enhance the experience but are not required. Exactly one active source of truth must exist per match. Phone Only, Tablet Only, and Watch Only may each own standalone state when used alone. When a watch is connected, the phone remains the primary hub. Future phone-tablet synced modes must share one canonical match state. The Android app uses Jetpack Compose and a ViewModel with `StateFlow`. The shared module owns scoring rules so they can be tested without Android.
+RallyScore supports multiple product modes: Watch Only, Phone Only, Tablet Only, Watch + Phone, Phone + Tablet synced, Watch + Phone + Android Tablet synced, and Watch + Phone + Portable Monitor. Additional devices enhance the experience but are not required. Exactly one active source of truth must exist per match. Phone Only, Tablet Only, and Watch Only may each own standalone state when used alone. When a watch is connected, the phone remains the primary hub. Phone-tablet synced modes already share one canonical match state (see "Phone + Tablet Synced Data Flow" below); deterministic conflict handling for near-simultaneous multi-device input is the remaining work, not the sync itself. The Android app uses Jetpack Compose and a ViewModel with `StateFlow`. The shared module owns scoring rules so they can be tested without Android.
 
 ## Technology Stack
 
@@ -223,11 +223,11 @@ Standalone tablet correction mode adjusts scores through the shared
 `ScoreboardStore` rather than mutating Compose state directly, so corrections
 remain undoable.
 
-### Future Phone + Tablet Synced Data Flow
+### Phone + Tablet Synced Data Flow
 
-Phone + Tablet synced mode starts as command/state sync with the phone as
-the sole source of truth. Full peer-controller sync with conflict handling is
-future work.
+This is the data flow already implemented and hardened (not future work): Phone + Tablet synced
+mode is command/state sync with the phone as the sole source of truth. What remains future work
+is full peer-controller sync with deterministic conflict handling for near-simultaneous input.
 
 Required principles:
 
@@ -299,15 +299,16 @@ The phone remains the only source of truth and scoring hub.
 
 ## Tablet Standalone Controller
 
-Revised Phase 3 starts with Tablet Only mode. Tablet-sized screens support
+Tablet Only mode (Phase 3, complete) is a first-class experience. Tablet-sized screens support
 setup, score display, tap-to-score panels for rally-winner input, undo and
 end controls inside the call bar, correction mode when available, and voice
 announcements while keeping the screen awake and using large high-contrast
 layout.
 
 Tablet Only owns its match state and uses the shared scoring engine exactly
-like Phone Only mode. This is simpler and immediately useful before
-multi-device sync exists.
+like Phone Only mode. This standalone mode stays fully usable independent of whether
+multi-device sync is available on a given network — a tablet with no phone nearby scores just
+as well as one that's paired.
 
 In screen routing, a local match always takes priority over remote display
 state. The tablet shows its full controller UI whenever a local match is
@@ -316,11 +317,10 @@ it renders a connected phone-owned controller only when an active phone match
 snapshot exists; otherwise it renders the normal setup screen so the tablet is
 always usable as a standalone controller.
 
-## Tablet Display Client And Future Sync
+## Tablet Display Client And Phone-Tablet Sync
 
-The existing passive tablet display client can remain as a prototype or fallback, but it is no longer the main Phase 3 direction.
-
-The tablet distinguishes two modes:
+The tablet is a controller first, not a passive display client — a purely passive, read-only
+tablet mode is not the shipped behavior. The tablet distinguishes two modes:
 
 - **Local controller mode:** when a match is started locally, the tablet
   shows tap-to-score panels with full UNDO/END controls and owns match
@@ -525,11 +525,18 @@ Current behavior: pressing Enter/Done does not auto-focus the next field.
 - Rally history is not persisted across process death.
 - TTS voice selection uses best available English voice from Android; no in-app voice picker exists.
 - Voice settings support Off, Phone only, Watch only, Tablet only, Watch then Phone, Watch then Tablet, and Phone then Tablet.
-- Wear app has an initial phone sync path, but real-device pairing/reconnect behavior still needs hardening.
-- Wear app currently contains prototype scoring logic; target watch control must move scoring authority back to the phone.
-- Tablet Only mode is not fully implemented yet.
-- Phone + Tablet synced scoring is future work and needs conflict handling.
-- Tablet display WebSocket sync is an initial prototype and still needs venue/hotspot hardening if retained.
+- Wear real-device pairing/reconnect behavior has had substantial hardening (watch-tablet fallback
+  authentication, the tablet-discovery deadlock fix, screen-stay-awake fix) but still has no
+  dedicated automated test coverage for the sync paths themselves.
+- Connected watch mode does not run scoring logic — that was Phase 2 work, already delivered (see
+  `docs/Roadmap.md`). Watch Only standalone mode legitimately owns its own scoring by design; that
+  is not the same thing as connected-mode scoring authority living on the watch.
+- Tablet Only mode is fully implemented (Phase 3 complete — see `docs/Roadmap.md`).
+- Phone + Tablet command/state sync is implemented and hardened; what remains future work is
+  deterministic conflict handling for near-simultaneous multi-device input, not the sync itself.
+- Tablet display WebSocket sync has had substantial hardening this pass: HMAC authentication,
+  per-IP rate limiting, correct connection-state reporting, a working manual retry, and an
+  idle-vs-active broadcast cadence. It remains local-network only by design (no cloud relay).
 - Phone app restores active match score state and player names after app relaunch, but undo history is not persisted yet.
 - `PlayerRepository` is per-device; manual add/rename/delete via "Manage Players" does not sync across devices. Only players seen through an active match broadcast are auto-learned by a passively-displaying tablet.
 - The periodic UDP/TCP/WebSocket state broadcast (scores, team/player names) is plaintext; only the WebSocket and watch↔tablet fallback command channels are HMAC-authenticated.

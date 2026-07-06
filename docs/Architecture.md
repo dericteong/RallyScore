@@ -2,7 +2,7 @@
 
 ## Summary
 
-RallyScore is a flexible scoring ecosystem that supports multiple device combinations. Additional devices enhance the experience but are not required. Exactly one active source of truth must exist per match. Phone Only, Tablet Only, and Watch Only may each own standalone match state. When a watch is used in connected mode, the phone remains the primary hub. Future Phone + Tablet synced modes must share one canonical match state.
+RallyScore is a flexible scoring ecosystem that supports multiple device combinations. Additional devices enhance the experience but are not required. Exactly one active source of truth must exist per match. Phone Only, Tablet Only, and Watch Only may each own standalone match state. When a watch is used in connected mode, the phone remains the primary hub. Phone + Tablet synced modes already share one canonical match state today (see "Display Surface And Phone-Tablet Sync" below) — what remains future work is deterministic conflict handling for near-simultaneous multi-device input, not the sync itself.
 
 Supported modes:
 
@@ -37,7 +37,7 @@ Canonical connected architecture:
     +----------------+
 ```
 
-Phone Only and Tablet Only are first-class experiences. Watch Only may own standalone match state. In Watch + Phone mode, the watch becomes a remote control and the phone owns synchronized match state, scoring decisions, undo history, voice timing, and display output. In future Phone + Tablet synced modes, phone and tablet must share one canonical match state and explicit conflict handling. The scoring engine is independent of Android so rules can be reused and unit-tested.
+Phone Only and Tablet Only are first-class experiences. Watch Only may own standalone match state. In Watch + Phone mode, the watch becomes a remote control and the phone owns synchronized match state, scoring decisions, undo history, voice timing, and display output. In Phone + Tablet synced modes, phone and tablet already share one canonical match state; explicit conflict handling for near-simultaneous multi-device input is the remaining gap, not the sync itself. The scoring engine is independent of Android so rules can be reused and unit-tested.
 
 ## Phone App
 
@@ -138,11 +138,20 @@ Non-responsibilities:
 - Local-controller mode provides full controls and owns match state.
 - Local match state always takes priority over remote state in routing.
 
-## Display Surface And Sync Prototype
+## Display Surface And Phone-Tablet Sync
 
 The shared display surface can still be the normal phone score screen mirrored during live play or a Tablet Only controller screen.
 
-Initial wireless tablet display sync is display-only and local-network only. The phone hosts a lightweight local WebSocket publisher for display-ready score snapshots. Tablet-sized Android screens can connect to the phone over external Wi-Fi or the phone's own hotspot and render the latest confirmed phone-owned snapshot. No Internet connection is required. The tablet can also scan its local subnet for the phone WebSocket so the connection is initiated from the tablet on networks that block inbound phone-to-tablet delivery. Discovery uses live IPv4 network interfaces, remembered endpoints, gateway probing, UDP broadcasts, and the earlier TCP endpoint path as fallback aids. Users should not need to know or enter IP addresses.
+Wireless tablet sync is local-network only (no Internet, no cloud relay) and is bidirectional
+command/state sync, not just a passive display feed: the phone hosts a lightweight local
+WebSocket server for display-ready score snapshots, and the same connection carries
+tablet-to-phone commands (rally, undo, end, corrections — see below). Tablet-sized Android
+screens can connect to the phone over external Wi-Fi or the phone's own hotspot and render the
+latest confirmed phone-owned snapshot. The tablet can also scan its local subnet for the phone
+WebSocket so the connection is initiated from the tablet on networks that block inbound
+phone-to-tablet delivery. Discovery uses live IPv4 network interfaces, remembered endpoints,
+gateway probing, UDP broadcasts, and the earlier TCP endpoint path as fallback aids. Users should
+not need to know or enter IP addresses.
 
 Phone-tablet sync now carries two identities:
 

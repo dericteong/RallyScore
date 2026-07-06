@@ -230,9 +230,12 @@ Initial implementation exists. Required before the connected Watch + Phone produ
 - External display shows team scores, serving team, and server number with no live-match controls.
 - Debug logs show command send/receive and score-state publish/receive.
 
-### Phase 2 Exit Checks
+### Connected Watch + Phone Regression Checks
 
-Treat Phase 2 as complete enough to move focus to Phase 3 only when all of the following pass on real hardware:
+These originally gated the Phase 2 → Phase 3 transition; Phase 3 (Tablet Only) is now complete
+too (see `docs/Roadmap.md`), but these remain the core regression checklist for connected
+Watch + Phone behavior — confirm all of the following still pass on real hardware after any sync
+or wear-module change:
 
 - Connected watch remains on the phone-owned scoreboard during an idle active match and does not flicker back to start.
 - From connected idle state, selecting `PHONE MODE`, choosing a serving side,
@@ -286,12 +289,12 @@ Treat Phase 2 as complete enough to move focus to Phase 3 only when all of the f
 - Existing phone-sized score screen remains unchanged on phones.
 - Tablet UI must not duplicate scoring rules outside the shared engine.
 
-## Tablet Display Client / Sync Prototype Manual Test
+## Tablet Display Client / Phone-Tablet Sync Manual Test
 
 - Display-client mode remains passive if explicitly used.
 - Before receiving an active phone match, tablet shows the normal setup screen.
 - Disconnected tablet can set up, score, undo, and end a standalone match.
-- Starting a match on the phone opens the passive tablet display layout after sync connects.
+- Starting a match on the phone opens the connected tablet controller layout (tap-to-score, EDIT/UNDO/END) after sync connects, not a read-only display.
 - Tablet display shows player names, scores, serving side, server number, and CALL.
 - When phone and tablet are on the same local network or the tablet is connected to the phone hotspot, tablet discovery/WebSocket logs show one or more phone display endpoints.
 - With no external Wi-Fi available, turn on the phone hotspot, join the tablet to that hotspot, and verify the tablet finds the phone without manual IP entry.
@@ -369,18 +372,16 @@ Treat Phase 2 as complete enough to move focus to Phase 3 only when all of the f
 - Serving player name should reflect current server state.
 - Undo history is NOT persisted (only current match state restores).
 
-## Future Phone + Tablet Sync Manual Test
+## Phone + Tablet Peer Conflict Manual Test
 
-Not required until synced tablet controller mode is implemented.
+Synced tablet controller mode (command/state sync) is implemented — see "Tablet Display Client /
+Phone-Tablet Sync Manual Test" above for its regression checklist. The one item below remains
+genuinely future work, not yet implemented or tested:
 
-- Phone and tablet join the same match intentionally.
-- Only one canonical match state exists.
-- Rally input from phone updates tablet.
-- Rally input from tablet updates phone.
-- Watch input updates phone and tablet.
-- Undo from phone or tablet restores the same canonical previous state.
-- Simultaneous phone/tablet commands are resolved deterministically.
-- Devices resync after temporary disconnect.
+- Send phone and tablet (or watch and tablet) scoring input at nearly the same instant and confirm
+  the outcome is a deliberately-designed, deterministic resolution — not just "whichever command
+  the phone's main thread happened to process first," which is today's actual (race-safe but
+  undesigned) behavior.
 
 ## Crash Checks
 

@@ -8,8 +8,8 @@ These are text wireframes for the current design direction. They are not pixel-p
 - Phone Only: phone setup and scoring screen.
 - Tablet Only: tablet setup and large scoring-controller screen.
 - Watch + Phone: phone setup/source of truth, watch remote control, phone display.
-- Phone + Tablet synced: future shared canonical match state across phone and tablet.
-- Watch + Phone + Tablet synced: future watch remote control with phone/tablet sharing one canonical match state.
+- Phone + Tablet synced: shared canonical match state across phone and tablet (implemented; deterministic multi-device conflict handling still future work).
+- Watch + Phone + Tablet synced: watch remote control with phone/tablet sharing one canonical match state (implemented and works today).
 - Watch + Phone + Portable Monitor: phone source of truth, shared display through mirroring.
 
 ## Phone Setup Screen
@@ -243,7 +243,7 @@ Tablet-specific setup differences from phone:
   screen (team-card column + controls column) centers vertically in the
   available height instead of pinning to the top.
 - The RallyScore icon/title get their own full-width row at a larger size
-  (48dp icon, 34sp title); the COURT/WATCH/TABLET status badges sit on their
+  (68dp icon, 46sp title); the COURT/WATCH/TABLET status badges sit on their
   own row below it, each showing its full label (unlike the phone layout,
   which shortens labels to fit three badges on one narrow row).
 - "MANAGE PLAYERS" is a larger button (48dp tall, 16sp text) than on phone.
@@ -298,7 +298,7 @@ Tablet controller behavior:
 - Owns match state only in Tablet Only mode.
 - Must not independently score a phone-owned synced match.
 
-## Tablet Display Client Prototype
+## Connected Tablet Controller (Phone-Tablet Sync)
 
 When the tablet is disconnected, searching, or has no active phone-owned match,
 it uses the normal setup screen and can start a standalone tablet-owned match.
@@ -336,7 +336,7 @@ Connected tablet behavior:
   connected to a phone-owned match.
 - Does not update optimistically; the screen updates only after confirmed
   phone-owned snapshots return.
-- Initial wireless sync uses local-network WebSocket snapshots and
+- Wireless sync uses local-network WebSocket snapshots and HMAC-authenticated
   tablet-to-phone commands.
 - If wireless snapshots stop, the tablet drops stale remote display
   state after a short timeout.
