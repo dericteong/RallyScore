@@ -1,5 +1,10 @@
 # RallyScore Connectivity Research
 
+Originally a point-in-time research snapshot; reviewed and corrected 2026-07-06 against the
+current codebase. `docs/Architecture.md` and `docs/TDD.md` are the continuously-maintained source
+of truth for connectivity design going forward — treat this doc as useful background/history, not
+the primary reference.
+
 ## 1. Wear OS Data Layer Sync
 
 The watch-to-phone synchronization uses the **Android Wear OS Data Layer API** (`com.google.android.gms:play-services-wearable:19.0.0`) with two distinct communication channels.
@@ -134,21 +139,21 @@ Phone app is fully functional without any watch connection. `ScoreboardViewModel
 
 ### Mode 3: Tablet Only
 
-**Status: Partial (Phase 3, in progress).**
+**Status: Complete — first-class mode (Phase 3 done).**
 
-Tablet-sized screens (≥600dp) render `MatchSetupScreen` for standalone tablet scoring using the same `ScoreboardStore` and `PickleballScoringEngine` as the phone. Full tablet controller implementation is mid-transition between passive display client and standalone controller.
+Tablet-sized screens (≥600dp) render `MatchSetupScreen` for standalone tablet scoring using the same `ScoreboardStore` and `PickleballScoringEngine` as the phone. Tablet controller mode (tap-to-score, EDIT/UNDO/END) is fully implemented, not mid-transition — the tablet is either a standalone controller (owns its own match) or a connected controller sending intent to the phone, never a purely passive display.
 
 ### Mode 4: Phone + Tablet Synced
 
-**Status: Not yet implemented (Phase 5).**
+**Status: Command/state sync implemented; conflict handling not yet implemented.**
 
-Current tablet code supports a passive display-only client. True bidirectional sync requires explicit pairing, shared canonical state, bidirectional command sync, and conflict handling.
+The tablet sends rally/Undo/End/correction commands to the phone over an HMAC-authenticated, rate-limited WebSocket channel with explicit court-code pairing (not passive display-only, as this doc originally said). The phone applies every command through the shared scoring engine and broadcasts confirmed state back to all connected displays. What's still missing is deterministic conflict handling for near-simultaneous phone/tablet/watch input — today's behavior is race-safe (main-thread serialized, no state corruption) but not a designed conflict-resolution policy. See `docs/Roadmap.md` Phase 5 and `docs/CodeReviewFindings.md`.
 
 ### Mode 5: Watch + Phone + Tablet
 
-**Status: Not yet implemented.**
+**Status: Works today.**
 
-Depends on Mode 4 completion. Design requires phone as the primary hub with watch remote control and tablet as synced controller/display.
+Exercised across all three device combinations during Phase 3 hardening. Phone is the primary hub; watch sends command-only input; tablet is either standalone or a connected controller — never two simultaneous sources of truth. The same conflict-handling gap noted in Mode 4 applies here too.
 
 ### Mode 6: Watch + Phone + Portable Monitor
 
@@ -176,7 +181,9 @@ else → MatchSetupScreen
 | Watch → Phone | Message (`MessageClient`) | User intent commands only |
 | Phone → Watch | Data (`DataClient`) | Full authoritative score state |
 | Phone → Tablet | UDP/TCP/WebSocket | Display snapshots |
-| Tablet → Phone | UDP | Hello discovery only |
+| Tablet → Phone | UDP | Hello discovery |
+| Tablet → Phone | WebSocket (HMAC-signed) | Rally/Undo/End/correction commands (not discovery-only) |
+| Watch ↔ Tablet | TCP (HMAC-signed), UDP hello | Direct fallback command/state sync when no phone is present |
 
 ### State Ownership
 
@@ -186,12 +193,12 @@ else → MatchSetupScreen
 | Phone Only | Phone (`ScoreboardStore` → `ScoreboardViewModel`) |
 | Watch + Phone | Phone (`RallyScorePhoneHub.store`) |
 | Tablet Only | Tablet (`ScoreboardStore` via same code as phone) |
-| Phone + Tablet (display client) | Phone (tablet is passive) |
-| Future synced modes | Phone as hub, shared canonical state |
+| Phone + Tablet connected | Phone (tablet sends intent-only commands, never mutates its own score optimistically) |
+| Watch + Phone + Tablet | Phone (single hub; watch and tablet are both command-only in this mode) |
 
 ### Conflict Resolution
 
-In the current Watch + Phone mode, there is a single command source (the watch) and a single state owner (the phone), so conflicts cannot occur.
+In Watch + Phone mode, there is a single command source (the watch) and a single state owner (the phone), so conflicts cannot occur.
 
 The confirmation flow provides basic reliability:
 - Watch sends command, sets `awaitingPhoneConfirmation = true`, disables further input
@@ -199,7 +206,13 @@ The confirmation flow provides basic reliability:
 - When a new phone score snapshot arrives with `updatedAt > baseline`, command is confirmed and input re-enabled
 - If 2.2 seconds pass without confirmation, watch shows "PHONE?" error feedback
 
-For future Phone + Tablet synced mode, conflict handling for simultaneous commands is required but not yet implemented.
+In Phone + Tablet (and Watch + Phone + Tablet) connected mode, the phone is still the single state
+owner even though there can now be multiple command *sources* (watch and tablet at once). Every
+command is applied on the phone's main thread in the order it's received, which is race-safe (no
+corrupted state) but not a designed conflict-resolution policy — if two devices send input at
+nearly the same instant, whichever the phone processes first simply wins and the second applies on
+top of the new state. Deterministic, tested conflict handling for that near-simultaneous case is
+still a real gap (see `docs/Roadmap.md` Phase 5).
 
 ---
 
@@ -215,10 +228,12 @@ For future Phone + Tablet synced mode, conflict handling for simultaneous comman
 
 ### Tablet-Phone Robustness
 
-- **Connection states**: `Searching` (gray), `Reconnecting` (red, keeps last score visible), `Connected` (amber)
+- **Connection states**: `Searching` (gray), `Reconnecting` (red, keeps last score visible), `Connected` (amber) — the UI now correctly reflects these; a previously-shipped bug fed the setup screen the wrong (host-role instead of client-role) connection state, so a tablet's pairing badge could never show `Connected` no matter how many times the underlying connection actually succeeded. Fixed.
 - **Staleness**: If no snapshot in 5 seconds → `Reconnecting`; tablet endpoint entries removed after 30 seconds
-- **Reconnect**: Tablet remembers last endpoint, retries WebSocket up to 5 times with 2s intervals, subnet scanning every 15 seconds while disconnected
-- **Known issue**: Some Wi-Fi paths block local WebSocket/discovery delivery (client isolation, firewall rules)
+- **Reconnect**: Tablet remembers last endpoint, retries WebSocket up to 5 times with 2s intervals, subnet scanning every 15 seconds while disconnected. A manual "tap to retry" badge action now reliably forces a fresh attempt (a previous version silently no-opped if an automatic retry was already mid-backoff).
+- **Broadcast cadence**: Phone broadcasts at 1 Hz while a match is active or a tablet is connected/recently seen; idles to a 5-second cadence otherwise, instead of running at 1 Hz forever.
+- **Security**: WebSocket commands require a per-connection HMAC-SHA256 signature plus rate limiting on the accept loop; payload fields are length-capped/clamped.
+- **Known issue**: Some Wi-Fi paths block local WebSocket/discovery delivery (client isolation, firewall rules). Separately, a tablet's own phone-hosting broadcast can appear in its own "AVAILABLE PHONES" discovery list (every device advertises regardless of role) — not yet fixed.
 
 ### Watch Debounce and Feedback
 
@@ -232,13 +247,15 @@ For future Phone + Tablet synced mode, conflict handling for simultaneous comman
 
 ### Known Gaps
 
-1. **Watch-Phone sync needs real-device hardening** — initial implementation, not battle-tested
-2. **Tablet display sync is local-network prototype** — some Wi-Fi networks block delivery
-3. **No Bluetooth-specific connectivity** — only Android audio routing for speakers
-4. **No bidirectional Phone-Tablet sync** — current tablet is passive display-only or standalone controller
-5. **Undo history not persisted** — in-memory only, lost on restart
-6. **No capability-based pairing** — discovery uses `NodeClient.connectedNodes`; no explicit pairing handshake
-7. **Watch confirmation is timestamp-based** — no explicit acknowledgment from transport layer
+1. **Watch-Phone sync has had substantial real-device hardening** (main-thread command serialization, `PrintWriter` write-failure detection) but no dedicated automated test coverage for the sync paths themselves exists yet.
+2. **Tablet display sync is local-network only** — some Wi-Fi networks block delivery; this remains an inherent constraint of local-network-only sync, not a bug.
+3. **No Bluetooth-specific connectivity** — only Android audio routing for speakers.
+4. **Phone-Tablet sync is bidirectional command/state sync today** (rally, undo, end, corrections both ways, HMAC-authenticated), not passive display-only as this doc originally said — but it's not yet a fully conflict-handled peer-controller model (see "Conflict Resolution" above).
+5. **Undo history not persisted** — in-memory only, lost on restart.
+6. **Watch-Phone discovery has no capability-based pairing** — `NodeClient.connectedNodes` has no explicit pairing handshake (this is still accurate for the Wear Data Layer path specifically). The phone-tablet and watch-tablet-fallback paths, by contrast, now do have explicit pairing: a court code, HMAC-signed commands, and per-IP rate limiting.
+7. **Watch confirmation is timestamp-based** — no explicit acknowledgment from transport layer.
+8. **Sync-layer singletons have no lifecycle teardown** — `RallyScorePhoneHub`/`TabletDisplaySync`/`WatchTabletFallbackSync` live for the process lifetime with no formal shutdown; deliberately left alone during this pass to avoid destabilizing hardening that just landed (see `docs/CodeReviewFindings.md` finding #9).
+9. **A tablet can see its own court code as a pairable candidate** in its own discovery list, since every device advertises phone-hosting availability regardless of role — not yet fixed.
 
 ---
 

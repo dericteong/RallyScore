@@ -41,11 +41,15 @@ This checklist is a low-risk release-readiness guide for publishing RallyScore t
 
 - Phone/tablet experience is landscape-first by product design.
 - Wear app supports standalone scoring and connected scoring.
+- Wear app implements Ambient Mode; behavior depends on the watch's own OEM Wear OS build (see
+  `docs/Architecture.md` "Wear App").
 - Phone backup is intentionally disabled to avoid restoring stale live match/player state across devices.
 
 ## Build Hardening
 
-- Release builds (`app` module) run with `isMinifyEnabled = true` (R8 code shrinking/obfuscation on); verified `assembleRelease` succeeds with the existing `proguard-rules.pro`.
+- Release builds run with `isMinifyEnabled = true` (R8 code shrinking/obfuscation on) in both the
+  `app` and `wear` modules; verified `assembleRelease` succeeds for both with their respective
+  `proguard-rules.pro`.
 - `android:allowBackup="false"` remains set; no explicit `android:debuggable` override exists for release.
 - Phone-tablet WebSocket command channel requires a per-connection HMAC signature plus session-ID match for live-match commands; the periodic state broadcast itself remains plaintext (see `docs/TDD.md` "Command channel hardening").
 

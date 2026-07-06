@@ -9,11 +9,17 @@ These ideas are not MVP commitments. Move items to `Roadmap.md` only after they 
 - Repeat current score button.
 - Optional announcements for side out or server change.
 - Bluetooth-specific voice mode.
-- Tablet voice announcements.
+- ~~Tablet voice announcements.~~ Shipped — `VoiceAnnouncementMode.TabletOnly` and the
+  Watch-then-Tablet/Phone-then-Tablet combined modes are implemented (see `docs/PRD.md`
+  "Voice Announcements" and `docs/Architecture.md`).
 
 ## Watch Controller Polish
 
-- Haptic feedback variants after watch rally entry.
+- ~~Haptic feedback variants after watch rally entry.~~ Shipped — the watch already uses four
+  distinct vibration patterns for rally input, undo, confirmed remote state, and connection
+  problems (`vibrateSingleTap`/`vibrateDoubleTap`/`vibrateWatchConfirmed`/`vibrateWatchProblem`
+  in `wear/.../WearScoreboardApp.kt`). A remaining idea in this space: user-customizable/selectable
+  haptic styles, which is not implemented.
 - Optional watch complication or tile for current score.
 - Repeat current score from watch.
 - Left-handed watch layout option.

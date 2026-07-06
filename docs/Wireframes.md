@@ -130,6 +130,24 @@ Round/small-screen optimized primary controller layout:
 - Undo sits alone in a compact utility row beneath the score call.
 - End moves off the crowded main row and is triggered from a secondary gesture so score tiles can stay fully readable on round displays.
 
+Ambient (dimmed-display) view:
+
+```text
+---------------------
+|                    |
+|     8 - 6 - 2      |
+|  WE WON 8 · OPP 6  |
+|                    |
+---------------------
+```
+
+- Replaces the normal interactive layout while the system dims the display for power saving,
+  instead of the screen going fully black.
+- Dim gray text on a black background only — no filled color blocks, to stay burn-in safe.
+- Shows whichever score is currently active (standalone Watch Only, or the phone/tablet-connected
+  match); shows just the RallyScore wordmark if no match is active.
+- No controls are shown or usable in ambient view.
+
 Standalone Watch Only behavior:
 
 - Supports a local `CLASSIC` / `RALLY` scoring selector before starting the match.

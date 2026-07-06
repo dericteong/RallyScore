@@ -78,34 +78,38 @@ Phase 2 exit criteria before Phase 3 becomes the primary focus:
 
 ## Phase 3 - Tablet Standalone Controller
 
-Status: Current phase.
+Status: Complete enough for Phase 4/5 iteration. Tablet Only is a first-class mode, and the
+phone-to-tablet connection has been hardened through live-device debugging (see
+`docs/CodeReviewFindings.md` for the specific bugs found and fixed): HMAC-authenticated commands,
+per-IP rate limiting on both the WebSocket and TCP channels, correct Searching/Reconnecting/Connected
+state reporting (a real bug had this permanently stuck), a working manual retry action, and an
+idle-vs-active broadcast cadence that doesn't spam the network.
 
-Current priority:
+Delivered:
 
-- Harden the existing phone-to-tablet display-client connection before adding new tablet controller features.
-- Tablet should reconnect automatically after local-network disconnect/reconnect, app relaunch, or tablet reboot.
-- Phone-to-tablet display sync should work over external Wi-Fi or the phone's hotspot with no Internet and no manual IP address entry.
-- Phone should accept reconnecting tablets and send the latest match state without manual action.
-- Tablet should expose clear Searching for phone, Reconnecting, and Connected states.
-- Connected tablet should send rally, Undo, and End commands to the phone and wait for confirmed phone-owned state.
-- Watch to phone scoring must remain unchanged.
+- Phone-to-tablet display-client connection is hardened: HMAC-signed commands, rate-limited
+  accept loops, payload bounds-checking, and a read-timeout tuned to the broadcast cadence.
+- Tablet reconnects automatically after local-network disconnect/reconnect, app relaunch, or
+  tablet reboot; the phone accepts reconnecting tablets without manual action.
+- Phone-to-tablet display sync works over external Wi-Fi or the phone's hotspot with no Internet
+  and no manual IP address entry.
+- Tablet exposes working Searching for phone, Reconnecting, and Connected states, plus a manual
+  "tap to retry" action that reliably forces a fresh connection attempt.
+- Connected tablet sends rally, Undo, End, and score/server corrections to the phone and waits
+  for confirmed phone-owned state before updating its display.
+- First-class Tablet Only controller mode: match setup, rally-winner scoring, Undo, correction
+  mode, large readable scoreboard, keeps screen awake, uses the shared scoring engine exclusively.
+- Watch-to-phone scoring is unchanged by any of the above.
 
-Goals:
+Remaining known gaps (see `docs/CodeReviewFindings.md` for details):
 
-- Add a first-class Tablet Only controller mode inside the Android app.
-- Allow match setup on tablet.
-- Allow rally-winner scoring on tablet.
-- Allow Undo on tablet.
-- Support correction mode on tablet when available in the shared phone/tablet UI.
-- Show team scores, serving team, server number, player names, and CALL clearly.
-- Make typography readable by all four players.
-- Keep tablet screen awake.
-- Use the shared scoring engine; do not duplicate scoring rules in tablet UI.
-- Keep exactly one active source of truth per match.
-- Keep phone and watch flows unchanged.
-- Avoid cloud, accounts, and complex phone-tablet sync in this phase.
-
-Existing passive tablet display sync may remain as a prototype/fallback, but it is no longer the main Phase 3 direction.
+- A tablet's "AVAILABLE PHONES" list can show its own court code as a pairable candidate, since
+  every device broadcasts phone-hosting availability regardless of role — not yet fixed.
+- Sync-layer singletons (`RallyScorePhoneHub`, `TabletDisplaySync`, `WatchTabletFallbackSync`)
+  still have no lifecycle teardown; deliberately left alone rather than risk destabilizing the
+  sync layer this hardening pass just fixed.
+- The wire protocol's version detection (nine legal field counts) is fragile; revisit at the next
+  protocol-breaking change rather than migrating speculatively.
 
 ## Phase 4 - Portable Monitor Support
 
@@ -120,31 +124,46 @@ Goals:
 
 ## Phase 5 - Phone + Tablet Synced Controller
 
-Status: Not started.
+Status: Command/state sync foundation already delivered as part of Phase 3 hardening — this is
+further along than "not started." What's already true today (Mode 4 in `docs/PRD.md`): phone and
+tablet share one canonical match state, the tablet sends rally/Undo/End/correction intent to the
+phone over an authenticated channel, the phone applies every command through the shared scoring
+engine, and confirmed state is broadcast back to all connected displays (tablet and watch alike).
+Watch + Phone + Tablet synced mode (Mode 5) works today and was exercised extensively across all
+three device combinations during Phase 3 hardening.
 
-Goals:
+What's genuinely still missing:
 
-- Build on the new explicit phone-tablet pairing/discovery foundation.
-- Share one canonical match state between phone and tablet.
-- Evolve current tablet-to-phone command sync into full synced controller mode.
-- Allow either phone or tablet to send rally, undo, and correction intent with conflict handling.
-- Ensure score updates from either device update all devices.
-- Add conflict handling when phone and tablet send commands at nearly the same time.
-- Preserve Watch + Phone flow and allow Watch + Phone + Tablet synced mode.
-- Harden reconnect behavior across Wi-Fi/hotspot environments.
+- Deterministic conflict handling when phone and tablet (or watch and tablet) send commands at
+  nearly the same instant is not explicitly engineered or tested — today's behavior is "whichever
+  command the phone's main thread processes first wins, the next applies on top of the new state,"
+  which is race-safe (no corrupted state) but not a designed conflict-resolution policy.
+- Reconnect behavior across Wi-Fi/hotspot environments has been hardened substantially (see Phase
+  3), but that hardening happened at the connection-transport level, not as bidirectional
+  peer-controller conflict handling specifically.
+
+Remaining goals:
+
+- Explicitly design and test conflict handling for near-simultaneous phone/tablet/watch input,
+  rather than relying on incidental main-thread serialization.
+- Decide whether "either device can be the source of truth mid-match" is actually desired product
+  behavior, or whether "phone is always the source of truth, tablet/watch are always controllers"
+  (today's model) is the intended permanent design — the current architecture is the latter, and
+  changing that would be a deliberate product decision, not just an implementation gap.
 
 ## Priority Order
 
-1. Phone remains stable source of truth.
-2. Watch controls phone score.
-3. Phone-only experience is excellent.
-4. Tablet-only controller experience is excellent.
-5. Phone voice announcements.
-6. Large display mode optimized for mirroring.
-7. Portable monitor support.
-8. Phone-tablet synced mode.
-9. Bluetooth speaker support.
-10. Tournament features.
+1. Phone remains stable source of truth. — Done.
+2. Watch controls phone score. — Done.
+3. Phone-only experience is excellent. — Done.
+4. Tablet-only controller experience is excellent. — Done (Phase 3).
+5. Phone voice announcements. — Done (Off/Phone/Watch/Tablet/Watch→Phone/Watch→Tablet/Phone→Tablet).
+6. Large display mode optimized for mirroring. — Done (`docs/Architecture.md` "Mirrored Display").
+7. Portable monitor support. — Not started (Phase 4).
+8. Phone-tablet synced mode. — Command/state sync foundation done (Phase 5); genuine
+   simultaneous-input conflict handling still open.
+9. Bluetooth speaker support. — Not started.
+10. Tournament features. — Not started (Phase 6).
 
 ## Phase 6 - Club And Tournament Features
 

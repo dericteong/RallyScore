@@ -217,6 +217,22 @@ Connected tablet non-responsibilities:
 - No optimistic score mutation before phone confirmation.
 - No cloud relay.
 
+The phone's UDP broadcast (`TabletDisplaySync.runBroadcaster`) idles to a 5-second cadence
+instead of running at 1 Hz forever, whenever there's no active match and no tablet connected or
+recently seen — it returns to 1 Hz the moment a match starts or a tablet appears. A freshly opened
+tablet still discovers the phone within a few seconds.
+
+Every device runs both a phone-hosting connection state and a tablet-client connection state,
+because the same `TabletDisplaySync` singleton backs both roles regardless of which one a given
+device actually uses. UI that shows pairing status must read the role-appropriate state (client
+state for a device acting as tablet, host state for a device acting as phone) — feeding the wrong
+one means the UI can never reflect a real, successfully-established connection.
+
+**Known issue:** because every device broadcasts its own phone-hosting availability regardless of
+role, a tablet's "AVAILABLE PHONES" list can show its own court code as a pairable candidate
+alongside the real phone it's trying to reach. Not yet fixed — see
+`docs/CodeReviewFindings.md`.
+
 ## Shared Domain
 
 `shared/src/main/kotlin/com/courtside/pickleball/domain/`
@@ -248,6 +264,17 @@ Current scoring-format behavior:
 
 `wear/` is a separate Android application with package `com.courtside.pickleball.wear`.
 
+The UI layer is split into per-screen files, the same treatment `ScoreboardApp.kt` got in the
+phone app:
+
+- `MainActivity.kt` — launcher activity; requests `FLAG_KEEP_SCREEN_ON` (re-asserted on window
+  focus regain, not just resume) and implements `AmbientModeSupport.AmbientCallbackProvider`.
+- `WearScoreboardApp.kt` — slim root composable (state hoisting + the connection/mode/voice
+  `LaunchedEffect`s) plus the ambient-mode model/view.
+- `theme/WearTheme.kt` — color constants.
+- `setup/WearSetupScreens.kt` — mode-switch and serve-setup screens.
+- `scoreboard/WearScoreboardScreens.kt` — active-match screens and their shared subcomponents.
+
 Current behavior:
 
 - Uses the shared scoring engine.
@@ -257,6 +284,13 @@ Current behavior:
 - Speaks score calls locally in standalone mode.
 - When the phone has an active match, switches to connected remote-control mode.
 - When the phone is connected but idle, the watch may still start a standalone local match.
+- Implements Wear OS Ambient Mode: instead of just going black once the system dims the display,
+  a low-power, burn-in-safe readout (dim gray text on black) of whichever score is currently
+  active replaces the normal interactive buttons while ambient. Depends on the device's own Wear
+  OS build actually entering the system ambient state before sleep — on at least one tested OEM
+  skin, the manufacturer's own system UI takes over the display during the dozing transition
+  instead of handing ambient rendering back to the app, a device-level constraint outside
+  RallyScore's control.
 
 Standalone Watch Only behavior:
 

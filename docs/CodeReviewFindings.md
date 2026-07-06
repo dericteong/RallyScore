@@ -262,6 +262,21 @@ scoreboard screen (post-split composables: `WearConnectedScoreboardScreen`, `Wea
 `WearConnectionLabel`, `WearCallScoreText`, `WearUtilityRow`, `WearServeDots`) renders pixel-correct
 with a real connected match (`PHONE CONNECTED`, live score, WE WON/OPP WON panels).
 
+## Tablet lists its own court code as a pairable phone (2026-07-06) — **OPEN**
+
+Observed live during on-device testing: a tablet's "AVAILABLE PHONES" list sometimes shows its
+own court code (e.g. "COURT EC5C") as a selectable candidate, alongside the real phone it's
+actually trying to pair to. Root cause: `RallyScorePhoneHub.initialize` calls
+`TabletDisplaySync.startBroadcaster(...)` unconditionally regardless of `deviceRole` — every
+device, tablet or phone, broadcasts its own score-state and `PHONE_WS_PROTOCOL` availability, so
+a tablet-role device's UDP hello gets picked up by other tablets (or itself) exactly like a real
+phone host would. Tapping that self-entry would presumably attempt to pair a tablet to itself,
+though this wasn't tested since it's an obviously-wrong entry to avoid in the UI (visually
+distinguishable by its court code not matching any real phone). Not fixed — flagged during a
+live debugging session and the user didn't ask for a fix at the time. Likely fix: gate
+`startBroadcaster`'s phone-availability advertisement on `deviceRole == DEVICE_ROLE_PHONE`, or
+filter a device's own `hostId` out of its locally-discovered-phones list.
+
 ## Low severity
 
 - `MatchCorrectionDialog.kt` labeled teams "My Team"/"Opponent Team" without the color suffix

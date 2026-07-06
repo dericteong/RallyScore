@@ -151,6 +151,12 @@ Standalone mode:
 - Supports local Traditional or Rally scoring selection for Watch Only mode.
 - Supports setup, scoring, undo, score display, and voice announcements.
 
+Screen behavior (both modes):
+
+- Keeps the display awake and fully interactive during active use.
+- When the system dims the display for power saving, shows a low-power ambient readout of the
+  current score instead of going fully black, on Wear OS hardware that supports it.
+
 ## Phone Responsibilities
 
 - Own score calculations.

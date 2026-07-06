@@ -141,6 +141,7 @@ Use a real phone when possible.
 - "Setup" button in top bar returns to setup screen for editing names mid-match.
 - Phone score screen shows an `EDIT` action.
 - Phone `EDIT` opens a match-adjustment dialog for Team A score, Team B score, serving side, and server number.
+- Correction dialog team labels read "My Team (Blue)" / "Opponent (Green)" or "Opponent Team (Green)", matching the setup screen's color-suffix convention, on both phone and tablet layouts.
 - Phone correction updates the visible call row and remains undoable.
 - TTS announces after rally input.
 - Voice Announcements defaults appropriately for Phone Only mode.
@@ -183,6 +184,11 @@ Use a real phone when possible.
 - Watch gives haptic feedback after undo and reset.
 - Reset returns to serving-team selection.
 - Watch screen stays awake while RallyScore is open.
+- Watch screen stays awake through at least 60+ seconds of no input while a match is active (not
+  just the first few seconds).
+- If the display dims for power saving, it shows a low-power ambient score readout instead of
+  going fully black (device/OEM-dependent; some Wear skins hand ambient rendering to their own
+  system UI instead of the app — note whichever behavior is observed).
 - Score call updates after rally input.
 - TTS announces the initial score after choosing first server.
 - TTS announces score changes after rally input.
@@ -323,6 +329,10 @@ Treat Phase 2 as complete enough to move focus to Phase 3 only when all of the f
   across watch app relaunch and reconnects to that same court when available.
 - In single-tablet `TABLET MODE`, verify the watch start screen favors showing
   the `START` button fully without requiring manual scroll.
+- Switch the watch away from `TABLET MODE` to `WATCH MODE`/`PHONE MODE` while no tablet is
+  connected, then close and reopen the tablet app (or otherwise make a tablet available again).
+  Verify `TABLET MODE` reappears in the mode switcher on its own within a few seconds, without
+  requiring the watch app itself to be relaunched.
 - When the phone starts a new phone-owned match, the connected tablet receives the new session identity before sending later commands.
 - Tablet-to-phone commands include the current phone-owned match session identity.
 - Phone ignores connected tablet commands whose session identity does not match the current phone-owned match.
@@ -330,6 +340,13 @@ Treat Phase 2 as complete enough to move focus to Phase 3 only when all of the f
 - After the tablet connects, a normal single-pairing session (one phone, one tablet, scoring continuously for several minutes) is never rate-limited: scores and player-name changes keep syncing past the first ~10-15 seconds, not just briefly at connection time.
 - A tablet command sent without a valid per-connection HMAC (or with a stale/mismatched session ID) is rejected by the phone and logged as ignored, not silently applied.
 - While a tablet is passively displaying an active phone-hosted match, opening "Manage Players" on the tablet shows the four players from that match, without any manual entry on the tablet.
+- With no match active and no tablet connected, the phone's broadcast cadence drops to roughly
+  once every 5 seconds instead of once per second (check via logcat timestamps on
+  `TabletDisplaySync`'s "Published tablet score snapshot" line); it returns to about once per
+  second immediately once a match starts or a tablet connects.
+- A tablet showing "COURT xxxx · JOINING · TAP TO RETRY" actually reconnects when tapped, reaching
+  "CONNECTED" within about a second, even if the automatic reconnect loop was already mid-retry
+  when tapped (not a silent no-op).
 - Stopping phone broadcasts clears stale tablet display state after a short timeout.
 - Tablet shows Searching for phone before discovering a phone endpoint.
 - Tablet shows Connected after receiving confirmed phone-owned score snapshots.

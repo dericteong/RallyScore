@@ -81,6 +81,13 @@
 
 ## Future Phone + Tablet Sync
 
-- As a player, I want the phone and tablet to share the same match so scoring from either device updates the other.
-- As a player wearing a watch, I want watch input to update the phone and tablet without creating conflicting match states.
-- As a player, I want the app to prevent two unsynchronized devices from independently scoring the same live match.
+The command/state-sync foundation for this section already shipped as part of Phase 3 hardening
+(see "Shared Display" above, and `docs/Roadmap.md` Phase 5): the tablet already sends rally/Undo/
+End/correction intent to the phone, which applies it through the shared engine and broadcasts
+confirmed state back to every connected display, including a connected watch. What's genuinely
+still future is explicit, tested conflict handling for near-simultaneous multi-device input,
+rather than today's incidental (race-safe, but not designed-for) main-thread ordering:
+
+- As a player, I want the app to explicitly resolve — not just avoid corrupting state on — the
+  case where phone and tablet (or watch and tablet) send scoring input at nearly the same instant,
+  so the outcome is predictable rather than "whichever command the phone processes first wins."

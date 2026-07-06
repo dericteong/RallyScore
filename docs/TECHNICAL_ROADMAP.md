@@ -17,28 +17,32 @@ Phone, Phone + Tablet, and Watch + Phone + Tablet experiences.
 
 ## Must Do
 
-### 1. Secure Local Control Commands
+### 1. Secure Local Control Commands — Done
 
-**Problem**
+**Problem (as of the last review — now addressed)**
 
 RallyScore supports local-network control paths across phone, tablet, and
 watch-tablet fallback, but long-term command trust is not yet strong enough for
 shared hotspot or Wi-Fi environments.
 
-**Why it matters**
+**What shipped**
 
-Live scoring trust is the product. If the wrong nearby device can inject score,
-undo, resume, or end commands, RallyScore loses credibility immediately.
+Both local control paths now require per-connection HMAC-SHA256 signatures (secret minted and
+handed to the peer once over the live connection, never broadcast) plus per-IP rate limiting on
+every accept loop:
 
-**Recommended direction**
+- Phone-tablet WebSocket channel: `sync/MessageAuthenticator` + `sync/RateLimiter`, including
+  `StartMatch`/`ResumeMatch` (previously exempt — closed a real hole where any device on the
+  Wi-Fi could reset a live match).
+- Watch-tablet fallback TCP channel: the same pattern, added this pass
+  (`WatchTabletFallbackSync`/`WearMessageAuthenticator`).
+- Payload bounds-checking (length-capped names, clamped scores, restricted server number) guards
+  against malformed or oversized peer packets.
 
-Add lightweight pairing and session protection for all control commands while
-keeping discovery simple and quick for real pickleball use.
-
-**Risk if ignored**
-
-Unexpected score changes, broken trust on shared networks, and higher support
-burden in real-world multi-court environments.
+**Still open, by deliberate choice, not oversight:** the HMAC welcome secret itself travels in
+plaintext on first handshake (accepted risk for a casual courtside app — see
+`docs/TDD.md` "Command channel hardening"), and the periodic state broadcast (not the command
+channel) remains unauthenticated by design.
 
 ### 2. Formalize Sync and Session State Machines
 
@@ -142,7 +146,7 @@ Complete the production baseline for:
 
 Higher chance of release mistakes, submission friction, and operational confusion.
 
-### 6. Harden Wear Reliability and Battery Behavior
+### 6. Harden Wear Reliability and Battery Behavior — Partially done
 
 **Problem**
 
@@ -155,14 +159,22 @@ and glanceability under long social-play sessions.
 If the watch feels flaky, drains too quickly, or reconnects poorly, the core
 product promise weakens even if the phone and tablet behave well.
 
-**Recommended direction**
+**What shipped, found via real-device debugging:**
+- Fixed a genuine deadlock where the watch's direct tablet-discovery listener only ran while
+  "Tablet mode" was already selected, but "Tablet mode" only became selectable once a tablet was
+  already discovered — switching away from it while no tablet was connected killed discovery
+  permanently until the whole watch app was relaunched.
+- Screen now reliably stays awake through active use (`FLAG_KEEP_SCREEN_ON` re-asserted on window
+  focus regain, not just resume — closed a gap where transient system focus loss let the
+  inactivity timeout sneak in).
+- Implemented Wear OS Ambient Mode so the display shows a dim, glanceable score readout instead
+  of going fully black when the system dims it for power saving (device/OEM-dependent — see
+  `docs/Architecture.md` "Wear App").
+- Watch-tablet fallback channel is now authenticated and rate-limited (see item 1 above).
 
-Continue focused hardening around:
-- connection stability
-- idle-state battery use
-- graceful reconnect behavior
-- long-match resilience
-- real-device Wear testing
+**Still open:**
+- No formal battery-usage measurement or diagnostics exist for long social-play sessions.
+- No dedicated real-device Wear test matrix (see "Formalize a Manual Device Test Matrix" below).
 
 **Risk if ignored**
 
@@ -226,7 +238,7 @@ Define and document consistent restore semantics for:
 Restore behavior stays useful but inconsistent, especially after app relaunch
 or reconnect scenarios.
 
-### 3. Run a Performance Pass on Phone and Tablet Sync
+### 3. Run a Performance Pass on Phone and Tablet Sync — Partially done
 
 **Problem**
 
@@ -238,13 +250,16 @@ snapshot churn, discovery noise, and idle network activity.
 Improved efficiency helps battery life, hotspot stability, and long-match
 performance, especially on older devices.
 
-**Recommended direction**
+**What shipped:** the phone's UDP broadcast cadence now idles to once every 5 seconds (from a
+constant 1 Hz) whenever there's no active match and no tablet connected or recently seen,
+returning to 1 Hz the instant a match starts or a tablet appears.
 
-Review and trim unnecessary:
-- snapshot publishing
-- broadcast frequency
-- reconnect chatter
-- idle-state refresh loops
+**Still open:**
+- Tablet's unpaired subnet scanner still probes up to 254 hosts every 15 seconds indefinitely
+  (reasonably behaved already — bails per-host once connected — but not reduced further).
+- Snapshot publishing itself (payload size/frequency during an active match) hasn't been reviewed
+  for trimming.
+- No idle-state refresh-loop review has happened for the Wear Data Layer path specifically.
 
 **Risk if ignored**
 
@@ -510,10 +525,11 @@ This should be introduced after the core product earns trust through stability.
 
 ### Quarter 1
 
-- Secure local control commands
+- ~~Secure local control commands~~ — done.
 - Add protocol contract tests
 - Formalize sync and session states
-- Continue Wear reliability and battery hardening
+- Continue Wear reliability and battery hardening (partially done — see item 6 above for what
+  shipped and what's still open)
 
 ### Quarter 2
 
@@ -525,7 +541,8 @@ This should be introduced after the core product earns trust through stability.
 ### Quarter 3
 
 - Clean up orchestration and transport boundaries
-- Run a performance pass on phone and tablet sync
+- Run a performance pass on phone and tablet sync (partially done — idle broadcast cadence
+  shipped; see item 3 above for what's still open)
 - Complete accessibility and readability review
 - Improve portable monitor polish
 

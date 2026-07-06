@@ -82,9 +82,21 @@ Responsibilities:
 
 Contains:
 
-- Wear launcher activity.
-- Wear Compose UI.
+- `MainActivity` — launcher activity; requests `FLAG_KEEP_SCREEN_ON` (re-asserted in
+  `onWindowFocusChanged` as well as `onResume`, closing a gap where transient system-level focus
+  loss could let the display's own inactivity timeout sneak in) and implements
+  `AmbientModeSupport.AmbientCallbackProvider` to opt into Wear OS Ambient Mode.
+- `WearScoreboardApp.kt` — slim root composable: state hoisting and the ~10 interdependent
+  `LaunchedEffect`s that drive connection/mode/voice behavior, plus the `AmbientScoreInfo`
+  model and `AmbientScoreView` composable. Split per-screen the same way the phone app was:
+  - `theme/WearTheme.kt` — color constants.
+  - `setup/WearSetupScreens.kt` — `WearServeSetupScreen`, `WearConnectedStartChoiceScreen`,
+    the scoring-format selector, and the mode-cycling button.
+  - `scoreboard/WearScoreboardScreens.kt` — `WearConnectedScoreboardScreen`,
+    `WearScoreboardScreen`, and their shared subcomponents (score panels, call text, utility row).
 - `WearPhoneSync`
+- `WearTabletFallbackSync` / `WearMessageAuthenticator` — direct watch↔tablet fallback channel
+  (see "Watch-tablet fallback channel hardening" below).
 - `WearDataLayerListenerService`
 - Text-to-Speech score calls for standalone Watch Only mode.
 
@@ -103,6 +115,32 @@ target a RallyScore tablet directly using the same command/state-sync pattern.
 When multiple tablets are discovered on one network, the watch requires an
 explicit tablet court selection and remembers the last selected tablet court for
 reconnect.
+
+The watch's direct tablet-discovery UDP listener (`WearTabletFallbackSync.startDiscovery`) runs
+any time no match is active, regardless of which mode is currently selected or connected. It used
+to be gated on already being in `WatchStartMode.Tablet` or already tablet-connected, which created
+a deadlock: `TABLET MODE` only appears in the mode switcher once a tablet is discovered, but
+discovery only ran once `TABLET MODE` was already selected. Switching away from it (to
+`WATCH MODE`/`PHONE MODE`) while no tablet was connected killed discovery permanently until the
+watch app was fully relaunched (which resets the selected mode back to its `Tablet` default).
+Since this discovery loop is a passive listen-only socket — the tablet does the broadcasting —
+leaving it running whenever the watch is idle costs nothing.
+
+### Wear Ambient Mode
+
+The watch implements Wear OS Ambient Mode (`androidx.wear:wear`'s `AmbientModeSupport`) instead of
+just going black once the system dims the display. While ambient, `AmbientScoreView` shows a
+low-power, burn-in-safe readout (dim gray text on black, no filled color blocks) of whichever
+score is currently active — standalone Watch Only, or the phone/tablet-connected match — instead
+of the normal interactive buttons. No new permissions are needed; `androidx.wear:wear` was already
+a dependency.
+
+Ambient rendering depends on the device's own Wear OS build actually entering the system ambient
+state before going to sleep. On at least one tested OEM skin (a OnePlus/Oplus watch), the
+manufacturer's own system UI (`SysUiActivity`) takes over the display during the dozing
+transition instead of handing ambient rendering back to the foreground app — a device-level
+constraint outside RallyScore's control, not a bug in `AmbientScoreView`. On more standard Wear OS
+hardware (Pixel Watch, Galaxy Watch) the ambient view is expected to render as designed.
 
 ## Supported Product Modes
 
@@ -376,6 +414,36 @@ Encrypting the broadcast would need its own key-exchange story and was judged
 disproportionate for a casual courtside app; revisit if RallyScore is ever
 used somewhere adversarial (e.g. open tournament Wi-Fi).
 
+**Idle broadcast cadence:** `TabletDisplaySync.runBroadcaster` drops from its normal 1 Hz cadence
+to a 5-second idle interval whenever there's no active match, no tablet connected, and none seen
+recently — instead of broadcasting at 1 Hz forever from app launch regardless of whether anyone's
+around to see it. A freshly opened tablet still discovers the phone within a few seconds. This
+surfaced a real regression during hardening: the tablet's WebSocket read timeout was tuned around
+the old always-1-Hz cadence (4s, tighter than the new 5s idle gap), so a perfectly healthy idle
+*connection* started looking dead to the tablet and got torn down and reconnected every cycle.
+Fixed by raising that read timeout to 8s, comfortably ahead of the idle interval.
+
+### Watch-tablet fallback channel hardening
+
+The direct watch↔tablet fallback channel (used when the tablet is the hub with a watch attached,
+no phone present) mirrors the phone-tablet hardening pattern above:
+
+- `WatchTabletFallbackSync` (tablet side) gained a `RateLimiter` on its TCP accept loop (30
+  connections/min per IP — this channel is one persistent connection per watch, not a per-tick
+  reconnect like the phone→tablet TCP push, so it doesn't need that channel's higher budget) plus
+  a per-connection secret (`MessageAuthenticator.newSecret()`) sent once as a
+  `RALLYSCORE_WATCH_TABLET_WELCOME_V1` line immediately after accept.
+- Every watch command now carries `commandPath|timestamp|mac` and is rejected unless the HMAC
+  verifies.
+- `WearTabletFallbackSync` (watch side) gained a sign-only `WearMessageAuthenticator` (no
+  `matches`/`newSecret` — the watch never verifies, only signs) and reads the welcome line before
+  sending signed commands, on both the persistent socket and the one-shot command path used when
+  no persistent connection exists yet.
+
+This closed the same class of hole as the (already-fixed) phone-tablet channel: previously any
+TCP client on the same Wi-Fi could send `END_MATCH`/`START_MATCH` to a tablet-hosted match with
+zero authentication.
+
 This is now exposed as an explicit MVP pairing flow for multi-court use on one
 hotspot or shared Wi-Fi:
 
@@ -412,6 +480,18 @@ composable evaluates `matchStarted` before any remote-state branch, ensuring
 a local match is never hidden by a remote snapshot. If no local match is active
 and no active phone-owned snapshot exists, the tablet falls through to setup
 instead of showing a blocking waiting screen.
+
+**Host-role vs. client-role connection state:** every device runs both a phone-hosting role
+(`TabletDisplaySync.hostConnectionState` — is some other display connected *to me*) and a
+tablet-client role (`TabletDisplaySync.clientConnectionState` — did *my* attempt to connect to a
+phone succeed), because the same singleton backs both roles regardless of which one a given
+device actually uses. `MatchSetupScreen`'s pairing UI must be fed the role that matches the
+current device: `clientConnectionState` when the device is acting as a tablet, `hostConnectionState`
+when it's acting as a phone. Feeding the wrong one is a real, previously-shipped bug (fixed) — the
+tablet's "AVAILABLE PHONES" badge could never show "CONNECTED" no matter how many times the
+underlying pairing actually succeeded, because the UI was reading this device's own hosting status
+(almost always "Searching," since nothing was trying to pair *to* it) instead of its pairing
+*attempt* status.
 
 ## State Management
 
@@ -452,5 +532,10 @@ Current behavior: pressing Enter/Done does not auto-focus the next field.
 - Tablet display WebSocket sync is an initial prototype and still needs venue/hotspot hardening if retained.
 - Phone app restores active match score state and player names after app relaunch, but undo history is not persisted yet.
 - `PlayerRepository` is per-device; manual add/rename/delete via "Manage Players" does not sync across devices. Only players seen through an active match broadcast are auto-learned by a passively-displaying tablet.
-- The periodic UDP/TCP/WebSocket state broadcast (scores, team/player names) is plaintext; only the WebSocket command channel is HMAC-authenticated.
-- See `docs/CodeReviewFindings.md` for the tracked list of open issues from the 2026-07-05 review, including: the watch↔tablet fallback TCP server (`WatchTabletFallbackSync`) is still unauthenticated and un-rate-limited (finding #3); `PlayerRepository` is not thread-safe now that the tablet auto-learn path writes from IO threads (finding #6); the phone broadcasts UDP once per second from app launch regardless of match state (finding #7); the Wear release build is not minified (finding #8); and sync singletons still have no lifecycle teardown (finding #9).
+- The periodic UDP/TCP/WebSocket state broadcast (scores, team/player names) is plaintext; only the WebSocket and watch↔tablet fallback command channels are HMAC-authenticated.
+- See `docs/CodeReviewFindings.md` for the tracked list of open issues from the 2026-07-05 review
+  and subsequent live-device fixes. Findings #1-#4, #6, #7, #8, and the wear file-split (#11) are
+  fixed; still open by deliberate choice (not correctness bugs): the HMAC welcome secret travels
+  in plaintext over the initial handshake (#5, accepted risk — see "Command channel hardening"),
+  sync-layer singletons have no lifecycle teardown (#9), and the wire-format version-detection
+  scheme is fragile (#10, revisit at the next protocol-breaking change).
