@@ -22,7 +22,8 @@
 - As a player, I want to select which team serves first from the phone during setup.
 - As a player, I want to choose Traditional or Rally scoring before the match starts without changing the rest of the setup flow.
 - As a player, I want Traditional selected by default because that is still the most common format I use.
-- As a player, I want the setup screen to stay usable when the keyboard is open so I can enter names on a real phone.
+- As a player, I want to pick each player from a saved list instead of retyping names every match, so setup is fast and free of typos.
+- As a player, I want the app to stop me from picking the same player into two court positions at once, so I don't accidentally start a match with a duplicate name.
 - As a player, I want the phone to remain the match source of truth so the watch and shared display agree.
 - As a player, I want the phone to calculate score, server transitions, side outs, and undo history so I never manage those manually.
 - As a player, I want Phone Only mode to be excellent even when I do not use a watch.
@@ -36,11 +37,20 @@
 - As a player on court, I want the phone speaker to announce confirmed score updates so all players can hear the call.
 - As a player on court, I want to turn voice announcements off when they are not needed.
 - As a player on court, I want connected Watch + Phone mode to announce first from the watch and then repeat from the phone so the watch user gets immediate feedback and everyone else can hear.
+- As a player using all three devices, I want a Watch -> Phone -> Tablet voice option so every device gets a turn to announce without talking over each other.
 - As a player, I want the scoreboard to show the serving score first so it matches the official score call.
 - As a player, I want server number shown clearly so I can verify whether the call is `1` or `2`.
 - As a player, I want serving dots on the active serving team so the server is easy to spot.
 - As a player, I want the first server exception handled automatically so the game starts correctly at `0 - 0 - 2`.
 - As a player, I want Rally mode to still use the same player positions and court-order behavior I already understand from Traditional scoring.
+- As a player, I want the scoreboard to show a short "First L." name instead of a full name so scores stay glanceable even with longer names.
+
+## Player Roster Management
+
+- As a club organizer, I want to add every attendee from my club-management app (e.g. OpenSports) without retyping each name, by importing one or more screenshots of the attendee list.
+- As an organizer importing a screenshot, I want to review the recognized names and uncheck any that were misread before they're added.
+- As an organizer, I want names already in my saved player list to be skipped automatically during import, so I don't get duplicates.
+- As a player who moved courts or clubs, I want a "Delete All Players" option so I can clear out an old roster, with a confirmation step so I don't do it by accident.
 
 ## Phone Only
 

@@ -43,22 +43,20 @@ Current setup behavior:
 - App title "RallyScore" with a solid blue square badge at top left.
 - Swap teams button (⇅) between My Team and Opponent Team cards.
 - Solid team-colored cards (blue for My Team, green for Opponent Team).
-- `imePadding()` applied so keyboard does not crop content.
 - The team form column is always vertically scrollable.
-- Each team has separate Player 1 and Player 2 searchable selectors, side by side within the team card.
+- Each team has separate Player 1 and Player 2 select-only fields, side by side within the team card; there is no free-text entry on this screen, so the on-screen keyboard never opens here.
 - Player fields start blank and show Player 1 / Player 2 hints.
-- Names are normalized to uppercase.
-- Tapping/focusing a player selector opens a dropdown with matching saved players: a "RECENT PLAYERS" section (rows carry a small amber dot marker) before an "ALL PLAYERS" section, each row showing a color-coded initials chip next to the name.
-- Once a field has text, a clear (`×`) control appears to reset it without select-all.
-- If the typed text doesn't exactly match a saved player, a "NEW PLAYER — Use '...'" option appears at the bottom of the dropdown.
-- Users may type a new player name directly; new names are saved automatically when Start or Resume is tapped.
-- Manage Players opens a dedicated player list screen with add, edit, delete, search, recent players, and alphabetical browsing.
-- Tapping the team label band or focusing a team field selects that team as the first server.
+- Selecting a player keeps that player's original stored casing (no forced uppercase); Manage Players' own add/search/edit fields still uppercase as typed.
+- Tapping a player field opens a dropdown with matching saved players: a "RECENT PLAYERS" section before an "ALL PLAYERS" section, each row showing a color-coded initials chip next to the name. If no players are saved yet, the dropdown shows a disabled hint to add players via Manage Players.
+- Once a field has a selection, a clear (`×`) control appears to reset it.
+- A player already selected in one of the four fields is excluded from the other three fields' dropdowns; if two fields ever end up with the same name anyway, the offending field shows a red border and Start stays disabled.
+- New player names are added via Manage Players (typed there, or imported from an attendee-list screenshot) rather than inline during setup.
+- Manage Players opens a dedicated player list screen with add, edit, delete, bulk-delete, search, recent players, alphabetical browsing, and screenshot import.
+- Tapping the team label band or a team's player field selects that team as the first server.
 - Team A is selected as the default first server.
-- Start button is enabled when all four player names are non-empty and a starting team is selected.
-- Keyboard-visible mode shows a `DONE` control to hide the keyboard.
-- Pressing Enter/Done does not auto-focus the next field.
+- Start button is enabled when all four player names are non-empty, a starting team is selected, and no two fields share the same name.
 - Connection status pills appear below the `SET UP GAME` title.
+- A small "© 2026 Deric Teong" line is pinned to the bottom-right corner of the screen.
 - Scoring selector appears in the right column with Traditional and Rally options.
 - Traditional is the default selected option.
 - Voice Announcements dropdown appears in the right column.
@@ -250,7 +248,9 @@ Tablet-specific setup differences from phone:
 - "AVAILABLE PHONES" collapses to a single status-badge line
   ("COURT 35DD · <label> · JOINING/SELECTED/CONNECTED") when there is exactly
   one already-selected candidate, and only shows the full selectable-list
-  card when there are multiple discovered phones to choose between.
+  card when there are multiple discovered phones to choose between. The
+  `<label>` abbreviates player names to "First L." (e.g. "Deric T. & Steve
+  W. vs ...") instead of showing full names.
 
 Tablet score controller:
 

@@ -34,7 +34,7 @@ Status: In development.
 - Phone-owned score snapshots include active-match and undo-availability state for connected Wear control.
 - Phone and Wear connection status indicators.
 - Manual `DONE` keyboard-dismiss control on the compact setup screen.
-- MVP voice announcement modes: Off, Phone only, Watch only, Tablet only, Watch then Phone, Watch then Tablet, and Phone then Tablet.
+- MVP voice announcement modes: Off, Phone only, Watch only, Tablet only, Watch then Phone, Watch then Tablet, Phone then Tablet, and Watch then Phone then Tablet.
 - Short setup player-name defaults for faster development and social-play testing.
 - Player-perspective setup and watch labels: My Team, Opponent Team, ME WON, OPP WON, ME SERVES, and OPP SERVES.
 - Watch haptic feedback for rally input, undo, confirmed connected-mode score updates, and phone-confirmation problems.
@@ -42,8 +42,32 @@ Status: In development.
 - Initial local-network phone-to-tablet display snapshot sync using UDP discovery/snapshots plus TCP endpoint fallback.
 - Initial passive tablet display client over a phone-hosted local WebSocket.
 - Tablet display-client reconnect states: Searching for phone, Reconnecting, and Connected.
+- Manage Players "Import From Screenshot" button: picks one or more attendee-list screenshots
+  (e.g. exported from the OpenSports app) via the system photo picker, runs on-device ML Kit text
+  recognition, and shows a checkable review dialog of newly recognized names before adding them.
+  Names already in the player list are skipped automatically.
+- Manage Players "Delete All Players" button, gated behind a confirmation dialog that states how
+  many players will be removed.
+- Set Up Game duplicate-name protection: a player already selected in one of the four fields no
+  longer appears in the other three fields' dropdowns, and Start stays disabled (with the
+  offending field outlined in red) if two fields ever end up with the same name.
+- Scoreboard and tablet "AVAILABLE PHONES" court-candidate label both abbreviate player names to
+  "First L." (e.g. "Deric T.") instead of showing the full name.
+- Voice announcement mode "Watch then Phone then Tablet", chaining all three devices: watch
+  announces immediately, phone repeats after the usual ~2s delay, and tablet repeats after ~4s so
+  its repeat doesn't overlap the phone's.
+- Small "© 2026 Deric Teong" copyright line pinned to the bottom-right corner of the Set Up Game
+  screen on both phone and tablet.
 
 ### Changed
+
+- Set Up Game player fields are now select-only: tapping a field opens a dropdown of saved
+  players directly, with no free-text entry and no on-screen keyboard on this screen. New player
+  names are added via Manage Players instead of inline during setup.
+- Selecting a player on Set Up Game preserves that player's original stored name casing instead of
+  forcing it to uppercase.
+- Manage Players "Import From Screenshot" and "Delete All Players" buttons are equal width
+  (previously Import stretched to dominate the row).
 
 - Product direction changed to a flexible ecosystem: Watch Only, Phone Only, Tablet Only, Watch + Phone, and future synced Phone + Tablet modes.
 - Phone Only and Tablet Only are first-class standalone controller experiences.
@@ -60,7 +84,7 @@ Status: In development.
 - Phone ViewModel now delegates to a phone-owned score store that can also receive watch commands.
 - Setup field Enter/Done no longer auto-focuses the next field because that caused Compose focus crashes on Samsung devices.
 - Connected-mode score announcements use confirmed phone-owned state. Watch then Phone mode announces from the watch first, then repeats from the phone approximately two seconds later.
-- Tablet voice announcements are supported in Tablet only, Watch then Tablet, and Phone then Tablet modes.
+- Tablet voice announcements are supported in Tablet only, Watch then Tablet, Phone then Tablet, and Watch then Phone then Tablet modes.
 - Connected tablet voice announcements use confirmed phone-owned snapshots and do not announce predicted scores.
 - Connected Wear now waits for an active phone match before showing remote scoring controls.
 - Connected Wear now disables rally and undo controls while waiting for phone confirmation to reduce accidental double taps.

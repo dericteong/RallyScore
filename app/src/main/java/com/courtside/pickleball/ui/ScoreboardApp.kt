@@ -41,7 +41,6 @@ import com.courtside.pickleball.ui.scoreboard.ScoreboardScreen
 import com.courtside.pickleball.ui.setup.MatchSetupScreen
 import com.courtside.pickleball.ui.setup.PlayerManagementScreen
 import com.courtside.pickleball.ui.setup.formatTeamName
-import com.courtside.pickleball.ui.setup.normalizePlayerNamesInput
 import com.courtside.pickleball.ui.tablet.TabletDisplayScreen
 import com.courtside.pickleball.ui.tablet.toCourtCode
 import com.courtside.pickleball.ui.theme.ScoreSpeechRate
@@ -211,7 +210,12 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
         lastObservedMatchState = state
         if (previous != null && state != previous && voiceAnnouncementMode.usesThisDeviceSpeaker(useTabletDisplayLayout)) {
             if (voiceAnnouncementMode.isDelayedOnThisDevice(useTabletDisplayLayout, watchConnected)) {
-                delay(SecondaryVoiceDelayMs)
+                val delayMs = if (useTabletDisplayLayout && voiceAnnouncementMode.isDoublyDelayedOnTablet()) {
+                    SecondaryVoiceDelayMs * 2
+                } else {
+                    SecondaryVoiceDelayMs
+                }
+                delay(delayMs)
             }
             announceScore(state)
         }
@@ -230,7 +234,7 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
         val mode = activeRemoteTabletState.voiceAnnouncementMode
         if (previousSignature != null && signature != previousSignature && mode.usesTabletSpeaker()) {
             if (mode.isDelayedOnTablet()) {
-                delay(SecondaryVoiceDelayMs)
+                delay(if (mode.isDoublyDelayedOnTablet()) SecondaryVoiceDelayMs * 2 else SecondaryVoiceDelayMs)
             }
             announceScoreCall(activeRemoteTabletState.spokenScoreCall.ifBlank { activeRemoteTabletState.scoreCall })
         }
@@ -284,7 +288,8 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
                     onBack = { showPlayerManagement = false },
                     onAddPlayer = viewModel::addPlayer,
                     onRenamePlayer = viewModel::renamePlayer,
-                    onDeletePlayer = viewModel::deletePlayer
+                    onDeletePlayer = viewModel::deletePlayer,
+                    onDeleteAllPlayers = viewModel::deleteAllPlayers
                 )
             } else if (showRemoteTabletMatch && !editingSetupFromMatch) {
                 TabletDisplayScreen(
@@ -356,10 +361,10 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
                     teamBPlayer2 = setupTeamBPlayer2,
                     players = players,
                     startingTeam = startingTeam,
-                    onTeamAPlayer1Change = { setupTeamAPlayer1 = normalizePlayerNamesInput(it) },
-                    onTeamAPlayer2Change = { setupTeamAPlayer2 = normalizePlayerNamesInput(it) },
-                    onTeamBPlayer1Change = { setupTeamBPlayer1 = normalizePlayerNamesInput(it) },
-                    onTeamBPlayer2Change = { setupTeamBPlayer2 = normalizePlayerNamesInput(it) },
+                    onTeamAPlayer1Change = { setupTeamAPlayer1 = it },
+                    onTeamAPlayer2Change = { setupTeamAPlayer2 = it },
+                    onTeamBPlayer1Change = { setupTeamBPlayer1 = it },
+                    onTeamBPlayer2Change = { setupTeamBPlayer2 = it },
                     onManagePlayers = { showPlayerManagement = true },
                     scoringFormat = setupScoringFormat,
                     onScoringFormatChange = { setupScoringFormat = it },

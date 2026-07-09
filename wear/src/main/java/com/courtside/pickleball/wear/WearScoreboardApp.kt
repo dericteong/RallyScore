@@ -834,7 +834,8 @@ private fun PhoneScoreState.scoreSignature(): String =
 private fun VoiceAnnouncementMode.usesWatchSpeaker(): Boolean =
     this == VoiceAnnouncementMode.WatchOnly ||
         this == VoiceAnnouncementMode.WatchThenPhone ||
-        this == VoiceAnnouncementMode.WatchThenTablet
+        this == VoiceAnnouncementMode.WatchThenTablet ||
+        this == VoiceAnnouncementMode.WatchThenPhoneThenTablet
 
 private fun Context.vibrateSingleTap() {
     vibratePattern(longArrayOf(0, 24), intArrayOf(0, 160))

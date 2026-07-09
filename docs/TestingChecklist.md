@@ -76,38 +76,36 @@ Use a real phone when possible.
 - Setup screen exposes Traditional and Rally scoring options.
 - Traditional is selected by default.
 - Tapping score preview card toggles starting team.
-- Team A Player 1 and Player 2 fields accept more than two characters.
-- Team B Player 1 and Player 2 fields accept more than two characters.
+- Player fields are select-only: tapping a field opens its dropdown directly, with no on-screen keyboard ever appearing (there is no free-text entry on this screen).
 - Player fields start blank and show Player 1 / Player 2 hints.
-- Manage Players opens from setup and can add, edit, delete, search, and browse saved players.
+- Manage Players opens from setup and can add, edit, delete, search, browse, and bulk-delete saved players.
+- "Import From Screenshot" opens the system photo picker (multiple images allowed), runs on-device OCR, and shows a checkable review dialog of newly recognized names before adding them; names already saved are skipped automatically without appearing in the review list.
+- "Delete All Players" is disabled when the player list is empty, and prompts for confirmation (stating how many players will be removed) before clearing the list.
+- The "IMPORT FROM SCREENSHOT" and "DELETE ALL PLAYERS" buttons are visually balanced (equal width), not one dominating the row.
 - Saved players appear alphabetically in All Players.
-- Starting or resuming a game with a newly typed player name saves that player locally.
+- Selecting a player on Set Up Game keeps that player's original stored casing (no forced uppercase); Manage Players' own add/search/edit fields still uppercase as typed.
 - Duplicate saved players are prevented by case-insensitive name comparison.
+- A player already selected in one of the four Set Up Game fields no longer appears in the other three fields' dropdowns.
+- If two fields somehow end up with the same name anyway, the offending field shows a red border and Start stays disabled until it's fixed.
 - Recently used players appear before All Players in setup player selectors after a game starts.
 - Saved player data remains available after app restart.
-- Team A is selected by default, but Start remains disabled until all four player names are filled.
-- Defaults can be edited normally.
-- Delete/backspace works.
-- Names are uppercased.
+- Team A is selected by default, but Start remains disabled until all four player names are filled (and no duplicates remain).
 - Watch and tablet connection pills fit side by side below the `SET UP GAME` title.
 - Voice Announcements appears in the right column with dropdown.
 - Player 1 and Player 2 fields fit side by side in each team card.
-- `imePadding()` prevents keyboard from cropping content.
 - Team form column is always vertically scrollable.
-- Keyboard does not crop entered text.
-- Pressing Enter/Done does not crash or jump focus to another field.
-- Keyboard-visible `DONE` hides the keyboard and returns to the full setup layout.
-- User can select starting server by tapping the team label band or focusing a player field.
+- User can select starting server by tapping the team label band or tapping a player field.
 - Start button ("START GAME") is red-orange (#D84315), enabled only when all four player names and starting server are set.
 - When editing from match, "RESUME GAME" button appears instead (also red-orange).
 - No confirmation dialog on Start or Resume.
 - Voice Announcements setting is visible and usable.
-- Voice Announcements includes Off, Phone, Watch, Tablet, Watch > Phone, Watch > Tablet, and Phone > Tablet.
-- Tapping a player field shows a dropdown with RECENT PLAYERS (dot marker) and ALL PLAYERS sections, each row with a color-coded initials chip.
-- Typing a name with no exact match shows a "Use '...'" new-player option in the dropdown.
-- Once a field has text, tapping the `×` control clears it.
-- Selecting a dropdown row fills the field and dismisses the keyboard.
+- Voice Announcements includes Off, Phone, Watch, Tablet, Watch > Phone, Watch > Tablet, Phone > Tablet, and Watch > Phone > Tablet.
+- Tapping a player field shows a dropdown with RECENT PLAYERS and ALL PLAYERS sections, each row with a color-coded initials chip.
+- If no players are saved yet, the dropdown shows a disabled hint to add players via Manage Players instead.
+- Once a field has a selection, tapping the `×` control clears it.
+- Selecting a dropdown row fills the field; no keyboard ever appears to dismiss.
 - On a phone-width screen, COURT/WATCH/TABLET status badges all fit on one row with no visual clipping (shortened labels: "35DD"/"WATCH"/"TABLET").
+- A small "© 2026 Deric Teong" line is visible pinned to the bottom-right corner of the screen, on both phone and tablet layouts.
 
 ## Tablet Setup Manual Test
 
@@ -119,6 +117,7 @@ Use a real phone when possible.
 - "Enter players by court position" sits between the "SET UP GAME" title and "MANAGE PLAYERS" button, not glued next to the button.
 - With exactly one discovered phone already selected, "AVAILABLE PHONES" shows as a single status-badge line, not the full card.
 - With more than one discovered phone, the full "AVAILABLE PHONES" card with selectable rows still appears.
+- The court-candidate label (e.g. "COURT 1234 · Deric T. & Steve W. vs ..." ) shows abbreviated player names, not full names.
 
 ## Phone Score / Display Manual Test
 
@@ -129,6 +128,7 @@ Use a real phone when possible.
 - Team A row uses blue.
 - Team B row uses green.
 - Team rows show player names in court-ordered format (swaps on odd scores).
+- Team rows show abbreviated names ("First L.", e.g. "Deric T.") rather than full names; single-word names (no last name on file) show unabbreviated.
 - Serving player name is underlined in the team name display.
 - Table dividers are neutral.
 - Serving team row shows one or two dots.
@@ -224,6 +224,7 @@ Initial implementation exists. Required before the connected Watch + Phone produ
 - In Tablet only mode on a tablet-owned match, tablet announces immediately after confirmed local tablet state changes.
 - In Watch then Tablet mode, watch announces the confirmed phone score immediately and tablet announces the same score approximately two seconds later.
 - In Phone then Tablet mode, phone announces the confirmed phone score immediately and tablet announces the same score approximately two seconds later.
+- In Watch then Phone then Tablet mode (manual selection, all three devices connected), watch announces immediately, phone announces the same score approximately two seconds later, and tablet announces approximately four seconds later — check the tablet's repeat lands after the phone's rather than overlapping it.
 - In Off mode, no device announces.
 - Watch reconnects and resyncs after temporary disconnect.
 - Phone-only scoring remains available when no watch is connected.

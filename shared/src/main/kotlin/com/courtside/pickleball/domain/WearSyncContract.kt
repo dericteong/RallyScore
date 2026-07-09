@@ -38,6 +38,7 @@ object WearSyncContract {
     const val VOICE_WATCH_THEN_PHONE = "watch_then_phone"
     const val VOICE_WATCH_THEN_TABLET = "watch_then_tablet"
     const val VOICE_PHONE_THEN_TABLET = "phone_then_tablet"
+    const val VOICE_WATCH_THEN_PHONE_THEN_TABLET = "watch_then_phone_then_tablet"
 }
 
 /** Voice routing modes synchronized across RallyScore devices. */
@@ -48,7 +49,8 @@ enum class VoiceAnnouncementMode(val wireValue: String) {
     TabletOnly(WearSyncContract.VOICE_TABLET_ONLY),
     WatchThenPhone(WearSyncContract.VOICE_WATCH_THEN_PHONE),
     WatchThenTablet(WearSyncContract.VOICE_WATCH_THEN_TABLET),
-    PhoneThenTablet(WearSyncContract.VOICE_PHONE_THEN_TABLET);
+    PhoneThenTablet(WearSyncContract.VOICE_PHONE_THEN_TABLET),
+    WatchThenPhoneThenTablet(WearSyncContract.VOICE_WATCH_THEN_PHONE_THEN_TABLET);
 
     companion object {
         /** Returns the supported mode for a serialized wire value, falling back safely for unknown values. */

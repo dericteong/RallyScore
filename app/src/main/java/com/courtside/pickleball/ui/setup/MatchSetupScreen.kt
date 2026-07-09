@@ -5,6 +5,7 @@ import android.view.inputmethod.InputMethodManager
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,9 +26,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -44,22 +42,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.PopupProperties
 import com.courtside.pickleball.R
 import com.courtside.pickleball.domain.ScoringFormat
 import com.courtside.pickleball.domain.Team
@@ -68,6 +60,7 @@ import com.courtside.pickleball.player.Player
 import com.courtside.pickleball.sync.TabletConnectionState
 import com.courtside.pickleball.sync.TabletPhoneCandidate
 import com.courtside.pickleball.ui.status.CourtCodeBadge
+import com.courtside.pickleball.ui.toAbbreviatedMatchLabel
 import com.courtside.pickleball.ui.status.PhoneTabletStatusBar
 import com.courtside.pickleball.ui.status.SetupStatusBadge
 import com.courtside.pickleball.ui.status.TabletPhoneStatusBar
@@ -77,6 +70,7 @@ import com.courtside.pickleball.ui.theme.ConnectedAmber
 import com.courtside.pickleball.ui.theme.Ink
 import com.courtside.pickleball.ui.theme.Paper
 import com.courtside.pickleball.ui.theme.PanelWhite
+import com.courtside.pickleball.ui.theme.ProblemRed
 import com.courtside.pickleball.ui.theme.SetupControlCornerRadius
 import com.courtside.pickleball.ui.theme.SetupPlayerInputCompactHeight
 import com.courtside.pickleball.ui.theme.SetupPlayerInputHeight
@@ -159,11 +153,16 @@ internal fun MatchSetupScreen(
     val inputMethodManager = remember(context) {
         context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
     }
+    val enteredNames = listOf(teamAPlayer1, teamAPlayer2, teamBPlayer1, teamBPlayer2)
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
+    val hasDuplicateNames = enteredNames.size != enteredNames.map { it.lowercase(Locale.ENGLISH) }.distinct().size
     val canStart = startingTeam != null &&
         teamAPlayer1.trim().isNotEmpty() &&
         teamAPlayer2.trim().isNotEmpty() &&
         teamBPlayer1.trim().isNotEmpty() &&
-        teamBPlayer2.trim().isNotEmpty()
+        teamBPlayer2.trim().isNotEmpty() &&
+        !hasDuplicateNames
     val hideKeyboard = {
         inputMethodManager.hideSoftInputFromWindow(view.windowToken, 0)
         Unit
@@ -176,6 +175,7 @@ internal fun MatchSetupScreen(
             .background(Paper),
         color = Paper
     ) {
+        Box(modifier = Modifier.fillMaxSize()) {
         Row(
             modifier = Modifier
                 .fillMaxSize()
@@ -327,6 +327,8 @@ internal fun MatchSetupScreen(
                         label = "MY TEAM (BLUE)",
                         player1 = teamAPlayer1,
                         player2 = teamAPlayer2,
+                        otherTeamPlayer1 = teamBPlayer1,
+                        otherTeamPlayer2 = teamBPlayer2,
                         color = TeamABlue,
                         selected = startingTeam == Team.A,
                         compact = keyboardVisible,
@@ -334,7 +336,6 @@ internal fun MatchSetupScreen(
                         players = players,
                         onPlayer1Change = onTeamAPlayer1Change,
                         onPlayer2Change = onTeamAPlayer2Change,
-                        onKeyboardAction = hideKeyboard,
                         onSelect = if (editingFromMatch) {
                             {}
                         } else {
@@ -346,6 +347,8 @@ internal fun MatchSetupScreen(
                         label = "OPPONENT (GREEN)",
                         player1 = teamBPlayer1,
                         player2 = teamBPlayer2,
+                        otherTeamPlayer1 = teamAPlayer1,
+                        otherTeamPlayer2 = teamAPlayer2,
                         color = TeamBGreen,
                         selected = startingTeam == Team.B,
                         compact = keyboardVisible,
@@ -353,7 +356,6 @@ internal fun MatchSetupScreen(
                         players = players,
                         onPlayer1Change = onTeamBPlayer1Change,
                         onPlayer2Change = onTeamBPlayer2Change,
-                        onKeyboardAction = hideKeyboard,
                         onSelect = if (editingFromMatch) {
                             {}
                         } else {
@@ -365,6 +367,8 @@ internal fun MatchSetupScreen(
                         label = "OPPONENT (GREEN)",
                         player1 = teamBPlayer1,
                         player2 = teamBPlayer2,
+                        otherTeamPlayer1 = teamAPlayer1,
+                        otherTeamPlayer2 = teamAPlayer2,
                         color = TeamBGreen,
                         selected = startingTeam == Team.B,
                         compact = keyboardVisible,
@@ -372,7 +376,6 @@ internal fun MatchSetupScreen(
                         players = players,
                         onPlayer1Change = onTeamBPlayer1Change,
                         onPlayer2Change = onTeamBPlayer2Change,
-                        onKeyboardAction = hideKeyboard,
                         onSelect = if (editingFromMatch) {
                             {}
                         } else {
@@ -384,6 +387,8 @@ internal fun MatchSetupScreen(
                         label = "MY TEAM (BLUE)",
                         player1 = teamAPlayer1,
                         player2 = teamAPlayer2,
+                        otherTeamPlayer1 = teamBPlayer1,
+                        otherTeamPlayer2 = teamBPlayer2,
                         color = TeamABlue,
                         selected = startingTeam == Team.A,
                         compact = keyboardVisible,
@@ -391,7 +396,6 @@ internal fun MatchSetupScreen(
                         players = players,
                         onPlayer1Change = onTeamAPlayer1Change,
                         onPlayer2Change = onTeamAPlayer2Change,
-                        onKeyboardAction = hideKeyboard,
                         onSelect = if (editingFromMatch) {
                             {}
                         } else {
@@ -490,6 +494,18 @@ internal fun MatchSetupScreen(
                     }
                 }
             }
+        }
+        Text(
+            text = "© 2026 Deric Teong",
+            color = Ink.copy(alpha = 0.35f),
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .safeDrawingPadding()
+                .padding(end = 6.dp, bottom = 4.dp)
+        )
         }
     }
 }
@@ -594,6 +610,8 @@ private fun SetupTeamNameFields(
     label: String,
     player1: String,
     player2: String,
+    otherTeamPlayer1: String,
+    otherTeamPlayer2: String,
     color: Color,
     selected: Boolean,
     compact: Boolean,
@@ -601,9 +619,20 @@ private fun SetupTeamNameFields(
     players: List<Player>,
     onPlayer1Change: (String) -> Unit,
     onPlayer2Change: (String) -> Unit,
-    onKeyboardAction: () -> Unit,
     onSelect: () -> Unit
 ) {
+    val player1OtherNames = remember(player2, otherTeamPlayer1, otherTeamPlayer2) {
+        listOf(player2, otherTeamPlayer1, otherTeamPlayer2)
+            .map { it.trim().lowercase(Locale.ENGLISH) }
+            .filter { it.isNotEmpty() }
+            .toSet()
+    }
+    val player2OtherNames = remember(player1, otherTeamPlayer1, otherTeamPlayer2) {
+        listOf(player1, otherTeamPlayer1, otherTeamPlayer2)
+            .map { it.trim().lowercase(Locale.ENGLISH) }
+            .filter { it.isNotEmpty() }
+            .toSet()
+    }
     val cardHeight = when {
         compact -> SetupTeamCardCompactHeight
         isTabletLayout -> SetupTeamCardTabletHeight
@@ -658,8 +687,8 @@ private fun SetupTeamNameFields(
                 compact = compact,
                 isTabletLayout = isTabletLayout,
                 players = players,
+                otherSelectedNames = player1OtherNames,
                 onValueChange = onPlayer1Change,
-                onKeyboardAction = onKeyboardAction,
                 onSelect = onSelect
             )
             SetupPlayerInput(
@@ -668,11 +697,11 @@ private fun SetupTeamNameFields(
                     .height(inputHeight),
                 value = player2,
                 hint = "Player 2",
+                otherSelectedNames = player2OtherNames,
                 compact = compact,
                 isTabletLayout = isTabletLayout,
                 players = players,
                 onValueChange = onPlayer2Change,
-                onKeyboardAction = onKeyboardAction,
                 onSelect = onSelect
             )
         }
@@ -687,8 +716,8 @@ private fun SetupPlayerInput(
     compact: Boolean,
     isTabletLayout: Boolean = false,
     players: List<Player>,
+    otherSelectedNames: Set<String> = emptySet(),
     onValueChange: (String) -> Unit,
-    onKeyboardAction: () -> Unit,
     onSelect: () -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -697,77 +726,55 @@ private fun SetupPlayerInput(
         isTabletLayout -> SetupPlayerInputTabletText
         else -> 20.sp
     }
-    val query = value.trim()
-    val recentPlayers = remember(players, query) {
-        players
-            .filter { it.lastPlayed != null && it.matchesQuery(query) }
+    // Exclude players already entered in another field so the same person
+    // can't be selected into two court positions at once.
+    val availablePlayers = remember(players, otherSelectedNames) {
+        players.filter { it.name.trim().lowercase(Locale.ENGLISH) !in otherSelectedNames }
+    }
+    val recentPlayers = remember(availablePlayers) {
+        availablePlayers
+            .filter { it.lastPlayed != null }
             .sortedByDescending { it.lastPlayed }
-            .take(4)
+            .take(6)
     }
-    val allPlayers = remember(players, query, recentPlayers) {
-        players
-            .filter { it.matchesQuery(query) && recentPlayers.none { recent -> recent.id == it.id } }
+    val allPlayers = remember(availablePlayers, recentPlayers) {
+        availablePlayers
+            .filter { player -> recentPlayers.none { recent -> recent.id == player.id } }
             .sortedBy { it.name.lowercase(Locale.ENGLISH) }
-            .take(12)
     }
-    val hasExactMatch = players.any { it.name.trim().equals(query, ignoreCase = true) }
-    val showTypedOption = query.isNotEmpty() && !hasExactMatch
-    val showMenu = expanded && (recentPlayers.isNotEmpty() || allPlayers.isNotEmpty() || showTypedOption)
+    val showMenu = expanded
+    val isDuplicate = value.trim().isNotEmpty() && value.trim().lowercase(Locale.ENGLISH) in otherSelectedNames
 
     Box(modifier = modifier) {
-        BasicTextField(
-            value = value,
-            onValueChange = {
-                onValueChange(it)
-                expanded = true
-            },
+        // Player fields are select-only: names come from the saved player list via this
+        // dropdown, never typed, so the on-screen keyboard never opens for these fields.
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .onFocusChanged { focusState ->
-                    if (focusState.isFocused) {
-                        expanded = true
-                        onSelect()
+                .background(Paper)
+                .then(
+                    if (isDuplicate) {
+                        Modifier.border(2.dp, ProblemRed, RoundedCornerShape(SetupControlCornerRadius))
+                    } else {
+                        Modifier
                     }
-                },
-            singleLine = true,
-            textStyle = TextStyle(
-                color = Ink,
+                )
+                .clickable {
+                    onSelect()
+                    expanded = true
+                }
+                .padding(start = 10.dp, end = if (value.isEmpty()) 10.dp else 30.dp),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            Text(
+                text = value.ifEmpty { hint },
+                color = if (value.isEmpty()) Color(0xFF6E767E) else Ink,
                 fontSize = fieldFontSize,
-                fontWeight = FontWeight.Bold
-            ),
-            cursorBrush = SolidColor(Ink),
-            keyboardOptions = KeyboardOptions(
-                capitalization = KeyboardCapitalization.Characters,
-                autoCorrectEnabled = false,
-                imeAction = ImeAction.Done
-            ),
-            keyboardActions = KeyboardActions(
-                onDone = {
-                    expanded = false
-                    onKeyboardAction()
-                }
-            ),
-            decorationBox = { innerTextField ->
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Paper)
-                        .padding(start = 10.dp, end = if (value.isEmpty()) 10.dp else 30.dp),
-                    contentAlignment = Alignment.CenterStart
-                ) {
-                    if (value.isEmpty()) {
-                        Text(
-                            text = hint,
-                            color = Color(0xFF6E767E),
-                            fontSize = fieldFontSize,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1
-                        )
-                    }
-                    innerTextField()
-                }
-            }
-        )
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
         if (value.isNotEmpty()) {
             Text(
                 text = "×",
@@ -777,7 +784,7 @@ private fun SetupPlayerInput(
                     .clip(RoundedCornerShape(4.dp))
                     .clickable {
                         onValueChange("")
-                        expanded = true
+                        expanded = false
                     }
                     .padding(horizontal = 6.dp, vertical = 2.dp),
                 color = Ink.copy(alpha = 0.5f),
@@ -788,19 +795,30 @@ private fun SetupPlayerInput(
         DropdownMenu(
             expanded = showMenu,
             onDismissRequest = { expanded = false },
-            properties = PopupProperties(focusable = false),
             shape = RoundedCornerShape(12.dp),
             containerColor = Paper,
             tonalElevation = 3.dp,
             shadowElevation = 6.dp
         ) {
+            if (recentPlayers.isEmpty() && allPlayers.isEmpty()) {
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = "No players available — add via Manage Players",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = if (compact) 12.sp else 14.sp
+                        )
+                    },
+                    enabled = false,
+                    onClick = {}
+                )
+            }
             if (recentPlayers.isNotEmpty()) {
                 PlayerMenuHeader("RECENT PLAYERS", compact = compact)
                 recentPlayers.forEach { player ->
                     PlayerMenuItem(player = player, isRecent = true, compact = compact) {
                         expanded = false
                         onValueChange(player.name)
-                        onKeyboardAction()
                     }
                 }
             }
@@ -810,27 +828,8 @@ private fun SetupPlayerInput(
                     PlayerMenuItem(player = player, isRecent = false, compact = compact) {
                         expanded = false
                         onValueChange(player.name)
-                        onKeyboardAction()
                     }
                 }
-            }
-            if (showTypedOption) {
-                PlayerMenuHeader("NEW PLAYER", compact = compact)
-                DropdownMenuItem(
-                    text = {
-                        Text(
-                            text = "Use \"$query\"",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = if (compact) 14.sp else 16.sp
-                        )
-                    },
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = if (compact) 4.dp else 8.dp),
-                    onClick = {
-                        expanded = false
-                        onValueChange(query)
-                        onKeyboardAction()
-                    }
-                )
             }
         }
     }
@@ -1073,6 +1072,7 @@ private fun VoiceAnnouncementMode.setupLabel(): String = when (this) {
     VoiceAnnouncementMode.WatchThenPhone -> "Watch -> Phone"
     VoiceAnnouncementMode.WatchThenTablet -> "Watch -> Tablet"
     VoiceAnnouncementMode.PhoneThenTablet -> "Phone -> Tablet"
+    VoiceAnnouncementMode.WatchThenPhoneThenTablet -> "Watch -> Phone -> Tablet"
 }
 
 @Composable
@@ -1100,9 +1100,9 @@ private fun AvailablePhonesCard(
                 .fillMaxWidth()
                 .clickable { onJoinPhoneRequested(onlyCandidate.hostId) },
             label = if (isConnected) {
-                "COURT ${onlyCandidate.courtCode} · ${onlyCandidate.label} · $suffix"
+                "COURT ${onlyCandidate.courtCode} · ${onlyCandidate.label.toAbbreviatedMatchLabel()} · $suffix"
             } else {
-                "COURT ${onlyCandidate.courtCode} · ${onlyCandidate.label} · $suffix · TAP TO RETRY"
+                "COURT ${onlyCandidate.courtCode} · ${onlyCandidate.label.toAbbreviatedMatchLabel()} · $suffix · TAP TO RETRY"
             },
             color = ConnectedAmber,
             compact = false
@@ -1161,9 +1161,9 @@ private fun AvailablePhonesCard(
                     )
                     Text(
                         text = if (selectionSuffix != null) {
-                            "${phone.label}  $selectionSuffix"
+                            "${phone.label.toAbbreviatedMatchLabel()}  $selectionSuffix"
                         } else {
-                            phone.label
+                            phone.label.toAbbreviatedMatchLabel()
                         },
                         color = if (isSelected) ConnectedAmber else Color.White.copy(alpha = 0.82f),
                         fontSize = 12.sp,

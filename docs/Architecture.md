@@ -351,6 +351,7 @@ MVP voice modes:
 - Watch then Phone.
 - Watch then Tablet.
 - Phone then Tablet.
+- Watch then Phone then Tablet.
 
 Phone Only mode defaults to Phone only and announces immediately after confirmed phone-owned state changes.
 
@@ -372,9 +373,21 @@ Connected Watch + Phone + Tablet mode should default to Watch then Tablet:
 4. Watch announces the confirmed score immediately.
 5. Tablet announces the same confirmed score approximately two seconds later.
 
+All three devices can also be chained explicitly via Watch then Phone then Tablet
+(a manual selection only; no auto-selected mode picks it today):
+
+1. Watch sends `WE WON`, `OPP WON`, or Undo to phone.
+2. Phone updates score as source of truth.
+3. Phone publishes confirmed score state to watch and tablet.
+4. Watch announces the confirmed score immediately.
+5. Phone announces the same confirmed score approximately two seconds later.
+6. Tablet announces the same confirmed score approximately four seconds later
+   (double the usual secondary delay), so its repeat lands after the phone's
+   rather than overlapping it.
+
 Connected tablet voice uses only confirmed phone-owned tablet snapshots. Both
-announcements in a two-device voice mode must use the same confirmed score
-string.
+announcements in a two-device voice mode (and all three in the triple-hop mode)
+must use the same confirmed score string.
 
 ## Dependencies
 

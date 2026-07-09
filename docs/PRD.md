@@ -128,7 +128,7 @@ Large shared scoreboard
 - Undo reverses the full previous rally.
 - End game returns to setup after confirmation.
 - Score calls are displayed and spoken after rally input.
-- MVP voice modes: Off, Phone only, Watch only, Tablet only, Watch then Phone, Watch then Tablet, and Phone then Tablet.
+- MVP voice modes: Off, Phone only, Watch only, Tablet only, Watch then Phone, Watch then Tablet, Phone then Tablet, and Watch then Phone then Tablet.
 - Offline operation.
 - Keep the display source awake during use.
 
@@ -204,8 +204,10 @@ Future synced mode:
   green background for Team B, with white text and serving dots.
 - Setup player fields start blank, with My Team selected to serve first by default.
 - Saved players are stored locally on the device with stable IDs, name, created timestamp, and last-played timestamp.
-- Setup player fields open searchable selectors that show recent players before the full alphabetical player list, while still allowing new typed names.
-- New typed player names are trimmed, saved automatically when a game starts or resumes, and de-duplicated case-insensitively.
+- Setup player fields are select-only: tapping a field opens a dropdown of recent players then the full alphabetical player list; there is no free-text entry on this screen, so the on-screen keyboard never opens for these fields. New names are added via "Manage Players" (typed there, or imported from a screenshot; see below) rather than inline during setup.
+- A player already selected in one of the four Set Up Game fields is excluded from the other three fields' dropdowns, and typing-independent duplicate detection (defensive, e.g. for programmatic state restore) still blocks Start and highlights the offending field if two fields ever end up with the same name.
+- Selected player names keep their original stored casing (no forced uppercase) on the Set Up Game fields; "Manage Players" add/search/edit fields still uppercase as typed.
+- Player names are trimmed and de-duplicated case-insensitively when saved.
 - GameSettings stores individual player names (teamAPlayer1, teamAPlayer2, teamBPlayer1, teamBPlayer2).
 - The phone setup screen is always landscape with a side-by-side layout: team name cards on the left, voice controls and score preview card on the right.
 - A swap teams button (⇅) sits between My Team and Opponent Team cards.
@@ -240,6 +242,7 @@ Future synced mode:
 - Connected Watch + Phone voice direction: watch announces the confirmed phone state immediately, and phone repeats the same confirmed score approximately two seconds later when Watch then Phone mode is selected.
 - Connected Watch + Phone + Tablet voice direction: watch announces the confirmed phone state immediately, and tablet repeats the same confirmed score approximately two seconds later when Watch then Tablet mode is selected.
 - Connected Phone + Tablet voice direction: phone announces the confirmed phone state immediately, and tablet repeats the same confirmed score approximately two seconds later when Phone then Tablet mode is selected.
+- Watch then Phone then Tablet mode (manual selection only) chains all three: watch announces immediately, phone repeats approximately two seconds later, and tablet repeats approximately four seconds later (double the usual delay) so its repeat doesn't overlap the phone's.
 - Phone Only mode announces immediately with no delay when Phone only mode is selected.
 - Tablet Only mode announces immediately with no delay when Tablet only mode is selected.
 - Bluetooth speaker routing can rely on Android audio routing for now.
@@ -264,8 +267,10 @@ Future synced mode:
   takes priority over remote display state. Disconnected or inactive remote
   state falls through to setup.
 - Phone-to-tablet display sync is local-network based and should work over external Wi-Fi or a phone hotspot as long as both devices are on the same IP network.
-- Player-name fields show a searchable dropdown with a "RECENT PLAYERS" section (marked with a small dot) and an "ALL PLAYERS" section, each row showing a color-coded initials chip; typing a name that doesn't match anyone offers a "Use '...'" option to confirm it as new. A clear (`×`) control appears once a field has text.
+- Player-name fields show a select-only dropdown with a "RECENT PLAYERS" section and an "ALL PLAYERS" section, each row showing a color-coded initials chip; a clear (`×`) control appears once a field has a selection. If no players are saved yet, the dropdown shows a disabled hint to add players via "Manage Players" instead.
 - A tablet passively displaying a phone-hosted match automatically adds the four players it observes to its own local player list (debounced so it only records once per match, not on every score update), so its own player suggestions stay useful even if the tablet never itself started a match. Manual edits via "Manage Players" still do not sync between devices.
+- "Manage Players" supports importing player names from one or more attendee-list screenshots (e.g. from the OpenSports app) via on-device ML Kit text recognition; recognized names are shown in a checkable review dialog before import, and names already in the local player list are skipped automatically. A "Delete All Players" action (behind a confirmation dialog) clears the local player list.
+- The scoreboard and the tablet's "AVAILABLE PHONES" court-candidate label both abbreviate player names to "First L." (first name plus last-name initial) instead of showing the full name, keeping both glanceable.
 - The phone-tablet WebSocket command channel authenticates live-match commands (rally winner, undo, score/serve adjustment, end match) with a per-connection HMAC signature in addition to the session-ID check, and both the WebSocket and TCP snapshot channels apply per-IP rate limiting. The periodic state broadcast itself remains unencrypted.
 - Tablet Set Up Game screen uses larger team cards and player-name fields than the phone layout, vertically centers the whole screen in the available height, shows the RallyScore icon/title on its own larger top row with the connection-status badges on a second row, and uses a bigger "MANAGE PLAYERS" button.
 

@@ -42,6 +42,7 @@ import com.courtside.pickleball.domain.displayValue
 import com.courtside.pickleball.sync.TabletConnectionState
 import com.courtside.pickleball.ui.callHasDoubleDigitScore
 import com.courtside.pickleball.ui.scoreOnlyCallBarText
+import com.courtside.pickleball.ui.toScoreboardDisplayName
 import com.courtside.pickleball.ui.status.CourtCodeBadge
 import com.courtside.pickleball.ui.status.PhoneTabletStatusBar
 import com.courtside.pickleball.ui.status.WatchConnectionStatusBar
@@ -251,7 +252,7 @@ internal fun TeamNameDisplay(
         ) {
             PositionedPlayerName(
                 modifier = Modifier.weight(1f),
-                name = playerOne,
+                name = playerOne.toScoreboardDisplayName(),
                 color = color,
                 highlightColor = highlightColor,
                 isServing = playerOne == serving,
@@ -266,7 +267,7 @@ internal fun TeamNameDisplay(
             )
             PositionedPlayerName(
                 modifier = Modifier.weight(1f),
-                name = playerTwo,
+                name = playerTwo.toScoreboardDisplayName(),
                 color = color,
                 highlightColor = highlightColor,
                 isServing = playerTwo == serving,
@@ -276,7 +277,7 @@ internal fun TeamNameDisplay(
     } else {
         PositionedPlayerName(
             modifier = modifier,
-            name = name.uppercase(),
+            name = name.uppercase().toScoreboardDisplayName(),
             color = color,
             highlightColor = highlightColor,
             isServing = name.uppercase().trim() == serving,

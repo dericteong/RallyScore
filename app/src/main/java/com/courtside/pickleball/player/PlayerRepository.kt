@@ -88,6 +88,12 @@ object PlayerRepository {
     }
 
     @Synchronized
+    fun deleteAllPlayers() {
+        _players.value = emptyList()
+        persist(emptyList())
+    }
+
+    @Synchronized
     private fun replacePlayer(player: Player) {
         val next = (_players.value.filterNot { it.id == player.id } + player).sortedForDisplay()
         _players.value = next

@@ -191,6 +191,10 @@ class ScoreboardViewModel(
         playerRepository.deletePlayer(id)
     }
 
+    fun deleteAllPlayers() {
+        playerRepository.deleteAllPlayers()
+    }
+
     fun saveMatchPlayers(names: List<String>) {
         playerRepository.markPlayersPlayed(names)
     }
