@@ -28,12 +28,12 @@ class PickleballScoringEngine {
     }
 
     private fun scorePoint(state: GameState): GameState {
-        val nextScore = state.scoreFor(state.servingTeam) + 1
+        val nextScore = (state.scoreFor(state.servingTeam) + 1).coerceAtMost(MAX_MATCH_SCORE)
         return state.withScore(state.servingTeam, nextScore)
     }
 
     private fun scorePointFor(state: GameState, team: Team): GameState {
-        val nextScore = state.scoreFor(team) + 1
+        val nextScore = (state.scoreFor(team) + 1).coerceAtMost(MAX_MATCH_SCORE)
         return state.withScore(team, nextScore)
     }
 

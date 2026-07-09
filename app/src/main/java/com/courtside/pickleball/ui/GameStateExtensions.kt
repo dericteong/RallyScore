@@ -1,6 +1,10 @@
 package com.courtside.pickleball.ui
 
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.BaselineShift
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.em
 import com.courtside.pickleball.domain.GameState
 import com.courtside.pickleball.domain.ServerNumber
 import com.courtside.pickleball.domain.Team
@@ -12,11 +16,19 @@ import com.courtside.pickleball.sync.TabletDisplayState
 internal fun GameState.callHasDoubleDigitScore(): Boolean =
     servingScore >= 10 || receivingScore >= 10
 
+// The call bar's digits render at a very large font size, so a full-size hyphen looks like an
+// oversized dash between them; shrinking it (relative to the surrounding text) keeps it short
+// and proportionate instead. Shrinking a span's font size keeps it on the same baseline, which
+// drags a small glyph down toward the bottom of the big digits, so nudge it back up toward
+// digit-center with a baseline shift. The surrounding spaces render at this same smaller size
+// so the gap they add stays proportionate rather than full-digit-sized.
+private val CallBarHyphenStyle = SpanStyle(fontSize = 0.55.em, baselineShift = BaselineShift(0.19f))
+
 internal fun GameState.scoreOnlyCallBarText() = buildAnnotatedString {
     append(servingScore.toString())
-    append("-")
+    withStyle(CallBarHyphenStyle) { append(" - ") }
     append(receivingScore.toString())
-    append("-")
+    withStyle(CallBarHyphenStyle) { append(" - ") }
     append(serverNumber.displayValue.toString())
 }
 

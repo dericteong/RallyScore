@@ -23,6 +23,10 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -295,6 +299,24 @@ internal fun PositionedPlayerName(
     isServing: Boolean,
     isTablet: Boolean = false
 ) {
+    val baseFontSize = when {
+        isTablet && isServing -> 64.sp
+        isTablet -> 56.sp
+        isServing -> 40.sp
+        else -> 34.sp
+    }
+    val baseLineHeight = when {
+        isTablet && isServing -> 66.sp
+        isTablet -> 60.sp
+        isServing -> 42.sp
+        else -> 38.sp
+    }
+    val minFontSize = if (isTablet) 32.sp else 20.sp
+    // An abbreviated "First L." name can still be too wide for its column at the base size
+    // (especially the larger serving-highlight size), and truncating with "…" makes a player
+    // name unreadable. Shrink the font in small steps until it fits on one line instead.
+    var fontSize by remember(name, baseFontSize) { mutableStateOf(baseFontSize) }
+
     Text(
         modifier = modifier
             .clip(RoundedCornerShape(6.dp))
@@ -313,22 +335,18 @@ internal fun PositionedPlayerName(
             ),
         text = name,
         color = if (isServing) highlightColor else color,
-        fontSize = when {
-            isTablet && isServing -> 64.sp
-            isTablet -> 56.sp
-            isServing -> 40.sp
-            else -> 34.sp
-        },
+        fontSize = fontSize,
         fontWeight = FontWeight.Black,
-        lineHeight = when {
-            isTablet && isServing -> 66.sp
-            isTablet -> 60.sp
-            isServing -> 42.sp
-            else -> 38.sp
-        },
+        lineHeight = baseLineHeight * (fontSize.value / baseFontSize.value),
         textDecoration = TextDecoration.None,
         maxLines = 1,
-        overflow = TextOverflow.Ellipsis
+        overflow = TextOverflow.Ellipsis,
+        onTextLayout = { result ->
+            if (result.didOverflowWidth && fontSize > minFontSize) {
+                val shrunk = (fontSize.value * 0.92f).sp
+                fontSize = if (shrunk < minFontSize) minFontSize else shrunk
+            }
+        }
     )
 }
 

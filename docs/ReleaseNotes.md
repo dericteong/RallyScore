@@ -242,6 +242,36 @@ Status: In development.
   depends on the current mode; it now only checks that no match is active, since the discovery
   socket is passive listen-only and cheap to leave running. Verified live on real watch hardware.
 
+- Fix: a connected-controller tablet's rally, undo, and end-match taps looked interactive even
+  after the phone became unreachable (e.g. its app was closed) - they just silently did nothing,
+  since the taps send commands to the phone rather than scoring locally. Root cause was an
+  inverted enable check for the score taps plus no connectivity gating at all on the undo/end
+  buttons. All three now visibly disable (dimmed) once the connection drops. Since sending an
+  "end match" command to an unreachable phone is itself a no-op, the END button falls back to a
+  local-only "END (LOCAL)" action (behind a confirmation dialog) that forgets the paired phone and
+  its stale match snapshot on this tablet only, so the tablet is never stuck with no way out.
+- Fix: the phone's own "tablet connected" status pill could stay stuck on "Searching" /
+  "FINDING TABLET" even while a tablet was actively receiving live score updates over the TCP-push
+  fallback transport, because only the WebSocket accept path updated the phone's
+  `hostConnectionState`; the tablet's own status (any fresh snapshot, any transport) didn't have
+  this asymmetry. `publishToTabletTcpEndpoints` now also marks the phone's status Connected on a
+  successful push, and falls back to Reconnecting if delivery stops working with no WebSocket
+  client either.
+- Added: a hard cap of 99 on either team's score (`MAX_MATCH_SCORE` in the shared domain module),
+  applied everywhere a score can change - rally-winner scoring, and both phone-side and
+  tablet-remote manual score corrections. Tapping a rally winner for a team already at 99 shows an
+  on-screen message explaining the cap and prompting a new game, instead of silently no-opping.
+- Added: player names on the scoreboard (phone and tablet) that don't fit their column even after
+  the "First L." abbreviation now shrink in small steps until they fit on one line, instead of
+  truncating with "…".
+- Added: a tablet-specific "wide" call-bar font size that kicks in once either score reaches double
+  digits, matching a pattern the phone already had. Previously the tablet call bar used one fixed
+  (very large) size regardless of digit count, which at double-digit-both-sides scores overflowed
+  badly enough to clip the third score-call segment (server number) off-screen entirely.
+- Changed: the score call bar's hyphens (phone and tablet) render smaller and vertically centered
+  relative to the digits, with a bit of surrounding space, instead of a full-digit-height dash
+  sitting flush against the numbers.
+
 ### Known Gaps
 
 - Wear sync is initial and still needs paired real-device hardening.

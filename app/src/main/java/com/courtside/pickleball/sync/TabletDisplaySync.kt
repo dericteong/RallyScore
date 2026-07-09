@@ -3,6 +3,7 @@ package com.courtside.pickleball.sync
 import android.content.Context
 import android.net.wifi.WifiManager
 import com.courtside.pickleball.domain.GameState
+import com.courtside.pickleball.domain.MAX_MATCH_SCORE
 import com.courtside.pickleball.domain.ScoringFormat
 import com.courtside.pickleball.domain.Team
 import com.courtside.pickleball.domain.VoiceAnnouncementMode
@@ -138,7 +139,6 @@ object TabletDisplaySync {
     private const val PHONE_WS_PROTOCOL = "RALLYSCORE_PHONE_WS_V1"
     private const val TABLET_WELCOME_PROTOCOL = "RALLYSCORE_TABLET_WELCOME_V1"
     private const val MAX_NAME_FIELD_LENGTH = 60
-    private const val MAX_SCORE = 99
     private const val MAX_WEBSOCKET_CONNECTIONS_PER_MINUTE = 30
     private const val MAX_TCP_PUSHES_PER_MINUTE = 150
     private const val RATE_LIMIT_WINDOW_MS = 60_000L
@@ -1049,13 +1049,16 @@ object TabletDisplaySync {
     }
 
     private fun publishToTabletTcpEndpoints(payload: String) {
-        currentTabletTcpEndpoints().forEach { endpoint ->
+        val endpoints = currentTabletTcpEndpoints()
+        var deliveredToAny = false
+        endpoints.forEach { endpoint ->
             try {
                 java.net.Socket().use { socket ->
                     socket.connect(endpoint, LISTEN_TIMEOUT_MS)
                     socket.getOutputStream().write("$payload\n".toByteArray(StandardCharsets.UTF_8))
                     socket.getOutputStream().flush()
                 }
+                deliveredToAny = true
                 SyncLog.debug(TAG) { "Published tablet score snapshot over TCP" }
             } catch (error: Exception) {
                 tabletTcpEndpoints.remove(endpoint)
@@ -1066,6 +1069,16 @@ object TabletDisplaySync {
                     error
                 )
             }
+        }
+        // The phone's own "tablet connected" status previously only reflected the WebSocket
+        // accept path, so a pairing that only ever worked over this TCP push fallback left the
+        // phone's status pill stuck on "Searching"/"Reconnecting" even while delivery was
+        // actually succeeding (the tablet's own status pill only checks "did I get a fresh
+        // snapshot", regardless of transport, so it showed Connected while the phone didn't).
+        if (deliveredToAny) {
+            setHostConnectionState(TabletConnectionState.Connected)
+        } else if (webSocketClients.isEmpty() && endpoints.isNotEmpty()) {
+            setHostConnectionState(TabletConnectionState.Reconnecting)
         }
     }
 
@@ -1602,8 +1615,8 @@ object TabletDisplaySync {
             teamAPlayer2 = if (hasPlayerNames) fields[fields.size - 3].fromWireFieldCapped() else "",
             teamBPlayer1 = if (hasPlayerNames) fields[fields.size - 2].fromWireFieldCapped() else "",
             teamBPlayer2 = if (hasPlayerNames) fields[fields.size - 1].fromWireFieldCapped() else "",
-            teamAScore = fields[5 + offset + identityOffset + sideOffset + watchOffset].toIntOrNull()?.coerceIn(0, MAX_SCORE) ?: return null,
-            teamBScore = fields[6 + offset + identityOffset + sideOffset + watchOffset].toIntOrNull()?.coerceIn(0, MAX_SCORE) ?: return null,
+            teamAScore = fields[5 + offset + identityOffset + sideOffset + watchOffset].toIntOrNull()?.coerceIn(0, MAX_MATCH_SCORE) ?: return null,
+            teamBScore = fields[6 + offset + identityOffset + sideOffset + watchOffset].toIntOrNull()?.coerceIn(0, MAX_MATCH_SCORE) ?: return null,
             servingTeam = fields[7 + offset + identityOffset + sideOffset + watchOffset].toTeam(),
             serverNumber = fields[8 + offset + identityOffset + sideOffset + watchOffset].toIntOrNull()?.coerceIn(1, 2) ?: return null,
             scoreCall = scoreCall,

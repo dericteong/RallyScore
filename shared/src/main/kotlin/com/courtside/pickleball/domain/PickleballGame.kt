@@ -1,5 +1,12 @@
 package com.courtside.pickleball.domain
 
+/**
+ * Highest score a team can reach. RallyScore supports timed play past the usual target score,
+ * but a hard ceiling keeps the score call and scoreboard display from overflowing to a third
+ * digit, which the call bar's layout isn't designed to show.
+ */
+const val MAX_MATCH_SCORE = 99
+
 /** Identifies the blue and green doubles teams tracked by RallyScore. */
 enum class Team {
     A,

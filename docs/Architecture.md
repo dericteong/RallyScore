@@ -196,6 +196,26 @@ WebSocket channel.
 
 The tablet display client tracks explicit connection states: Searching for phone, Reconnecting, and Connected. It remembers the last phone WebSocket endpoint, retries that endpoint after app relaunch, treats incoming score snapshots as heartbeat, detects stale connections with a read timeout, and keeps the last received score visible while reconnecting. The phone accepts reconnecting tablet clients and immediately sends the latest phone-owned snapshot when one is available. This transport should be agnostic to whether the local network is a router-backed Wi-Fi network or the phone hotspot.
 
+The phone tracks its own mirror of this state (`hostConnectionState`, "is a tablet connected to
+me") across *both* delivery paths, not just the WebSocket one: a periodic TCP push
+(`publishToTabletTcpEndpoints`) is the fallback used when a tablet hasn't (or can't) establish the
+WebSocket route, and a successful push marks the phone Connected the same way an accepted
+WebSocket client does, falling back to Reconnecting if delivery stops working with no WebSocket
+client either. Without this, a pairing that only ever worked over the TCP fallback left the
+phone's own status pill stuck on "Searching" indefinitely even though the tablet was receiving
+live updates and correctly showing itself as Connected — the tablet's status only depends on
+"did I get a fresh snapshot," regardless of transport, so the two sides could disagree.
+
+When a connected-controller tablet's connection to the phone actually drops (e.g. the phone app
+was closed), its rally/undo/end taps disable themselves instead of continuing to look tappable —
+they only ever send commands to the phone, so tapping them with no phone reachable was previously
+a silent no-op that read as the tablet being "hung." Because "end match" specifically has no
+meaningful action once the phone is unreachable, its button falls back to a local-only "End Game
+Locally" action (`ScoreboardViewModel.forgetPairedTabletPhone`, confirmed via dialog) that forgets
+the paired phone and the stale snapshot on this tablet only — it does not, and cannot, notify the
+phone. "SETUP" remains available regardless of connection state as a pure local-navigation escape
+hatch, unaffected by any of this.
+
 To reduce cross-court confusion on shared hotspot or Wi-Fi networks, tablet discovery is now explicit instead of silently auto-attaching to the first phone that answers. The phone setup screen exposes a compact court code derived from the stable `hostId`. An unpaired tablet stays on its normal setup screen, shows a list of discovered phones with court codes, and joins only after the user picks the intended court. After the first join, the tablet remembers that host and reconnects to it automatically until the user chooses Change Phone / forget pairing.
 
 This command/state sync path is still an MVP synced-controller transport, not the final conflict-handled phone/tablet peer model. Real Wi-Fi networks may block local-device discovery or direct delivery. Deterministic multi-controller conflict handling remains future work, but explicit tablet court selection is now the first user-visible safeguard for multiple RallyScore courts sharing one network.

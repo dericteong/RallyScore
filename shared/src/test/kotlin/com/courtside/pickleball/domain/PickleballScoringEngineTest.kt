@@ -144,6 +144,37 @@ class PickleballScoringEngineTest {
     }
 
     @Test
+    fun servingTeamScoreCapsAtNinetyNine() {
+        val state = GameState(
+            teamAScore = 99,
+            teamBScore = 10,
+            servingTeam = Team.A,
+            serverNumber = ServerNumber.One,
+            isFirstServerException = false
+        )
+
+        val next = engine.recordRallyWinner(state, Team.A)
+
+        assertEquals(99, next.teamAScore)
+    }
+
+    @Test
+    fun rallyModeReceivingTeamScoreCapsAtNinetyNine() {
+        val state = GameState(
+            teamAScore = 10,
+            teamBScore = 99,
+            servingTeam = Team.A,
+            serverNumber = ServerNumber.One,
+            isFirstServerException = false,
+            settings = GameSettings(scoringFormat = ScoringFormat.Rally)
+        )
+
+        val next = engine.recordRallyWinner(state, Team.B)
+
+        assertEquals(99, next.teamBScore)
+    }
+
+    @Test
     fun rallyModeServingTeamScoresAndKeepsServe() {
         val state = GameState(
             teamAScore = 4,

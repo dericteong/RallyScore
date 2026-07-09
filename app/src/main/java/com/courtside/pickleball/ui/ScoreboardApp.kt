@@ -7,6 +7,7 @@ import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.speech.tts.Voice
 import android.util.Log
+import android.widget.Toast
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -27,6 +28,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.courtside.pickleball.domain.GameState
+import com.courtside.pickleball.domain.MAX_MATCH_SCORE
 import com.courtside.pickleball.domain.ScoringFormat
 import com.courtside.pickleball.domain.ServerNumber
 import com.courtside.pickleball.domain.Team
@@ -84,6 +86,7 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
     var setupScoringFormat by remember { mutableStateOf(ScoringFormat.Traditional) }
     var startingTeam by remember { mutableStateOf<Team?>(Team.A) }
     var showEndMatchDialog by remember { mutableStateOf(false) }
+    var showForgetPhoneDialog by remember { mutableStateOf(false) }
     var showCorrectionDialog by remember { mutableStateOf(false) }
     var myTeamOnTop by remember { mutableStateOf(true) }
     var editingSetupFromMatch by remember { mutableStateOf(false) }
@@ -102,6 +105,14 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
         TextToSpeech(context.applicationContext) { status ->
             ttsReady = status == TextToSpeech.SUCCESS
         }
+    }
+
+    fun showMaxScoreReachedToast() {
+        Toast.makeText(
+            context,
+            "Maximum score of $MAX_MATCH_SCORE reached — start a new game to continue.",
+            Toast.LENGTH_LONG
+        ).show()
     }
 
     fun speakScoreCall(scoreCall: String) {
@@ -299,10 +310,24 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
                     myTeamOnTop = activeRemoteTabletState.myTeamOnTop,
                     watchConnected = activeRemoteTabletState.watchConnected,
                     canUndo = activeRemoteTabletState.canUndo,
-                    onTeamARally = { viewModel.sendTabletCommand(TabletCommand.TeamAWonRally) },
-                    onTeamBRally = { viewModel.sendTabletCommand(TabletCommand.TeamBWonRally) },
+                    isRemoteControlled = true,
+                    onTeamARally = {
+                        if (activeRemoteTabletState!!.teamAScore >= MAX_MATCH_SCORE) {
+                            showMaxScoreReachedToast()
+                        } else {
+                            viewModel.sendTabletCommand(TabletCommand.TeamAWonRally)
+                        }
+                    },
+                    onTeamBRally = {
+                        if (activeRemoteTabletState!!.teamBScore >= MAX_MATCH_SCORE) {
+                            showMaxScoreReachedToast()
+                        } else {
+                            viewModel.sendTabletCommand(TabletCommand.TeamBWonRally)
+                        }
+                    },
                     onUndo = { viewModel.sendTabletCommand(TabletCommand.Undo) },
                     onEndMatchRequested = { viewModel.sendTabletCommand(TabletCommand.EndMatch) },
+                    onForgetPhoneRequested = { showForgetPhoneDialog = true },
                     onCorrectionRequested = { showCorrectionDialog = true },
                     onNavigateToSetup = {
                         editingSetupFromMatch = true
@@ -323,8 +348,20 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
                         myTeamOnTop = myTeamOnTop,
                         watchConnected = effectiveTabletWatchConnected,
                         canUndo = viewModel.canUndo(),
-                        onTeamARally = { viewModel.recordRallyWinner(Team.A) },
-                        onTeamBRally = { viewModel.recordRallyWinner(Team.B) },
+                        onTeamARally = {
+                            if (state.teamAScore >= MAX_MATCH_SCORE) {
+                                showMaxScoreReachedToast()
+                            } else {
+                                viewModel.recordRallyWinner(Team.A)
+                            }
+                        },
+                        onTeamBRally = {
+                            if (state.teamBScore >= MAX_MATCH_SCORE) {
+                                showMaxScoreReachedToast()
+                            } else {
+                                viewModel.recordRallyWinner(Team.B)
+                            }
+                        },
                         onUndo = viewModel::undo,
                         onEndMatchRequested = { showEndMatchDialog = true },
                         onCorrectionRequested = { showCorrectionDialog = true },
@@ -340,8 +377,20 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
                         canUndo = viewModel.canUndo(),
                         watchConnected = watchConnected,
                         tabletConnectionState = tabletHostConnectionState,
-                        onTeamARally = { viewModel.recordRallyWinner(Team.A) },
-                        onTeamBRally = { viewModel.recordRallyWinner(Team.B) },
+                        onTeamARally = {
+                            if (state.teamAScore >= MAX_MATCH_SCORE) {
+                                showMaxScoreReachedToast()
+                            } else {
+                                viewModel.recordRallyWinner(Team.A)
+                            }
+                        },
+                        onTeamBRally = {
+                            if (state.teamBScore >= MAX_MATCH_SCORE) {
+                                showMaxScoreReachedToast()
+                            } else {
+                                viewModel.recordRallyWinner(Team.B)
+                            }
+                        },
                         onUndo = viewModel::undo,
                         onEndMatchRequested = { showEndMatchDialog = true },
                         onCorrectionRequested = { showCorrectionDialog = true },
@@ -503,6 +552,36 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
                 },
                 dismissButton = {
                     TextButton(onClick = { showEndMatchDialog = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+
+        if (showForgetPhoneDialog) {
+            AlertDialog(
+                onDismissRequest = { showForgetPhoneDialog = false },
+                title = { Text("End Game Locally?") },
+                text = {
+                    Text(
+                        "The phone isn't reachable, so this can't send an end-game command to it. " +
+                            "This instead forgets the paired phone on this tablet and clears this " +
+                            "match here. You'll need to re-pair with a court code to connect again."
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            viewModel.forgetPairedTabletPhone()
+                            showForgetPhoneDialog = false
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Warning)
+                    ) {
+                        Text("End Game Locally")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showForgetPhoneDialog = false }) {
                         Text("Cancel")
                     }
                 }

@@ -2,6 +2,7 @@ package com.courtside.pickleball.sync
 
 import com.courtside.pickleball.domain.GameSettings
 import com.courtside.pickleball.domain.GameState
+import com.courtside.pickleball.domain.MAX_MATCH_SCORE
 import com.courtside.pickleball.domain.PickleballScoringEngine
 import com.courtside.pickleball.domain.ScoringFormat
 import com.courtside.pickleball.domain.ServerNumber
@@ -82,7 +83,7 @@ class ScoreboardStore(
         if (!_matchActive.value || delta == 0) return _state.value
 
         val current = _state.value
-        val nextScore = (current.scoreFor(team) + delta).coerceAtLeast(0)
+        val nextScore = (current.scoreFor(team) + delta).coerceIn(0, MAX_MATCH_SCORE)
         if (nextScore == current.scoreFor(team)) return current
 
         history += current

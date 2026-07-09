@@ -53,6 +53,10 @@ Verify:
 - Score call always shows serving score first.
 - Rally mode still uses the three-number score call.
 - Score can continue above 11 for timed play.
+- Score caps at 99 and does not roll over; this applies to rally-winner scoring and to manual
+  +/- corrections from both the phone's correction dialog and the tablet's remote adjust commands.
+- Tapping a rally winner for a team already at 99 shows an on-screen message about the cap and
+  starting a new game, on both phone and tablet.
 - Undo restores complete prior state.
 - `servingPlayerName()` returns P1 at game start (first-server exception, Team A).
 - `servingPlayerName()` returns P4 when Team B serves with Server One and no exception.
@@ -129,7 +133,11 @@ Use a real phone when possible.
 - Team B row uses green.
 - Team rows show player names in court-ordered format (swaps on odd scores).
 - Team rows show abbreviated names ("First L.", e.g. "Deric T.") rather than full names; single-word names (no last name on file) show unabbreviated.
+- If an abbreviated name still doesn't fit its column (long first name, serving-highlight's larger
+  font, etc.), it shrinks in steps to fit on one line instead of truncating with "…".
 - Serving player name is underlined in the team name display.
+- Score call bar hyphens ("0 - 0 - 2") render clearly smaller than the digits, vertically centered
+  (not sitting low near the baseline), with a small legible gap on both sides.
 - Table dividers are neutral.
 - Serving team row shows one or two dots.
 - Tap Team A score records Team A rally winner.
@@ -279,6 +287,11 @@ or wear-module change:
 - Undo restores the previous rally.
 - Before any rally is scored (`UNDO` disabled), the UNDO button is legible as dimmed text, not invisible/blank, against the dark call-bar background.
 - SETUP/EDIT/UNDO/END buttons appear grouped inside a subtle panel on the call bar, not floating loosely on the black background.
+- With both scores in double digits (e.g. 99 - 99 - 2), the call bar switches to a smaller "wide"
+  font size and the full three-part call remains fully visible - it must not clip/lose the
+  server-number segment the way a single fixed large font size would at that width.
+- Tablet call-bar hyphens are legibly sized relative to the (very large) digits, with visible
+  spacing on both sides, not crowded flush against the numbers.
 - Correction mode is available if already implemented for the shared phone/tablet UI.
 - In tablet standalone mode, `EDIT` can adjust Team A score, Team B score, serving side, and server number.
 - After a correction change, `UNDO` restores the full prior state, including serving side and server number.
@@ -363,6 +376,17 @@ or wear-module change:
 - Closing and reopening the tablet app reconnects automatically.
 - Closing and reopening the phone app restores the active phone-owned score and keeps accepting tablet reconnects.
 - Rebooting the tablet reconnects automatically after RallyScore is opened.
+- When a tablet is connected only via the TCP-push fallback (not the WebSocket route), the phone's
+  own status pill still reaches "TABLET CONNECTED" (not stuck on "FINDING TABLET") once the tablet
+  is actually receiving live snapshots.
+- Force-close the phone app while a tablet is connected-controller for its match. Once the tablet's
+  status pill flips to Reconnecting, verify its rally/UNDO/END taps go visibly disabled (dimmed)
+  instead of staying tappable with no effect.
+- With the phone still unreachable, tap the tablet's END button (now labeled "END (LOCAL)"),
+  confirm the dialog, and verify the tablet forgets the pairing and returns to its own fresh setup
+  screen without needing the phone.
+- Confirm "SETUP" on a stuck/disconnected connected-controller tablet always works to leave the
+  screen, regardless of connection state.
 
 ## Persistence Manual Test
 

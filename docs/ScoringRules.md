@@ -85,6 +85,19 @@ Current product behavior allows scores to continue beyond 11 because many social
 
 The domain model still carries `targetScore` and `winBy` settings for future configurability, but the current engine never automatically ends a game when a score reaches 11 or any other number.
 
+## Maximum Score
+
+`MAX_MATCH_SCORE` (`shared/.../domain/PickleballGame.kt`) caps a team's score at 99. Both
+`PickleballScoringEngine.recordRallyWinner` (rally-winner scoring) and `ScoreboardStore.adjustScore`
+(manual +/- corrections, used by the phone's correction dialog and the tablet's remote
+`TABLET_ADJUST_TEAM_{A,B}_SCORE_{UP,DOWN}` commands) coerce to this ceiling — a team already at 99
+stays at 99 rather than continuing to climb. This exists because the call bar and scoreboard
+layouts are only designed for up to two digits per score; a third digit would overflow the tablet
+and phone call bar (see "Voice Announcements"/score-call layout in `docs/Architecture.md`).
+Tapping a rally winner for a team already at 99 shows an on-screen message (a `Toast` on phone and
+tablet) explaining the cap has been reached and to start a new game, instead of silently doing
+nothing.
+
 ## Serving Player
 
 `GameState.servingPlayerName()` returns the name of the player currently serving based on a simplified fixed-position model:

@@ -277,6 +277,75 @@ live debugging session and the user didn't ask for a fix at the time. Likely fix
 `startBroadcaster`'s phone-availability advertisement on `deviceRole == DEVICE_ROLE_PHONE`, or
 filter a device's own `hostId` out of its locally-discovered-phones list.
 
+## Tablet connected-controller taps silently no-op once the phone disconnects (2026-07-09) — **FIXED**
+
+Reported as: "the tablet can't end game or can't increase score" after the user closed the phone
+app mid-match. The tablet's connection-status pill correctly showed Reconnecting, but its rally,
+UNDO, and END taps stayed fully interactive and simply did nothing when tapped — these taps only
+ever send commands to the phone (`TabletDisplaySync`/`RallyScorePhoneHub`), they never score
+locally, so once the phone was unreachable every tap was a silent, invisible no-op.
+
+Root cause was two-fold in `TabletDisplayScreen.kt`:
+1. The score-tap `enabled` expression was `!isConnectedController || isController`, which
+   evaluates `true` almost regardless of actual connection state (inverted logic — it should have
+   required *both* "this is a controller" and "actually connected").
+2. The UNDO and END buttons in `TabletControlBar` had no connectivity gating at all — UNDO only
+   checked local undo-availability, and END had no `enabled` parameter whatsoever.
+
+Fix: added an explicit `isRemoteControlled` flag (true only for the phone-owned remote-controller
+flow; a local standalone Tablet Only match is unaffected, since its own `tabletConnectionState`
+is unrelated to whether its own local match can be scored) and a `remoteCommandsEnabled` value
+derived from it, applied to all three controls. Once disabled, score text also dims (35% alpha)
+so it reads as inactive rather than just silently unresponsive.
+
+This surfaced a second gap: once END is correctly disabled while disconnected, there was *no way
+at all* to end a stuck remote match — "SETUP" only navigates away locally, it doesn't clear the
+match, and RESUME just goes back to the same disabled screen. Found and reused an existing but
+previously unwired method, `ScoreboardViewModel.forgetPairedTabletPhone()` (wraps
+`TabletDisplaySync.forgetPairedPhone()`), which clears the paired-phone identity and cached remote
+snapshot locally without trying to notify the (unreachable) phone. Wired it to the END button: while
+disconnected, END relabels to "END (LOCAL)" and, behind a confirmation dialog explaining the
+phone is unreachable and this is local-only, forgets the pairing and returns the tablet to its own
+fresh setup screen. Verified live: force-closing the paired phone app correctly dimmed/disabled the
+tablet's controls within a few seconds, and "END (LOCAL)" successfully recovered the tablet to a
+usable state without the phone.
+
+## Phone's "tablet connected" status stuck on Searching despite live TCP-fallback delivery (2026-07-09) — **FIXED**
+
+Reported as: tablet showed "PHONE CONNECTED" while the phone simultaneously showed
+"FINDING TABLET" for the same live pairing. Root cause: `TabletDisplaySync` has two independent
+transports for delivering phone-owned state to a tablet — a WebSocket connection, and a periodic
+TCP-push fallback (`publishToTabletTcpEndpoints`, used when the tablet hasn't/can't establish the
+WebSocket route). Only the WebSocket accept path (`acceptWebSocketClient`) ever updated the
+phone's own `hostConnectionState`. The tablet side has no such asymmetry — `updateRemoteDisplayState`
+marks the tablet Connected on receipt of *any* fresh snapshot regardless of which transport
+delivered it — so a pairing that happened to work only over the TCP fallback left the phone
+permanently reporting "Searching"/"FINDING TABLET" even though delivery was succeeding and the
+tablet correctly showed itself Connected.
+
+Fix: `publishToTabletTcpEndpoints` now marks the phone's `hostConnectionState` Connected on a
+successful push, and falls back to Reconnecting if delivery stops working and there's no
+WebSocket client either (guarded so it never downgrades an actually-healthy WebSocket connection).
+Verified live: reinstalling with the fix flipped the phone's status pill from "FINDING TABLET" to
+"TABLET CONNECTED" against the same live pairing, with no change on the tablet side needed.
+
+## Tablet call bar could silently clip the score-call's third segment at high scores (2026-07-09) — **FIXED**
+
+Found while live-testing the new 99-point score cap: at a 99-99 score, the tablet's call bar
+rendered only "99 - 99" — the third segment (server number) was entirely missing, not truncated
+with an ellipsis, just gone. Root cause: unlike the phone (`PhoneCallBarWideTextSize` etc.), the
+tablet call bar used one single fixed font size (`TabletCallBarTextSize = 292.sp`) regardless of
+digit count, and `Text`'s default overflow (`Clip`, combined with `TextAlign.Center`) silently
+drops content from the wider side without any visual indicator when the full string doesn't fit at
+that size.
+
+Fix: added a `TabletDisplayState.callHasDoubleDigitScore()` check and a `TabletCallBarWideTextSize`
+tier (mirroring the phone's existing pattern), applied whenever either team's score reaches double
+digits. Iterated the exact size and the call bar's hyphen spacing twice more based on live
+screenshots taken directly from the connected tablet (250sp text / 254sp line height / single-space
+hyphen padding was the setting that both fit the worst case (99-99-2) and looked appropriately
+large, per direct user feedback comparing screenshots at each step).
+
 ## Low severity
 
 - `MatchCorrectionDialog.kt` labeled teams "My Team"/"Opponent Team" without the color suffix

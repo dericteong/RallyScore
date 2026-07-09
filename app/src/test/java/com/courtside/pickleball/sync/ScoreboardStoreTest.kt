@@ -79,6 +79,26 @@ class ScoreboardStoreTest {
     }
 
     @Test
+    fun adjustScoreClampsAtNinetyNine() {
+        val store = ScoreboardStore()
+        store.startMatch(
+            teamAName = "My Team",
+            teamBName = "Opp Team",
+            teamAPlayer1 = "P1",
+            teamAPlayer2 = "P2",
+            teamBPlayer1 = "P3",
+            teamBPlayer2 = "P4",
+            scoringFormat = ScoringFormat.Traditional,
+            startingTeam = Team.A
+        )
+
+        store.adjustScore(Team.A, 99)
+        val unchanged = store.adjustScore(Team.A, 1)
+
+        assertEquals(99, unchanged.teamAScore)
+    }
+
+    @Test
     fun endMatchClearsUndoButKeepsLastVisibleState() {
         val store = ScoreboardStore()
         store.startMatch(

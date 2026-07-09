@@ -27,9 +27,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.BaselineShift
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.courtside.pickleball.domain.ServerNumber
@@ -51,6 +55,8 @@ import com.courtside.pickleball.ui.theme.TabletCallBarControlInset
 import com.courtside.pickleball.ui.theme.TabletCallBarHeight
 import com.courtside.pickleball.ui.theme.TabletCallBarLineHeight
 import com.courtside.pickleball.ui.theme.TabletCallBarTextSize
+import com.courtside.pickleball.ui.theme.TabletCallBarWideLineHeight
+import com.courtside.pickleball.ui.theme.TabletCallBarWideTextSize
 import com.courtside.pickleball.ui.theme.TeamABlue
 import com.courtside.pickleball.ui.theme.TeamBGreen
 
@@ -62,15 +68,27 @@ internal fun TabletDisplayScreen(
     myTeamOnTop: Boolean = true,
     watchConnected: Boolean = false,
     canUndo: Boolean = false,
+    // True only for the connected-controller flow, where this tablet sends commands to a
+    // phone-owned match over the sync channel. A local standalone Tablet Only match scores
+    // through the shared engine directly and must stay usable regardless of
+    // tabletConnectionState (which here only reflects unrelated phone-pairing status).
+    isRemoteControlled: Boolean = false,
     onTeamARally: (() -> Unit)? = null,
     onTeamBRally: (() -> Unit)? = null,
     onUndo: (() -> Unit)? = null,
     onEndMatchRequested: (() -> Unit)? = null,
+    // Local-only escape hatch for when the phone is unreachable: forgets the paired phone and
+    // its stale match snapshot on this tablet, without trying to notify the (unreachable) phone.
+    onForgetPhoneRequested: (() -> Unit)? = null,
     onCorrectionRequested: (() -> Unit)? = null,
     onNavigateToSetup: (() -> Unit)? = null
 ) {
     val isController = onUndo != null
-    val isConnectedController = connectionState == TabletConnectionState.Connected
+    // When remote-controlled, commands only reach the phone while actually Connected; once the
+    // phone drops off (e.g. its app was closed) and the connection goes stale, disable rally/undo/
+    // end taps instead of silently accepting taps that go nowhere. "SETUP" stays available so the
+    // tablet is never stuck with no way out.
+    val remoteCommandsEnabled = !isRemoteControlled || connectionState == TabletConnectionState.Connected
 
     Surface(
         modifier = Modifier
@@ -93,8 +111,10 @@ internal fun TabletDisplayScreen(
             TabletControlBar(
                 state = state,
                 canUndo = canUndo,
+                remoteCommandsEnabled = remoteCommandsEnabled,
                 onUndo = onUndo,
                 onEndMatchRequested = onEndMatchRequested,
+                onForgetPhoneRequested = onForgetPhoneRequested,
                 onCorrectionRequested = onCorrectionRequested,
                 onNavigateToSetup = onNavigateToSetup
             )
@@ -104,7 +124,7 @@ internal fun TabletDisplayScreen(
                     .fillMaxWidth(),
                 state = state,
                 myTeamOnTop = myTeamOnTop,
-                enabled = !isConnectedController || isController,
+                enabled = isController && remoteCommandsEnabled,
                 onTeamARally = onTeamARally,
                 onTeamBRally = onTeamBRally
             )
@@ -273,15 +293,26 @@ internal fun TabletStatusHeader(
     }
 }
 
+// The call bar's digits render at a very large font size, so a full-size hyphen looks like an
+// oversized dash between them; shrinking it (relative to the surrounding text) keeps it short
+// and proportionate instead. Shrinking a span's font size keeps it on the same baseline, which
+// drags a small glyph down toward the bottom of the big digits, so nudge it back up toward
+// digit-center with a baseline shift. The surrounding spaces render at this same smaller size
+// so the gap they add stays proportionate rather than full-digit-sized.
+private val CallBarHyphenStyle = SpanStyle(fontSize = 0.55.em, baselineShift = BaselineShift(0.19f))
+
+internal fun TabletDisplayState.callHasDoubleDigitScore(): Boolean =
+    teamAScore >= 10 || teamBScore >= 10
+
 internal fun TabletDisplayState.coloredScoreCall() = buildAnnotatedString {
     val (servingScore, receivingScore) = when (servingTeam) {
         Team.A -> teamAScore to teamBScore
         Team.B -> teamBScore to teamAScore
     }
     append(servingScore.toString())
-    append("-")
+    withStyle(CallBarHyphenStyle) { append(" - ") }
     append(receivingScore.toString())
-    append("-")
+    withStyle(CallBarHyphenStyle) { append(" - ") }
     append(serverNumber.toString())
 }
 
@@ -295,8 +326,10 @@ internal fun String.toCourtCode(): String =
 internal fun TabletControlBar(
     state: TabletDisplayState,
     canUndo: Boolean = false,
+    remoteCommandsEnabled: Boolean = true,
     onUndo: (() -> Unit)? = null,
     onEndMatchRequested: (() -> Unit)? = null,
+    onForgetPhoneRequested: (() -> Unit)? = null,
     onCorrectionRequested: (() -> Unit)? = null,
     onNavigateToSetup: (() -> Unit)? = null
 ) {
@@ -310,6 +343,7 @@ internal fun TabletControlBar(
             .background(CallBackground)
             .padding(horizontal = 24.dp, vertical = 14.dp)
     ) {
+        val useWideCallText = state.callHasDoubleDigitScore()
         Text(
             modifier = Modifier
                 .align(Alignment.Center)
@@ -317,9 +351,9 @@ internal fun TabletControlBar(
                 .padding(end = if (showControls) TabletCallBarControlInset else 0.dp, start = 12.dp),
             text = state.coloredScoreCall(),
             color = Color.White,
-            fontSize = TabletCallBarTextSize,
+            fontSize = if (useWideCallText) TabletCallBarWideTextSize else TabletCallBarTextSize,
             fontWeight = FontWeight.Black,
-            lineHeight = TabletCallBarLineHeight,
+            lineHeight = if (useWideCallText) TabletCallBarWideLineHeight else TabletCallBarLineHeight,
             textAlign = TextAlign.Center,
             maxLines = 1
         )
@@ -362,7 +396,7 @@ internal fun TabletControlBar(
                         .height(52.dp)
                         .width(104.dp),
                     onClick = onUndo!!,
-                    enabled = canUndo,
+                    enabled = canUndo && remoteCommandsEnabled,
                     shape = RoundedCornerShape(8.dp),
                     colors = ButtonDefaults.outlinedButtonColors(
                         disabledContentColor = Color.White.copy(alpha = 0.35f)
@@ -371,15 +405,29 @@ internal fun TabletControlBar(
                 ) {
                     Text("UNDO", fontSize = 18.sp, fontWeight = FontWeight.Black, maxLines = 1)
                 }
+                // While disconnected, sending "end match" to the phone would just be dropped
+                // silently, so this button instead falls back to a local-only action that
+                // forgets the paired phone and its stale match snapshot on this tablet.
+                val useLocalEndFallback = !remoteCommandsEnabled && onForgetPhoneRequested != null
                 OutlinedButton(
                     modifier = Modifier
                         .height(52.dp)
                         .width(104.dp),
-                    onClick = onEndMatchRequested!!,
+                    onClick = if (useLocalEndFallback) onForgetPhoneRequested!! else onEndMatchRequested!!,
+                    enabled = remoteCommandsEnabled || useLocalEndFallback,
                     shape = RoundedCornerShape(8.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        disabledContentColor = Color.White.copy(alpha = 0.35f)
+                    ),
                     contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
                 ) {
-                    Text("END", fontSize = 18.sp, fontWeight = FontWeight.Black, maxLines = 1)
+                    Text(
+                        text = if (useLocalEndFallback) "END\n(LOCAL)" else "END",
+                        fontSize = if (useLocalEndFallback) 14.sp else 18.sp,
+                        fontWeight = FontWeight.Black,
+                        textAlign = TextAlign.Center,
+                        maxLines = 2
+                    )
                 }
             }
         }
@@ -414,7 +462,7 @@ internal fun TabletScoreTapTarget(
                 }
             },
             text = score.toString(),
-            color = color,
+            color = if (enabled) color else color.copy(alpha = 0.35f),
             fontSize = 122.sp,
             fontWeight = FontWeight.Black,
             textAlign = TextAlign.Center,
