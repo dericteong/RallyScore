@@ -236,9 +236,31 @@ object WearTabletFallbackSync {
                             continue
                         }
                         val selectedCourtCode = _selectedCourtCode.value
+                        val selectedCourtStillDiscoverable = selectedCourtCode != null &&
+                            synchronized(discoveredTabletRecords) {
+                                discoveredTabletRecords.containsKey(selectedCourtCode)
+                            }
                         when {
                             selectedCourtCode == null -> selectTablet(candidate.courtCode)
                             selectedCourtCode == candidate.courtCode -> connect(candidate.endpoint)
+                            // The watch remembers its last selected tablet court across app
+                            // restarts so it can silently reconnect later - but if that
+                            // remembered court is no longer discoverable at all (e.g. the
+                            // tablet app's data was cleared/reinstalled and it now broadcasts a
+                            // new court code) while a different tablet IS currently in range,
+                            // the old code blocked forever: neither branch above ever matched,
+                            // so the watch would discover the new tablet endlessly without ever
+                            // selecting or connecting to it, leaving Tablet Mode's START button
+                            // permanently disabled with no way to recover short of clearing app
+                            // data. Once the remembered court is verifiably gone, fall back to
+                            // selecting whatever tablet is actually here.
+                            !selectedCourtStillDiscoverable -> {
+                                WearSyncLog.debug(TAG) {
+                                    "Previously selected tablet court $selectedCourtCode is no longer " +
+                                        "discoverable; switching to newly discovered court ${candidate.courtCode}"
+                                }
+                                selectTablet(candidate.courtCode)
+                            }
                         }
                     } catch (_: SocketTimeoutException) {
                         pruneStaleDiscoveredTablets()
