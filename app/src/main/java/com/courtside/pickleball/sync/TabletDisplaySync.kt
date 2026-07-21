@@ -231,7 +231,21 @@ object TabletDisplaySync {
     private data class LocalIpv4Network(
         val address: Inet4Address,
         val prefixLength: Int
-    )
+    ) {
+        /** True if [other] falls within this interface's IPv4 subnet. */
+        fun contains(other: Inet4Address): Boolean {
+            val network = address.address
+            val candidate = other.address
+            if (network.size != 4 || candidate.size != 4) return false
+            val mask = if (prefixLength <= 0) 0 else -1 shl (32 - prefixLength.coerceAtMost(32))
+            fun toInt(bytes: ByteArray) =
+                (bytes[0].toInt() and 0xFF shl 24) or
+                    (bytes[1].toInt() and 0xFF shl 16) or
+                    (bytes[2].toInt() and 0xFF shl 8) or
+                    (bytes[3].toInt() and 0xFF)
+            return (toInt(network) and mask) == (toInt(candidate) and mask)
+        }
+    }
 
     fun initialize(context: Context) {
         appContext = context.applicationContext
@@ -1381,6 +1395,18 @@ object TabletDisplaySync {
             .filterIsInstance<Inet4Address>()
             .filterNot { it.isLoopbackAddress || it.isLinkLocalAddress }
 
+    /**
+     * True if [address] is on one of the tablet's current IPv4 subnets. When the tablet has no
+     * usable IPv4 network (e.g. Wi-Fi mid-transition) this returns true so we don't discard an
+     * endpoint we simply can't classify yet.
+     */
+    private fun isOnLocalSubnet(address: InetAddress): Boolean {
+        val target = address as? Inet4Address ?: return true
+        val networks = localIpv4Networks()
+        if (networks.isEmpty()) return true
+        return networks.any { it.contains(target) }
+    }
+
     private fun localIpv4Networks(): List<LocalIpv4Network> =
         networkInterfaces()
             .flatMap { networkInterface ->
@@ -1524,6 +1550,17 @@ object TabletDisplaySync {
         val address = try {
             InetAddress.getByName(host)
         } catch (_: Exception) {
+            return null
+        }
+        // A remembered endpoint from a previous network (e.g. the phone's hotspot IP after the
+        // tablet has since joined shared Wi-Fi) is unreachable and would otherwise be preferred by
+        // shouldProbePhoneEndpoint(), stranding the tablet on a dead cross-subnet address and
+        // blocking gateway/subnet-scan rediscovery of the phone. Ignore it when it isn't on any of
+        // the tablet's current subnets so reconnection can fall through to discovery.
+        if (!isOnLocalSubnet(address)) {
+            SyncLog.debug(TAG) {
+                "Ignoring remembered phone endpoint $host; not on the tablet's current subnet"
+            }
             return null
         }
         return InetSocketAddress(address, port)
