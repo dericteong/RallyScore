@@ -113,4 +113,86 @@ Wear. Play. Score.
 
 ## Copyright / attribution
 © 2026 Deric Teong (matches the in-app Set Up Game footer).
+
+---
+
+# Wear OS listing (same app, Wear form factor)
+
+The Wear app ships in the **same** Play listing (shared `applicationId`). Play
+lets the Wear OS form factor carry its own short/full description; this copy is
+watch-focused to complement the phone listing above.
+
+## Wear title (max 30 chars)
+
 ```
+RallyScore: Pickleball Watch
+```
+*(28 chars.)*
+
+## Wear short description (max 80 chars)
+
+```
+Score pickleball from your wrist — tap, undo, and hear the call, hands-free.
+```
+*(76 chars.)*
+
+## Wear full description (max 4000 chars)
+
+```
+Keep scoring without leaving the court. RallyScore on Wear OS turns your watch
+into a pickleball scorer you control from your wrist.
+
+SCORE FROM YOUR WRIST
+Big, color-coded "ME WON" and "OPP WON" buttons make scoring a glance-and-tap —
+no reaching for a phone or scoreboard between rallies. Undo a mistap instantly,
+and feel a haptic buzz confirming every point.
+
+HEAR THE SCORE
+Your watch calls the score out loud after each rally, so everyone on court knows
+where things stand — hands-free.
+
+TWO WAYS TO PLAY
+• Watch Only — a complete standalone scorer. Set up, pick who serves first,
+  choose Traditional or Rally scoring, and play. No phone required.
+• Watch + Phone — use the watch as a fast remote while your Android phone runs
+  the rules and drives a big courtside scoreboard. Tap on the wrist; the phone
+  keeps the official score and can announce it too.
+
+BUILT FOR THE COURT
+• Round-screen-optimized layout with a large, color-coded score call.
+• High-contrast black theme that stays readable in bright sun.
+• Blue vs green team colors, side-out and serve tracking handled for you.
+
+PRIVACY-FIRST
+No account. No ads. Scoring stays on your devices.
+
+RallyScore keeps scoring simple, glanceable, and correct — right from your wrist.
+
+Wear. Play. Score.
+```
+
+Wear screenshots: `play-assets/watch-screenshots/` (Watch Only setup, Phone Mode
+setup, connected scoreboard).
+
+---
+
+# Publishing configuration
+
+- **Package name (`applicationId`):** `com.courtside.pickleball` — shared by the
+  phone and Wear artifacts, which is what puts them in ONE Play listing.
+  Permanent once published; cannot be changed.
+- **One app, not two:** create a single Play Console app and add the **Wear OS**
+  form factor. Upload both AABs (phone + wear) in the same release; Play routes
+  by the watch `uses-feature`.
+- **Version codes:** phone `1`, Wear `2`. Wear must stay distinct from AND higher
+  than the phone on every future bump (a watch matches both artifacts and gets
+  the highest applicable version code).
+- **Free or paid: choose FREE.** No upfront download price. A Free app fully
+  supports ads and in-app purchases.
+  - Planned later: a **"Remove ads" in-app purchase** (a one-time managed IAP on
+    top of the Free app) — this does NOT require the app to be "Paid."
+  - Direction rule: Free → Paid is NOT allowed; Paid → Free is. Free is both the
+    correct and the flexible choice.
+  - When ads/IAP are added later: check "Contains ads", set up a Payments/merchant
+    profile + the `remove_ads` product, and REVISE the Data Safety form and the
+    privacy policy (both currently state no ads / no data collected).
