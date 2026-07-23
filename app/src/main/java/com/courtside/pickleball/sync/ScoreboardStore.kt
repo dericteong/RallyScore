@@ -1,5 +1,11 @@
 package com.courtside.pickleball.sync
 
+import com.courtside.pickleball.domain.DEFAULT_TEAM_A_NAME
+import com.courtside.pickleball.domain.DEFAULT_TEAM_A_PLAYER_1
+import com.courtside.pickleball.domain.DEFAULT_TEAM_A_PLAYER_2
+import com.courtside.pickleball.domain.DEFAULT_TEAM_B_NAME
+import com.courtside.pickleball.domain.DEFAULT_TEAM_B_PLAYER_1
+import com.courtside.pickleball.domain.DEFAULT_TEAM_B_PLAYER_2
 import com.courtside.pickleball.domain.GameSettings
 import com.courtside.pickleball.domain.GameState
 import com.courtside.pickleball.domain.MAX_MATCH_SCORE
@@ -7,6 +13,7 @@ import com.courtside.pickleball.domain.PickleballScoringEngine
 import com.courtside.pickleball.domain.ScoringFormat
 import com.courtside.pickleball.domain.ServerNumber
 import com.courtside.pickleball.domain.Team
+import com.courtside.pickleball.domain.ifBlankPlaceholder
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -42,12 +49,12 @@ class ScoreboardStore(
         val next = GameState(
             servingTeam = startingTeam,
             settings = GameSettings(
-                teamAName = teamAName.trim().ifEmpty { "Team A" },
-                teamBName = teamBName.trim().ifEmpty { "Team B" },
-                teamAPlayer1 = teamAPlayer1.trim().ifEmpty { "P1" },
-                teamAPlayer2 = teamAPlayer2.trim().ifEmpty { "P2" },
-                teamBPlayer1 = teamBPlayer1.trim().ifEmpty { "P3" },
-                teamBPlayer2 = teamBPlayer2.trim().ifEmpty { "P4" },
+                teamAName = teamAName.ifBlankPlaceholder(DEFAULT_TEAM_A_NAME),
+                teamBName = teamBName.ifBlankPlaceholder(DEFAULT_TEAM_B_NAME),
+                teamAPlayer1 = teamAPlayer1.ifBlankPlaceholder(DEFAULT_TEAM_A_PLAYER_1),
+                teamAPlayer2 = teamAPlayer2.ifBlankPlaceholder(DEFAULT_TEAM_A_PLAYER_2),
+                teamBPlayer1 = teamBPlayer1.ifBlankPlaceholder(DEFAULT_TEAM_B_PLAYER_1),
+                teamBPlayer2 = teamBPlayer2.ifBlankPlaceholder(DEFAULT_TEAM_B_PLAYER_2),
                 scoringFormat = scoringFormat
             )
         )
@@ -121,12 +128,12 @@ class ScoreboardStore(
         if (!_matchActive.value) return
         _state.value = _state.value.copy(
             settings = _state.value.settings.copy(
-                teamAName = teamAName.trim().ifEmpty { "Team A" },
-                teamBName = teamBName.trim().ifEmpty { "Team B" },
-                teamAPlayer1 = teamAPlayer1.trim().ifEmpty { "P1" },
-                teamAPlayer2 = teamAPlayer2.trim().ifEmpty { "P2" },
-                teamBPlayer1 = teamBPlayer1.trim().ifEmpty { "P3" },
-                teamBPlayer2 = teamBPlayer2.trim().ifEmpty { "P4" },
+                teamAName = teamAName.ifBlankPlaceholder(DEFAULT_TEAM_A_NAME),
+                teamBName = teamBName.ifBlankPlaceholder(DEFAULT_TEAM_B_NAME),
+                teamAPlayer1 = teamAPlayer1.ifBlankPlaceholder(DEFAULT_TEAM_A_PLAYER_1),
+                teamAPlayer2 = teamAPlayer2.ifBlankPlaceholder(DEFAULT_TEAM_A_PLAYER_2),
+                teamBPlayer1 = teamBPlayer1.ifBlankPlaceholder(DEFAULT_TEAM_B_PLAYER_1),
+                teamBPlayer2 = teamBPlayer2.ifBlankPlaceholder(DEFAULT_TEAM_B_PLAYER_2),
                 scoringFormat = scoringFormat
             )
         )

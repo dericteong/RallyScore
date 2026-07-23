@@ -1,12 +1,17 @@
 package com.courtside.pickleball.ui
 
 import androidx.lifecycle.ViewModel
+import com.courtside.pickleball.domain.DEFAULT_TEAM_A_PLAYER_1
+import com.courtside.pickleball.domain.DEFAULT_TEAM_A_PLAYER_2
+import com.courtside.pickleball.domain.DEFAULT_TEAM_B_PLAYER_1
+import com.courtside.pickleball.domain.DEFAULT_TEAM_B_PLAYER_2
 import com.courtside.pickleball.domain.GameSettings
 import com.courtside.pickleball.domain.GameState
 import com.courtside.pickleball.domain.ScoringFormat
 import com.courtside.pickleball.domain.ServerNumber
 import com.courtside.pickleball.domain.Team
 import com.courtside.pickleball.domain.VoiceAnnouncementMode
+import com.courtside.pickleball.domain.ifBlankPlaceholder
 import com.courtside.pickleball.player.Player
 import com.courtside.pickleball.player.PlayerRepository
 import com.courtside.pickleball.sync.RallyScorePhoneHub
@@ -20,20 +25,6 @@ import com.courtside.pickleball.sync.TabletPhoneCandidate
 import com.courtside.pickleball.sync.TabletSetupPayload
 import com.courtside.pickleball.sync.WatchTabletFallbackSync
 import kotlinx.coroutines.flow.StateFlow
-
-/**
- * Court-position placeholders used when a setup player field is left blank. These mirror the
- * defaults already declared on [GameSettings], so a name-less match reads the same wherever it
- * was started from.
- */
-internal const val DEFAULT_TEAM_A_PLAYER_1 = "P1"
-internal const val DEFAULT_TEAM_A_PLAYER_2 = "P2"
-internal const val DEFAULT_TEAM_B_PLAYER_1 = "P3"
-internal const val DEFAULT_TEAM_B_PLAYER_2 = "P4"
-
-/** Trims the entered name, falling back to [placeholder] when nothing was typed. */
-internal fun String.ifBlankPlaceholder(placeholder: String): String =
-    trim().ifBlank { placeholder }
 
 /** ViewModel façade for RallyScore phone and tablet screens. */
 class ScoreboardViewModel(

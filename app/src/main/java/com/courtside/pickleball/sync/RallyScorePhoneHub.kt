@@ -2,8 +2,14 @@ package com.courtside.pickleball.sync
 
 import android.content.Context
 import android.content.res.Configuration
-import com.courtside.pickleball.domain.GameState
+import com.courtside.pickleball.domain.DEFAULT_TEAM_A_NAME
+import com.courtside.pickleball.domain.DEFAULT_TEAM_A_PLAYER_1
+import com.courtside.pickleball.domain.DEFAULT_TEAM_A_PLAYER_2
+import com.courtside.pickleball.domain.DEFAULT_TEAM_B_NAME
+import com.courtside.pickleball.domain.DEFAULT_TEAM_B_PLAYER_1
+import com.courtside.pickleball.domain.DEFAULT_TEAM_B_PLAYER_2
 import com.courtside.pickleball.domain.GameSettings
+import com.courtside.pickleball.domain.GameState
 import com.courtside.pickleball.domain.ScoringFormat
 import com.courtside.pickleball.domain.ServerNumber
 import com.courtside.pickleball.domain.Team
@@ -484,12 +490,12 @@ object RallyScorePhoneHub {
             serverNumber = serverNumber,
             isFirstServerException = prefs.getBoolean(KEY_FIRST_SERVER_EXCEPTION, true),
             settings = GameSettings(
-                teamAName = prefs.getString(KEY_TEAM_A_NAME, null) ?: "Team A",
-                teamBName = prefs.getString(KEY_TEAM_B_NAME, null) ?: "Team B",
-                teamAPlayer1 = prefs.getString(KEY_TEAM_A_PLAYER1, null) ?: "P1",
-                teamAPlayer2 = prefs.getString(KEY_TEAM_A_PLAYER2, null) ?: "P2",
-                teamBPlayer1 = prefs.getString(KEY_TEAM_B_PLAYER1, null) ?: "P3",
-                teamBPlayer2 = prefs.getString(KEY_TEAM_B_PLAYER2, null) ?: "P4",
+                teamAName = prefs.getString(KEY_TEAM_A_NAME, null) ?: DEFAULT_TEAM_A_NAME,
+                teamBName = prefs.getString(KEY_TEAM_B_NAME, null) ?: DEFAULT_TEAM_B_NAME,
+                teamAPlayer1 = prefs.getString(KEY_TEAM_A_PLAYER1, null) ?: DEFAULT_TEAM_A_PLAYER_1,
+                teamAPlayer2 = prefs.getString(KEY_TEAM_A_PLAYER2, null) ?: DEFAULT_TEAM_A_PLAYER_2,
+                teamBPlayer1 = prefs.getString(KEY_TEAM_B_PLAYER1, null) ?: DEFAULT_TEAM_B_PLAYER_1,
+                teamBPlayer2 = prefs.getString(KEY_TEAM_B_PLAYER2, null) ?: DEFAULT_TEAM_B_PLAYER_2,
                 scoringFormat = prefs.getString(KEY_SCORING_FORMAT, null)
                     ?.let { runCatching { ScoringFormat.valueOf(it) }.getOrNull() }
                     ?: ScoringFormat.Traditional

@@ -27,12 +27,17 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.courtside.pickleball.domain.DEFAULT_TEAM_A_PLAYER_1
+import com.courtside.pickleball.domain.DEFAULT_TEAM_A_PLAYER_2
+import com.courtside.pickleball.domain.DEFAULT_TEAM_B_PLAYER_1
+import com.courtside.pickleball.domain.DEFAULT_TEAM_B_PLAYER_2
 import com.courtside.pickleball.domain.GameState
 import com.courtside.pickleball.domain.MAX_MATCH_SCORE
 import com.courtside.pickleball.domain.ScoringFormat
 import com.courtside.pickleball.domain.ServerNumber
 import com.courtside.pickleball.domain.Team
 import com.courtside.pickleball.domain.VoiceAnnouncementMode
+import com.courtside.pickleball.domain.ifBlankPlaceholder
 import com.courtside.pickleball.domain.spokenScoreCall
 import com.courtside.pickleball.sync.TabletCommand
 import com.courtside.pickleball.sync.TabletConnectionState

@@ -7,6 +7,23 @@ package com.courtside.pickleball.domain
  */
 const val MAX_MATCH_SCORE = 99
 
+/**
+ * Fallback labels used when a match is set up without typing names in. Player placeholders are
+ * court-position based: P1/P2 for Team A, P3/P4 for Team B.
+ *
+ * Declared here so the [GameSettings] defaults, the phone/tablet setup flow, and
+ * `ScoreboardStore.updateTeamNames` all draw on one set of values instead of repeating literals.
+ */
+const val DEFAULT_TEAM_A_NAME = "Team A"
+const val DEFAULT_TEAM_B_NAME = "Team B"
+const val DEFAULT_TEAM_A_PLAYER_1 = "P1"
+const val DEFAULT_TEAM_A_PLAYER_2 = "P2"
+const val DEFAULT_TEAM_B_PLAYER_1 = "P3"
+const val DEFAULT_TEAM_B_PLAYER_2 = "P4"
+
+/** Trims an entered label, falling back to [placeholder] when nothing was typed. */
+fun String.ifBlankPlaceholder(placeholder: String): String = trim().ifBlank { placeholder }
+
 /** Identifies the blue and green doubles teams tracked by RallyScore. */
 enum class Team {
     A,
@@ -29,12 +46,12 @@ enum class ScoringFormat {
 
 /** Static match configuration and player labels shared across devices. */
 data class GameSettings(
-    val teamAName: String = "Team A",
-    val teamBName: String = "Team B",
-    val teamAPlayer1: String = "P1",
-    val teamAPlayer2: String = "P2",
-    val teamBPlayer1: String = "P3",
-    val teamBPlayer2: String = "P4",
+    val teamAName: String = DEFAULT_TEAM_A_NAME,
+    val teamBName: String = DEFAULT_TEAM_B_NAME,
+    val teamAPlayer1: String = DEFAULT_TEAM_A_PLAYER_1,
+    val teamAPlayer2: String = DEFAULT_TEAM_A_PLAYER_2,
+    val teamBPlayer1: String = DEFAULT_TEAM_B_PLAYER_1,
+    val teamBPlayer2: String = DEFAULT_TEAM_B_PLAYER_2,
     val scoringFormat: ScoringFormat = ScoringFormat.Traditional,
     val targetScore: Int = 11,
     val winBy: Int = 2
