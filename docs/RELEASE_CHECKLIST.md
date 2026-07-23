@@ -28,11 +28,37 @@ This checklist is a low-risk release-readiness guide for publishing RallyScore t
 - A `versionCode` is consumed at **upload**, not at rollout. Removing the bundle from a
   release, discarding the release, or failing review does not free it — Play keeps every
   artifact it has received. Bump and rebuild rather than trying to reuse a code.
+- **Version codes are pooled across the whole app, not per module.** The phone and Wear
+  modules share one `applicationId`, so both draw from a single sequence. Codes used so far:
+
+  | Code | Used by |
+  | --- | --- |
+  | 1 | phone 1.0.0 |
+  | 2 | burned — discarded first Wear upload |
+  | 3 | Wear 1.0.0 |
+
+- Wear must stay **above** the phone, because a watch matches both artifacts and Play serves
+  the highest applicable code. Combined with the shared pool, this means **bumps often come in
+  pairs**: the next phone build takes 4, which would sit above Wear's 3, so Wear must move to 5
+  and both bundles get re-uploaded. Plan the two codes together rather than bumping one alone.
 - `versionName` should follow semantic versioning, for example:
   - `0.1.0`
   - `0.1.1`
   - `0.2.0`
 - Confirm both phone and wear modules are updated consistently before each release.
+
+## Promoting Between Tracks
+
+- To move a build along Internal → Closed → Open → Production, use Play Console's
+  **Promote release** on the existing release. It reuses the same artifact and consumes no
+  new `versionCode`.
+- Do **not** upload a fresh bundle just to populate another track — that burns a code for
+  nothing (see Versioning) and, because the pool is shared, can force a matching Wear bump.
+- Promote each form factor separately: the handheld release and the Wear release live in
+  their own tracks with their own tester lists and reviews.
+- Only build and upload a new bundle when the app code has actually changed.
+- Closed testing is where a personal developer account satisfies Play's tester-count and
+  continuous-days requirement before Production unlocks.
 
 ## Release History
 
