@@ -157,12 +157,10 @@ internal fun MatchSetupScreen(
         .map { it.trim() }
         .filter { it.isNotEmpty() }
     val hasDuplicateNames = enteredNames.size != enteredNames.map { it.lowercase(Locale.ENGLISH) }.distinct().size
-    val canStart = startingTeam != null &&
-        teamAPlayer1.trim().isNotEmpty() &&
-        teamAPlayer2.trim().isNotEmpty() &&
-        teamBPlayer1.trim().isNotEmpty() &&
-        teamBPlayer2.trim().isNotEmpty() &&
-        !hasDuplicateNames
+    // Player names are optional: any field left blank falls back to its court-position
+    // placeholder (P1/P2 vs P3/P4) when the match starts, so a game can begin without typing
+    // anyone in. Duplicate protection still applies to the names that WERE entered.
+    val canStart = startingTeam != null && !hasDuplicateNames
     val hideKeyboard = {
         inputMethodManager.hideSoftInputFromWindow(view.windowToken, 0)
         Unit

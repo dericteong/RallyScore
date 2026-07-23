@@ -450,6 +450,8 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
                     },
                     onStart = {
                         val server = startingTeam ?: Team.A
+                        // Only the names actually typed are persisted - PlayerRepository ignores
+                        // blanks, so the placeholders below never pollute the saved player list.
                         viewModel.saveMatchPlayers(
                             listOf(
                                 setupTeamAPlayer1,
@@ -458,13 +460,20 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
                                 setupTeamBPlayer2
                             )
                         )
+                        // Blank fields fall back to court-position placeholders. This is applied
+                        // before building the payload so the tablet -> phone StartMatch path
+                        // carries the same labels as a locally started match.
+                        val startPlayerA1 = setupTeamAPlayer1.ifBlankPlaceholder(DEFAULT_TEAM_A_PLAYER_1)
+                        val startPlayerA2 = setupTeamAPlayer2.ifBlankPlaceholder(DEFAULT_TEAM_A_PLAYER_2)
+                        val startPlayerB1 = setupTeamBPlayer1.ifBlankPlaceholder(DEFAULT_TEAM_B_PLAYER_1)
+                        val startPlayerB2 = setupTeamBPlayer2.ifBlankPlaceholder(DEFAULT_TEAM_B_PLAYER_2)
                         val startPayload = TabletSetupPayload(
-                            teamAName = formatTeamName(setupTeamAPlayer1, setupTeamAPlayer2, Team.A),
-                            teamBName = formatTeamName(setupTeamBPlayer1, setupTeamBPlayer2, Team.B),
-                            teamAPlayer1 = setupTeamAPlayer1,
-                            teamAPlayer2 = setupTeamAPlayer2,
-                            teamBPlayer1 = setupTeamBPlayer1,
-                            teamBPlayer2 = setupTeamBPlayer2,
+                            teamAName = formatTeamName(startPlayerA1, startPlayerA2, Team.A),
+                            teamBName = formatTeamName(startPlayerB1, startPlayerB2, Team.B),
+                            teamAPlayer1 = startPlayerA1,
+                            teamAPlayer2 = startPlayerA2,
+                            teamBPlayer1 = startPlayerB1,
+                            teamBPlayer2 = startPlayerB2,
                             scoringFormat = setupScoringFormat,
                             startingTeam = server,
                             myTeamOnTop = myTeamOnTop

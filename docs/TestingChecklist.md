@@ -94,13 +94,16 @@ Use a real phone when possible.
 - If two fields somehow end up with the same name anyway, the offending field shows a red border and Start stays disabled until it's fixed.
 - Recently used players appear before All Players in setup player selectors after a game starts.
 - Saved player data remains available after app restart.
-- Team A is selected by default, but Start remains disabled until all four player names are filled (and no duplicates remain).
+- Team A is selected by default, and Start is enabled as soon as a starting server is chosen — player names are optional.
+- Starting with some or all player fields blank works: each blank field falls back to its court-position placeholder (P1/P2 for My Team, P3/P4 for Opponent), and the scoreboard, voice calls, and any connected tablet/watch all show those placeholders.
+- Placeholder names are NOT added to the saved player list — only names actually typed are persisted.
+- Start still stays disabled while two entered names duplicate each other (blank fields never count as duplicates).
 - Watch and tablet connection pills fit side by side below the `SET UP GAME` title.
 - Voice Announcements appears in the right column with dropdown.
 - Player 1 and Player 2 fields fit side by side in each team card.
 - Team form column is always vertically scrollable.
 - User can select starting server by tapping the team label band or tapping a player field.
-- Start button ("START GAME") is red-orange (#D84315), enabled only when all four player names and starting server are set.
+- Start button ("START GAME") is red-orange (#D84315), enabled once a starting server is set and no two entered names duplicate each other.
 - When editing from match, "RESUME GAME" button appears instead (also red-orange).
 - No confirmation dialog on Start or Resume.
 - Voice Announcements setting is visible and usable.

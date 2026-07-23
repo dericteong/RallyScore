@@ -21,6 +21,20 @@ import com.courtside.pickleball.sync.TabletSetupPayload
 import com.courtside.pickleball.sync.WatchTabletFallbackSync
 import kotlinx.coroutines.flow.StateFlow
 
+/**
+ * Court-position placeholders used when a setup player field is left blank. These mirror the
+ * defaults already declared on [GameSettings], so a name-less match reads the same wherever it
+ * was started from.
+ */
+internal const val DEFAULT_TEAM_A_PLAYER_1 = "P1"
+internal const val DEFAULT_TEAM_A_PLAYER_2 = "P2"
+internal const val DEFAULT_TEAM_B_PLAYER_1 = "P3"
+internal const val DEFAULT_TEAM_B_PLAYER_2 = "P4"
+
+/** Trims the entered name, falling back to [placeholder] when nothing was typed. */
+internal fun String.ifBlankPlaceholder(placeholder: String): String =
+    trim().ifBlank { placeholder }
+
 /** ViewModel façade for RallyScore phone and tablet screens. */
 class ScoreboardViewModel(
     private val store: ScoreboardStore,
@@ -44,7 +58,14 @@ class ScoreboardViewModel(
     val phoneUiSyncRequest: StateFlow<PhoneUiSyncRequest?> = phoneHub.phoneUiSyncRequest
     val players: StateFlow<List<Player>> = playerRepository.players
 
-    /** Starts a new local or phone-owned match from setup values. */
+    /**
+     * Starts a new local or phone-owned match from setup values.
+     *
+     * Player names are optional: a blank field falls back to its court-position placeholder
+     * (P1/P2 for My Team, P3/P4 for Opponent) so a game can be started without typing anyone in.
+     * Defaulting happens here rather than in the setup screen so every caller - phone, tablet,
+     * and any future entry point - produces the same labels.
+     */
     fun startMatch(
         teamAName: String,
         teamBName: String,
@@ -55,14 +76,18 @@ class ScoreboardViewModel(
         scoringFormat: ScoringFormat,
         startingTeam: Team
     ) {
+        val a1 = teamAPlayer1.ifBlankPlaceholder(DEFAULT_TEAM_A_PLAYER_1)
+        val a2 = teamAPlayer2.ifBlankPlaceholder(DEFAULT_TEAM_A_PLAYER_2)
+        val b1 = teamBPlayer1.ifBlankPlaceholder(DEFAULT_TEAM_B_PLAYER_1)
+        val b2 = teamBPlayer2.ifBlankPlaceholder(DEFAULT_TEAM_B_PLAYER_2)
         if (usesPhoneHub) {
             phoneHub.startMatch(
                 teamAName,
                 teamBName,
-                teamAPlayer1,
-                teamAPlayer2,
-                teamBPlayer1,
-                teamBPlayer2,
+                a1,
+                a2,
+                b1,
+                b2,
                 scoringFormat,
                 startingTeam
             )
@@ -70,10 +95,10 @@ class ScoreboardViewModel(
             store.startMatch(
                 teamAName,
                 teamBName,
-                teamAPlayer1,
-                teamAPlayer2,
-                teamBPlayer1,
-                teamBPlayer2,
+                a1,
+                a2,
+                b1,
+                b2,
                 scoringFormat,
                 startingTeam
             )

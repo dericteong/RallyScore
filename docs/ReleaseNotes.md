@@ -1,5 +1,21 @@
 # Release Notes
 
+## Unreleased
+
+### Changed
+
+- Player names on the phone/tablet Set Up Game screen are now optional. Start is enabled
+  as soon as a starting server is chosen, and any blank field falls back to its
+  court-position placeholder when the match begins: `P1`/`P2` for My Team and `P3`/`P4`
+  for Opponent (the same defaults already declared on `GameSettings`). This makes it
+  possible to start a casual game without typing anyone in.
+- Placeholders are applied before the tablet's `StartMatch` payload is built, so a
+  tablet-started match reaches the phone hub with the same labels as a locally started
+  one. Only names the user actually typed are saved to the local player list —
+  placeholders are never persisted.
+- Duplicate-name protection is unchanged: Start still stays disabled while two *entered*
+  names match. Blank fields never count as duplicates.
+
 ## 1.0.0 - Initial Play Release
 
 Status: Released to Google Play internal testing on 2026-07-22.

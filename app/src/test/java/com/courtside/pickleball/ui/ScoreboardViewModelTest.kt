@@ -287,6 +287,73 @@ class ScoreboardViewModelTest {
         assertEquals(ServerNumber.One, viewModel.state.value.serverNumber)
     }
 
+    @Test
+    fun startMatchDefaultsBlankPlayerNamesToCourtPositions() {
+        val viewModel = newViewModel()
+
+        viewModel.startMatch(
+            teamAName = "My Team",
+            teamBName = "Opponent Team",
+            teamAPlayer1 = "",
+            teamAPlayer2 = "",
+            teamBPlayer1 = "",
+            teamBPlayer2 = "",
+            scoringFormat = ScoringFormat.Traditional,
+            startingTeam = Team.A
+        )
+
+        val settings = viewModel.state.value.settings
+        assertEquals("P1", settings.teamAPlayer1)
+        assertEquals("P2", settings.teamAPlayer2)
+        assertEquals("P3", settings.teamBPlayer1)
+        assertEquals("P4", settings.teamBPlayer2)
+        assertTrue(viewModel.matchActive.value)
+    }
+
+    @Test
+    fun startMatchKeepsEnteredNamesAndDefaultsOnlyTheBlankFields() {
+        val viewModel = newViewModel()
+
+        viewModel.startMatch(
+            teamAName = "My Team",
+            teamBName = "Opponent Team",
+            teamAPlayer1 = "Alan",
+            teamAPlayer2 = "",
+            teamBPlayer1 = "",
+            teamBPlayer2 = "Venn",
+            scoringFormat = ScoringFormat.Traditional,
+            startingTeam = Team.A
+        )
+
+        val settings = viewModel.state.value.settings
+        assertEquals("Alan", settings.teamAPlayer1)
+        assertEquals("P2", settings.teamAPlayer2)
+        assertEquals("P3", settings.teamBPlayer1)
+        assertEquals("Venn", settings.teamBPlayer2)
+    }
+
+    @Test
+    fun startMatchTreatsWhitespaceOnlyNamesAsBlankAndTrimsEnteredOnes() {
+        val viewModel = newViewModel()
+
+        viewModel.startMatch(
+            teamAName = "My Team",
+            teamBName = "Opponent Team",
+            teamAPlayer1 = "   ",
+            teamAPlayer2 = "\t",
+            teamBPlayer1 = "  Chan  ",
+            teamBPlayer2 = "",
+            scoringFormat = ScoringFormat.Traditional,
+            startingTeam = Team.A
+        )
+
+        val settings = viewModel.state.value.settings
+        assertEquals("P1", settings.teamAPlayer1)
+        assertEquals("P2", settings.teamAPlayer2)
+        assertEquals("Chan", settings.teamBPlayer1)
+        assertEquals("P4", settings.teamBPlayer2)
+    }
+
     private fun newViewModel(): ScoreboardViewModel =
         ScoreboardViewModel(
             store = ScoreboardStore(),

@@ -54,7 +54,7 @@ Current setup behavior:
 - Manage Players opens a dedicated player list screen with add, edit, delete, bulk-delete, search, recent players, alphabetical browsing, and screenshot import.
 - Tapping the team label band or a team's player field selects that team as the first server.
 - Team A is selected as the default first server.
-- Start button is enabled when all four player names are non-empty, a starting team is selected, and no two fields share the same name.
+- Start button is enabled once a starting team is selected and no two entered names share the same name. Player names are optional: any blank field falls back to its court-position placeholder (P1/P2 for My Team, P3/P4 for Opponent) when the match starts, so a game can begin without typing anyone in.
 - Connection status pills appear below the `SET UP GAME` title.
 - A small "© 2026 Deric Teong" line is pinned to the bottom-right corner of the screen.
 - Scoring selector appears in the right column with Traditional and Rally options.
