@@ -43,6 +43,8 @@ import com.courtside.pickleball.sync.TabletCommand
 import com.courtside.pickleball.sync.TabletConnectionState
 import com.courtside.pickleball.sync.TabletDisplaySync
 import com.courtside.pickleball.sync.TabletSetupPayload
+import com.courtside.pickleball.ui.onboarding.ScoringTutorialDialog
+import com.courtside.pickleball.ui.onboarding.ScoringTutorialPrefs
 import com.courtside.pickleball.ui.scoreboard.MatchCorrectionDialog
 import com.courtside.pickleball.ui.scoreboard.ScoreboardScreen
 import com.courtside.pickleball.ui.setup.MatchSetupScreen
@@ -93,6 +95,7 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
     var showEndMatchDialog by remember { mutableStateOf(false) }
     var showForgetPhoneDialog by remember { mutableStateOf(false) }
     var showCorrectionDialog by remember { mutableStateOf(false) }
+    var showScoringTutorial by remember { mutableStateOf(false) }
     var myTeamOnTop by remember { mutableStateOf(true) }
     var editingSetupFromMatch by remember { mutableStateOf(false) }
     var showPlayerManagement by remember { mutableStateOf(false) }
@@ -109,6 +112,16 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
     val tts = remember(context) {
         TextToSpeech(context.applicationContext) { status ->
             ttsReady = status == TextToSpeech.SUCCESS
+        }
+    }
+
+    // One-time coach mark, triggered the first time a live scoreboard is on screen rather than at
+    // app launch: the tap target it describes only exists here, and on the setup screen there is
+    // nothing for the user to try it on yet.
+    val scoreboardVisible = showRemoteTabletMatch || (matchStarted && !editingSetupFromMatch)
+    LaunchedEffect(scoreboardVisible) {
+        if (scoreboardVisible && !ScoringTutorialPrefs.hasSeenScoringTutorial(context)) {
+            showScoringTutorial = true
         }
     }
 
@@ -546,6 +559,15 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
                     }
                 )
             }
+        }
+
+        if (showScoringTutorial) {
+            ScoringTutorialDialog(
+                onDismiss = {
+                    ScoringTutorialPrefs.markScoringTutorialSeen(context)
+                    showScoringTutorial = false
+                }
+            )
         }
 
         if (showEndMatchDialog) {

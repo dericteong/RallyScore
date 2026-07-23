@@ -146,6 +146,11 @@ Use a real phone when possible.
 - Serving team row shows one or two dots.
 - Tap Team A score records Team A rally winner.
 - Tap Team B score records Team B rally winner.
+- On a fresh install, the first time a live scoreboard appears a one-time "Tap to score" tutorial dialog explains the gesture and shows highlighted blue/green score numbers.
+- The tutorial does NOT appear on the setup screen, only once a scoreboard is on screen.
+- Dismissing it with "Got it" hides it permanently: it does not return after ending a match, starting another match, deleting all players, or restarting the app.
+- The tutorial appears on both the phone scoreboard and the tablet display layout (including a tablet showing a phone-hosted match).
+- Scoring still works normally straight after dismissing the tutorial (no swallowed first tap).
 - No manual score controls are visible.
 - No manual server controls are visible.
 - Call bar uses team colors for the relevant numbers.

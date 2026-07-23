@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Added
+
+- First-run scoring tutorial on phone and tablet. The first time a live scoreboard appears,
+  a one-time dialog explains that a rally is recorded by tapping the winning team's score,
+  with miniature blue/green rows highlighting the number itself. Only the score is a tap
+  target, which isn't obvious from the scoreboard, so the coach mark points at the number
+  rather than the row. Dismissing it records a flag in its own `rallyscore_onboarding`
+  preferences file, so it never reappears - and clearing a match or deleting all players
+  does not re-trigger it. It is shown on the first *scoreboard*, not at app launch, since
+  there is nothing to try the gesture on until a match is running.
+
 ### Changed
 
 - Player names on the phone/tablet Set Up Game screen are now optional. Start is enabled
