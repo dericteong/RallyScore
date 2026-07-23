@@ -5,8 +5,14 @@ This checklist is a low-risk release-readiness guide for publishing RallyScore t
 ## Android App Bundle Release Process
 
 - Build release artifacts as Android App Bundles (`.aab`) for Play submission.
-- Use the phone/tablet app bundle for the handheld listing.
-- Use the Wear OS app bundle for the watch listing if distributed separately.
+- Use the phone/tablet app bundle for the handheld tracks.
+- Upload the Wear OS app bundle to a **dedicated Wear OS track** — Play has required
+  this since August 2023, and rejects a release that mixes the Wear bundle in with
+  the handheld one. Enable it via Release → Setup → Advanced settings → Form factors
+  → Add form factor → Wear OS. Each track then gets its own Wear OS variant with a
+  separate tester list and review.
+- The two bundles keep one `applicationId` and one Play app; only the tracks are
+  separate. Wear `versionCode` must stay distinct from and above the phone's.
 - Keep local debug APK assembly for manual device testing, but do not treat debug APKs as release artifacts.
 
 ## Play App Signing / Upload Key
@@ -19,6 +25,9 @@ This checklist is a low-risk release-readiness guide for publishing RallyScore t
 ## Versioning
 
 - `versionCode` must increase monotonically for every Play upload.
+- A `versionCode` is consumed at **upload**, not at rollout. Removing the bundle from a
+  release, discarding the release, or failing review does not free it — Play keeps every
+  artifact it has received. Bump and rebuild rather than trying to reuse a code.
 - `versionName` should follow semantic versioning, for example:
   - `0.1.0`
   - `0.1.1`
@@ -27,9 +36,9 @@ This checklist is a low-risk release-readiness guide for publishing RallyScore t
 
 ## Release History
 
-| Version | versionCode | Status | Notes |
-| --- | --- | --- | --- |
-| 0.1.0 | 1 | Internal | Initial development build |
+| Version | Phone versionCode | Wear versionCode | Status | Notes |
+| --- | --- | --- | --- | --- |
+| 1.0.0 | 1 | 3 | Internal testing | First Play upload (2026-07-22); phone and Wear uploaded to separate tracks. Wear code 2 was burned by a discarded upload |
 
 ## Target SDK Status
 

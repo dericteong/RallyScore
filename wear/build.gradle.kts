@@ -28,7 +28,9 @@ android {
         // Shares the phone's applicationId, so the Wear versionCode must stay distinct from and
         // higher than the phone's (currently 1): a watch can match both artifacts, and Play serves
         // the highest applicable versionCode. Keep Wear above the phone on every future bump.
-        versionCode = 2
+        // 2 was consumed by a discarded first upload; Play retires a versionCode
+        // permanently once a bundle carrying it has been uploaded.
+        versionCode = 3
         versionName = "1.0.0"
     }
 

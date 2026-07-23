@@ -1,8 +1,23 @@
 # Release Notes
 
-## 0.1.0 - MVP Development Build
+## 1.0.0 - Initial Play Release
 
-Status: In development.
+Status: Released to Google Play internal testing on 2026-07-22.
+
+Build: `versionName` 1.0.0, phone `versionCode` 1, Wear `versionCode` 3 (the Wear
+module shares the phone `applicationId`, so its `versionCode` stays above the
+phone's on every bump). Both bundles are signed with the same upload key.
+
+Wear `versionCode` 2 was consumed by a discarded first upload and is permanently
+unusable: Play retires a `versionCode` the moment a bundle carrying it is
+uploaded, regardless of whether that release is ever rolled out. Gaps in the
+sequence are expected; only the increase matters.
+
+Since August 2023 Play requires the Wear OS bundle to ship in its own **dedicated
+Wear OS track** (Release → Setup → Advanced settings → Form factors → Wear OS),
+not alongside the handheld bundle in one release. The phone/tablet bundle and the
+Wear bundle are therefore uploaded as two separate releases with separate tester
+lists, review passes, and store-listing assets.
 
 ### Added
 

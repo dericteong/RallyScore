@@ -181,12 +181,19 @@ setup, connected scoreboard).
 - **Package name (`applicationId`):** `com.courtside.pickleball` — shared by the
   phone and Wear artifacts, which is what puts them in ONE Play listing.
   Permanent once published; cannot be changed.
-- **One app, not two:** create a single Play Console app and add the **Wear OS**
-  form factor. Upload both AABs (phone + wear) in the same release; Play routes
-  by the watch `uses-feature`.
-- **Version codes:** phone `1`, Wear `2`. Wear must stay distinct from AND higher
+- **One app, not two:** create a single Play Console app. Both bundles keep the
+  same `applicationId` and live under one listing — only the tracks are separate.
+- **Wear ships in its own dedicated Wear OS track.** Play has required this since
+  August 2023 and rejects a release that mixes the Wear bundle in with the
+  handheld one. Enable it via Release → Setup → Advanced settings → Form factors
+  → Add form factor → Wear OS. The phone/tablet bundle and the Wear bundle are
+  uploaded as two separate releases, each with its own tester list, review pass,
+  and store-listing assets.
+- **Version codes:** phone `1`, Wear `3`. Wear must stay distinct from AND higher
   than the phone on every future bump (a watch matches both artifacts and gets
-  the highest applicable version code).
+  the highest applicable version code). Wear `2` was consumed by a discarded
+  first upload — a `versionCode` is retired at **upload**, not at rollout, so
+  gaps in the sequence are normal and codes can never be reused.
 - **Free or paid: choose FREE.** No upfront download price. A Free app fully
   supports ads and in-app purchases.
   - Planned later: a **"Remove ads" in-app purchase** (a one-time managed IAP on
