@@ -84,6 +84,7 @@ Use a real phone when possible.
 - Player fields start blank and show Player 1 / Player 2 hints.
 - Manage Players opens from setup and can add, edit, delete, search, browse, and bulk-delete saved players.
 - "Import From Screenshot" opens the system photo picker (multiple images allowed), runs on-device OCR, and shows a checkable review dialog of newly recognized names before adding them; names already saved are skipped automatically without appearing in the review list.
+- Screenshot import is tested against real attendee-list screenshots exported from the **OpenSports** app — the primary real-world source this feature targets. Verify with an actual OpenSports export that player names are recognized from the attendee list, and that surrounding UI text (screen headers, buttons, attendee counts, dates/times) is not imported as a player name.
 - "Delete All Players" is disabled when the player list is empty, and prompts for confirmation (stating how many players will be removed) before clearing the list.
 - The "IMPORT FROM SCREENSHOT" and "DELETE ALL PLAYERS" buttons are visually balanced (equal width), not one dominating the row.
 - Saved players appear alphabetically in All Players.
