@@ -15,6 +15,12 @@
 
 ### Changed
 
+- The phone/tablet install identity (`hostId`, and the derived court code) is now persisted
+  synchronously with `commit()` when first generated, instead of async `apply()`. This closes a
+  narrow window where a hard process kill (force-stop or an OS SIGKILL) between generation and the
+  flush could mint a new id on the next launch, changing the court code and dropping an existing
+  tablet pairing. Only the one-time first-launch write is synchronous; later launches read the
+  stored value and never write here.
 - Player names on the phone/tablet Set Up Game screen are now optional. Start is enabled
   as soon as a starting server is chosen, and any blank field falls back to its
   court-position placeholder when the match begins: `P1`/`P2` for My Team and `P3`/`P4`

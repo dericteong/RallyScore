@@ -507,11 +507,21 @@ object RallyScorePhoneHub {
 
     private fun restoreIdentity(context: Context) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        hostId = prefs.getString(KEY_HOST_ID, null) ?: generateHostId().also {
-            prefs.edit().putString(KEY_HOST_ID, it).apply()
-        }
-        sessionId = prefs.getString(KEY_SESSION_ID, null) ?: generateSessionId().also {
-            prefs.edit().putString(KEY_SESSION_ID, it).apply()
+        val storedHostId = prefs.getString(KEY_HOST_ID, null)
+        val storedSessionId = prefs.getString(KEY_SESSION_ID, null)
+        hostId = storedHostId ?: generateHostId()
+        sessionId = storedSessionId ?: generateSessionId()
+        // Persist a freshly generated identity synchronously. hostId is the tablet's stable pairing
+        // key (and the source of the court code), so if a hard process kill - adb force-stop, or an
+        // OS SIGKILL - lands in the window before an async apply() flushes, the next launch would
+        // mint a different id, changing the court code and dropping any existing pairing. commit()
+        // only runs on first launch (or if a value was lost); later launches read the stored value
+        // and never write here.
+        if (storedHostId == null || storedSessionId == null) {
+            prefs.edit()
+                .putString(KEY_HOST_ID, hostId)
+                .putString(KEY_SESSION_ID, sessionId)
+                .commit()
         }
     }
 
