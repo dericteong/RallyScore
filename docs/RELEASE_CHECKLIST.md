@@ -36,6 +36,8 @@ This checklist is a low-risk release-readiness guide for publishing RallyScore t
   | 1 | phone 1.0.0 |
   | 2 | burned — discarded first Wear upload |
   | 3 | Wear 1.0.0 |
+  | 4 | phone 1.1.0 |
+  | 5 | Wear 1.1.0 |
 
 - Wear must stay **above** the phone, because a watch matches both artifacts and Play serves
   the highest applicable code. Combined with the shared pool, this means **bumps often come in
@@ -65,11 +67,15 @@ This checklist is a low-risk release-readiness guide for publishing RallyScore t
 | Version | Phone versionCode | Wear versionCode | Status | Notes |
 | --- | --- | --- | --- | --- |
 | 1.0.0 | 1 | 3 | Internal testing | First Play upload (2026-07-22); phone and Wear uploaded to separate tracks. Wear code 2 was burned by a discarded upload |
+| 1.1.0 | 4 | 5 | Pending | API 36 (Android 16) target-level compliance, optional setup player names, first-scoreboard tap tutorial. Bumped as a pair so Wear stays above phone |
 
 ## Target SDK Status
 
-- Phone/tablet app currently targets API 35.
-- Wear app currently targets API 35.
+- Phone/tablet app currently targets API 36 (Android 16); `compileSdk` 36.
+- Wear app currently targets API 36 (Android 16); `compileSdk` 36.
+- Google Play requires the target API level to stay within one year of the latest
+  Android release. API 35 became non-compliant for updates from 2026-08-31, which is
+  why both modules were moved to API 36.
 - Re-check Google Play target API requirements before every production submission.
 
 ## Device Behavior Notes

@@ -1,6 +1,10 @@
 # Release Notes
 
-## Unreleased
+## 1.1.0
+
+Build: `versionName` 1.1.0, phone `versionCode` 4, Wear `versionCode` 5. Version codes
+are pooled across the shared `applicationId`, so the two modules bump as a pair to keep
+Wear above the phone (see `docs/RELEASE_CHECKLIST.md` "Versioning").
 
 ### Added
 
@@ -15,6 +19,12 @@
 
 ### Changed
 
+- Both the phone/tablet and Wear modules now target Android 16 (API level 36), with
+  `compileSdk` 36 to match. This keeps RallyScore within Google Play's requirement that the
+  target API level stay within one year of the latest Android release — API 35 became
+  non-compliant for app updates from 2026-08-31. No dependency upgrades were required (AGP
+  9.2.1 / Gradle 9.4.1 already support 36); the app was already edge-to-edge, which API 36
+  now enforces.
 - The phone/tablet install identity (`hostId`, and the derived court code) is now persisted
   synchronously with `commit()` when first generated, instead of async `apply()`. This closes a
   narrow window where a hard process kill (force-stop or an OS SIGKILL) between generation and the

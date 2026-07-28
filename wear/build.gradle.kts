@@ -19,19 +19,20 @@ val hasReleaseSigning = keystoreProperties.getProperty("storeFile") != null
 
 android {
     namespace = "com.courtside.pickleball.wear"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.courtside.pickleball"
         minSdk = 30
-        targetSdk = 35
+        targetSdk = 36
         // Shares the phone's applicationId, so the Wear versionCode must stay distinct from and
-        // higher than the phone's (currently 1): a watch can match both artifacts, and Play serves
+        // higher than the phone's (currently 4): a watch can match both artifacts, and Play serves
         // the highest applicable versionCode. Keep Wear above the phone on every future bump.
         // 2 was consumed by a discarded first upload; Play retires a versionCode
         // permanently once a bundle carrying it has been uploaded.
-        versionCode = 3
-        versionName = "1.0.0"
+        // Pooled sequence: 1 = phone 1.0.0, 2 = burned, 3 = Wear 1.0.0, 4 = phone 1.1.0, 5 = Wear 1.1.0.
+        versionCode = 5
+        versionName = "1.1.0"
     }
 
     signingConfigs {
