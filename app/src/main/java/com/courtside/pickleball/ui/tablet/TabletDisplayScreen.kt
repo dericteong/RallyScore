@@ -66,6 +66,10 @@ import com.courtside.pickleball.ui.theme.TabletCallBarWideLineHeight
 import com.courtside.pickleball.ui.theme.TabletCallBarWideLineHeightWithAds
 import com.courtside.pickleball.ui.theme.TabletCallBarWideTextSize
 import com.courtside.pickleball.ui.theme.TabletCallBarWideTextSizeWithAds
+import com.courtside.pickleball.ui.theme.TabletScoreLineHeight
+import com.courtside.pickleball.ui.theme.TabletScoreLineHeightWithAds
+import com.courtside.pickleball.ui.theme.TabletScoreTextSize
+import com.courtside.pickleball.ui.theme.TabletScoreTextSizeWithAds
 import com.courtside.pickleball.ui.theme.TeamABlue
 import com.courtside.pickleball.ui.theme.TeamBGreen
 
@@ -496,10 +500,10 @@ internal fun TabletScoreTapTarget(
             },
             text = score.toString(),
             color = if (enabled) color else color.copy(alpha = 0.35f),
-            fontSize = 122.sp,
+            fontSize = if (ADS_ENABLED) TabletScoreTextSizeWithAds else TabletScoreTextSize,
             fontWeight = FontWeight.Black,
             textAlign = TextAlign.Center,
-            lineHeight = 126.sp,
+            lineHeight = if (ADS_ENABLED) TabletScoreLineHeightWithAds else TabletScoreLineHeight,
             maxLines = 1
         )
     }
