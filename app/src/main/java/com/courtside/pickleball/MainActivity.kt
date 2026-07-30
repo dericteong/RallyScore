@@ -16,6 +16,7 @@ import com.courtside.pickleball.sync.WatchTabletFallbackSync
 import com.courtside.pickleball.ui.ScoreboardApp
 import com.courtside.pickleball.ui.ScoreboardViewModel
 import com.courtside.pickleball.ui.ads.ADS_ENABLED
+import com.courtside.pickleball.ui.ads.RemoveAdsManager
 import com.google.android.gms.ads.MobileAds
 
 /** Phone and tablet host activity for RallyScore. */
@@ -29,6 +30,7 @@ class MainActivity : ComponentActivity() {
             // One-time SDK init; safe to call again. Consent (UMP) is a separate follow-up before
             // serving real ads in EEA/UK.
             MobileAds.initialize(applicationContext)
+            RemoveAdsManager.initialize(applicationContext)
         }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         enableEdgeToEdge()

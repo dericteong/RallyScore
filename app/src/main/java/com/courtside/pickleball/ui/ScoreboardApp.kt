@@ -43,6 +43,8 @@ import com.courtside.pickleball.sync.TabletCommand
 import com.courtside.pickleball.sync.TabletConnectionState
 import com.courtside.pickleball.sync.TabletDisplaySync
 import com.courtside.pickleball.sync.TabletSetupPayload
+import com.courtside.pickleball.ui.ads.ADS_ENABLED
+import com.courtside.pickleball.ui.ads.RemoveAdsManager
 import com.courtside.pickleball.ui.onboarding.ScoringTutorialDialog
 import com.courtside.pickleball.ui.onboarding.ScoringTutorialPrefs
 import com.courtside.pickleball.ui.scoreboard.MatchCorrectionDialog
@@ -86,6 +88,11 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
     val activeRemoteTabletVoiceSignature = activeRemoteTabletState?.voiceSignature()
     val showRemoteTabletMatch = useTabletDisplayLayout && activeRemoteTabletState != null
     val effectiveTabletWatchConnected = watchConnected || tabletWatchConnected
+    // Ads are tablet-only, compile-gated by ADS_ENABLED, and removed at runtime once the Remove
+    // Ads entitlement is owned. TabletDisplayScreen renders only on tablets, so showAds also
+    // decides the ad-aware call bar / score sizing there.
+    val adsRemoved by RemoveAdsManager.hasRemovedAds.collectAsStateWithLifecycle()
+    val showAds = ADS_ENABLED && !adsRemoved
     var setupTeamAPlayer1 by remember { mutableStateOf("") }
     var setupTeamAPlayer2 by remember { mutableStateOf("") }
     var setupTeamBPlayer1 by remember { mutableStateOf("") }
@@ -349,7 +356,9 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
                     onCorrectionRequested = { showCorrectionDialog = true },
                     onNavigateToSetup = {
                         editingSetupFromMatch = true
-                    }
+                    },
+                    showAds = showAds,
+                    onRemoveAds = { RemoveAdsManager.purchaseRemoveAds() }
                 )
             } else if (matchStarted && !editingSetupFromMatch) {
                 if (useTabletDisplayLayout) {
@@ -385,7 +394,9 @@ fun ScoreboardApp(viewModel: ScoreboardViewModel) {
                         onCorrectionRequested = { showCorrectionDialog = true },
                         onNavigateToSetup = {
                             editingSetupFromMatch = true
-                        }
+                        },
+                        showAds = showAds,
+                        onRemoveAds = { RemoveAdsManager.purchaseRemoveAds() }
                     )
                 } else {
                     ScoreboardScreen(

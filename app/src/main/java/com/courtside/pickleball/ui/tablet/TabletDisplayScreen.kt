@@ -23,6 +23,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,7 +43,8 @@ import com.courtside.pickleball.domain.Team
 import com.courtside.pickleball.domain.displayValue
 import com.courtside.pickleball.sync.TabletConnectionState
 import com.courtside.pickleball.sync.TabletDisplayState
-import com.courtside.pickleball.ui.ads.ADS_ENABLED
+import com.courtside.pickleball.ui.ads.LocalAdsShown
+import com.courtside.pickleball.ui.ads.RemoveAdsButton
 import com.courtside.pickleball.ui.ads.TabletAdBanner
 import com.courtside.pickleball.ui.scoreboard.TableCell
 import com.courtside.pickleball.ui.scoreboard.TableDivider
@@ -94,7 +96,11 @@ internal fun TabletDisplayScreen(
     // its stale match snapshot on this tablet, without trying to notify the (unreachable) phone.
     onForgetPhoneRequested: (() -> Unit)? = null,
     onCorrectionRequested: (() -> Unit)? = null,
-    onNavigateToSetup: (() -> Unit)? = null
+    onNavigateToSetup: (() -> Unit)? = null,
+    // Runtime ad gating: false once the Remove Ads entitlement is owned, which hides the banner and
+    // reverts the call bar / score sizing to their original no-ads values.
+    showAds: Boolean = false,
+    onRemoveAds: () -> Unit = {}
 ) {
     val isController = onUndo != null
     // When remote-controlled, commands only reach the phone while actually Connected; once the
@@ -109,46 +115,56 @@ internal fun TabletDisplayScreen(
             .background(Paper),
         color = Paper
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .safeDrawingPadding()
-                .padding(horizontal = 28.dp, vertical = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            TabletStatusHeader(
-                connectionState = connectionState,
-                courtCode = courtCode,
-                watchConnected = watchConnected
-            )
-            TabletControlBar(
-                state = state,
-                canUndo = canUndo,
-                remoteCommandsEnabled = remoteCommandsEnabled,
-                onUndo = onUndo,
-                onEndMatchRequested = onEndMatchRequested,
-                onForgetPhoneRequested = onForgetPhoneRequested,
-                onCorrectionRequested = onCorrectionRequested,
-                onNavigateToSetup = onNavigateToSetup
-            )
-            TabletScoreboardBody(
+        // Provide the runtime ad state so the call bar and score number adapt without threading a
+        // boolean through every composable, and revert automatically when ads are removed.
+        CompositionLocalProvider(LocalAdsShown provides showAds) {
+            Column(
                 modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                state = state,
-                myTeamOnTop = myTeamOnTop,
-                enabled = isController && remoteCommandsEnabled,
-                onTeamARally = onTeamARally,
-                onTeamBRally = onTeamBRally
-            )
-            // Bottom ad slot. TabletScoreboardBody has weight(1f), so it absorbs the banner's
-            // height (the call bar is untouched). The divider + gap keeps the banner clear of the
-            // bottom team row's score tap target, per AdMob's accidental-click policy. No-op when
-            // ADS_ENABLED is false. TabletDisplayScreen renders only in the tablet layout, so this
-            // is inherently phone-excluded.
-            if (ADS_ENABLED) {
-                HorizontalDivider(color = TableLine.copy(alpha = 0.25f))
-                TabletAdBanner()
+                    .fillMaxSize()
+                    .safeDrawingPadding()
+                    .padding(horizontal = 28.dp, vertical = 18.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                TabletStatusHeader(
+                    connectionState = connectionState,
+                    courtCode = courtCode,
+                    watchConnected = watchConnected
+                )
+                TabletControlBar(
+                    state = state,
+                    canUndo = canUndo,
+                    remoteCommandsEnabled = remoteCommandsEnabled,
+                    onUndo = onUndo,
+                    onEndMatchRequested = onEndMatchRequested,
+                    onForgetPhoneRequested = onForgetPhoneRequested,
+                    onCorrectionRequested = onCorrectionRequested,
+                    onNavigateToSetup = onNavigateToSetup
+                )
+                TabletScoreboardBody(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    state = state,
+                    myTeamOnTop = myTeamOnTop,
+                    enabled = isController && remoteCommandsEnabled,
+                    onTeamARally = onTeamARally,
+                    onTeamBRally = onTeamBRally
+                )
+                // Bottom ad slot: banner on the left, REMOVE ADS on the right. TabletScoreboardBody
+                // has weight(1f) so it absorbs this row's height. The divider + gap keeps the banner
+                // clear of the bottom score tap target (AdMob accidental-click policy). Hidden once
+                // ads are removed; TabletDisplayScreen renders only on tablets, so phone is excluded.
+                if (showAds) {
+                    HorizontalDivider(color = TableLine.copy(alpha = 0.25f))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        TabletAdBanner(modifier = Modifier.weight(1f))
+                        RemoveAdsButton(onClick = onRemoveAds)
+                    }
+                }
             }
         }
     }
@@ -358,8 +374,9 @@ internal fun TabletControlBar(
     val showControls = onUndo != null && onEndMatchRequested != null
 
     // Shorten the call bar when the ad banner takes bottom space, so the score rows stay tall
-    // enough for the tap number. Unchanged when ads are off.
-    val callBarHeightFraction = if (ADS_ENABLED) TabletCallBarHeightWithAds else TabletCallBarHeight
+    // enough for the tap number. Reverts when ads are removed.
+    val adsShown = LocalAdsShown.current
+    val callBarHeightFraction = if (adsShown) TabletCallBarHeightWithAds else TabletCallBarHeight
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -370,14 +387,14 @@ internal fun TabletControlBar(
     ) {
         val useWideCallText = state.callHasDoubleDigitScore()
         val callTextSize = when {
-            ADS_ENABLED && useWideCallText -> TabletCallBarWideTextSizeWithAds
-            ADS_ENABLED -> TabletCallBarTextSizeWithAds
+            adsShown && useWideCallText -> TabletCallBarWideTextSizeWithAds
+            adsShown -> TabletCallBarTextSizeWithAds
             useWideCallText -> TabletCallBarWideTextSize
             else -> TabletCallBarTextSize
         }
         val callLineHeight = when {
-            ADS_ENABLED && useWideCallText -> TabletCallBarWideLineHeightWithAds
-            ADS_ENABLED -> TabletCallBarLineHeightWithAds
+            adsShown && useWideCallText -> TabletCallBarWideLineHeightWithAds
+            adsShown -> TabletCallBarLineHeightWithAds
             useWideCallText -> TabletCallBarWideLineHeight
             else -> TabletCallBarLineHeight
         }
@@ -500,10 +517,10 @@ internal fun TabletScoreTapTarget(
             },
             text = score.toString(),
             color = if (enabled) color else color.copy(alpha = 0.35f),
-            fontSize = if (ADS_ENABLED) TabletScoreTextSizeWithAds else TabletScoreTextSize,
+            fontSize = if (LocalAdsShown.current) TabletScoreTextSizeWithAds else TabletScoreTextSize,
             fontWeight = FontWeight.Black,
             textAlign = TextAlign.Center,
-            lineHeight = if (ADS_ENABLED) TabletScoreLineHeightWithAds else TabletScoreLineHeight,
+            lineHeight = if (LocalAdsShown.current) TabletScoreLineHeightWithAds else TabletScoreLineHeight,
             maxLines = 1
         )
     }
