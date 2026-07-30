@@ -15,6 +15,8 @@ import com.courtside.pickleball.sync.TabletDisplaySync
 import com.courtside.pickleball.sync.WatchTabletFallbackSync
 import com.courtside.pickleball.ui.ScoreboardApp
 import com.courtside.pickleball.ui.ScoreboardViewModel
+import com.courtside.pickleball.ui.ads.ADS_ENABLED
+import com.google.android.gms.ads.MobileAds
 
 /** Phone and tablet host activity for RallyScore. */
 class MainActivity : ComponentActivity() {
@@ -23,6 +25,11 @@ class MainActivity : ComponentActivity() {
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         PlayerRepository.initialize(applicationContext)
         RallyScorePhoneHub.initialize(applicationContext)
+        if (ADS_ENABLED) {
+            // One-time SDK init; safe to call again. Consent (UMP) is a separate follow-up before
+            // serving real ads in EEA/UK.
+            MobileAds.initialize(applicationContext)
+        }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         enableEdgeToEdge()
 

@@ -1,5 +1,19 @@
 # Release Notes
 
+## Unreleased
+
+### Added
+
+- Tablet-only AdMob banner at the bottom of the scoreboard, behind an `ADS_ENABLED` master switch
+  (one flag turns all ads off without removing the integration). Anchored adaptive banner in its
+  own reserved slot below the team rows, separated from the score tap targets by a divider and gap
+  to satisfy AdMob's accidental-click policy. The scoreboard body already uses `weight(1f)`, so it
+  absorbs the banner's height and the call bar stays full-size. The phone layout is unaffected -
+  the banner lives in `TabletDisplayScreen`, which only renders on tablets. Currently wired to
+  Google's TEST ad unit; the real ad unit id, UMP consent, and the `remove_ads` in-app purchase
+  are still to come before serving live ads. Adds the `play-services-ads` SDK and the AdMob App ID
+  to the manifest.
+
 ## 1.1.0
 
 Build: `versionName` 1.1.0, phone `versionCode` 4, Wear `versionCode` 5. Version codes

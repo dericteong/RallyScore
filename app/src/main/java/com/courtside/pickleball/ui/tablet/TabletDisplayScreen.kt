@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -41,6 +42,8 @@ import com.courtside.pickleball.domain.Team
 import com.courtside.pickleball.domain.displayValue
 import com.courtside.pickleball.sync.TabletConnectionState
 import com.courtside.pickleball.sync.TabletDisplayState
+import com.courtside.pickleball.ui.ads.ADS_ENABLED
+import com.courtside.pickleball.ui.ads.TabletAdBanner
 import com.courtside.pickleball.ui.scoreboard.TableCell
 import com.courtside.pickleball.ui.scoreboard.TableDivider
 import com.courtside.pickleball.ui.scoreboard.TeamNameDisplay
@@ -51,6 +54,7 @@ import com.courtside.pickleball.ui.theme.CallBackground
 import com.courtside.pickleball.ui.theme.ConnectedAmber
 import com.courtside.pickleball.ui.theme.Paper
 import com.courtside.pickleball.ui.theme.ProblemRed
+import com.courtside.pickleball.ui.theme.TableLine
 import com.courtside.pickleball.ui.theme.TabletCallBarControlInset
 import com.courtside.pickleball.ui.theme.TabletCallBarHeight
 import com.courtside.pickleball.ui.theme.TabletCallBarLineHeight
@@ -128,6 +132,15 @@ internal fun TabletDisplayScreen(
                 onTeamARally = onTeamARally,
                 onTeamBRally = onTeamBRally
             )
+            // Bottom ad slot. TabletScoreboardBody has weight(1f), so it absorbs the banner's
+            // height (the call bar is untouched). The divider + gap keeps the banner clear of the
+            // bottom team row's score tap target, per AdMob's accidental-click policy. No-op when
+            // ADS_ENABLED is false. TabletDisplayScreen renders only in the tablet layout, so this
+            // is inherently phone-excluded.
+            if (ADS_ENABLED) {
+                HorizontalDivider(color = TableLine.copy(alpha = 0.25f))
+                TabletAdBanner()
+            }
         }
     }
 }
