@@ -57,10 +57,15 @@ import com.courtside.pickleball.ui.theme.ProblemRed
 import com.courtside.pickleball.ui.theme.TableLine
 import com.courtside.pickleball.ui.theme.TabletCallBarControlInset
 import com.courtside.pickleball.ui.theme.TabletCallBarHeight
+import com.courtside.pickleball.ui.theme.TabletCallBarHeightWithAds
 import com.courtside.pickleball.ui.theme.TabletCallBarLineHeight
+import com.courtside.pickleball.ui.theme.TabletCallBarLineHeightWithAds
 import com.courtside.pickleball.ui.theme.TabletCallBarTextSize
+import com.courtside.pickleball.ui.theme.TabletCallBarTextSizeWithAds
 import com.courtside.pickleball.ui.theme.TabletCallBarWideLineHeight
+import com.courtside.pickleball.ui.theme.TabletCallBarWideLineHeightWithAds
 import com.courtside.pickleball.ui.theme.TabletCallBarWideTextSize
+import com.courtside.pickleball.ui.theme.TabletCallBarWideTextSizeWithAds
 import com.courtside.pickleball.ui.theme.TeamABlue
 import com.courtside.pickleball.ui.theme.TeamBGreen
 
@@ -348,15 +353,30 @@ internal fun TabletControlBar(
 ) {
     val showControls = onUndo != null && onEndMatchRequested != null
 
+    // Shorten the call bar when the ad banner takes bottom space, so the score rows stay tall
+    // enough for the tap number. Unchanged when ads are off.
+    val callBarHeightFraction = if (ADS_ENABLED) TabletCallBarHeightWithAds else TabletCallBarHeight
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .fillMaxHeight(TabletCallBarHeight)
+            .fillMaxHeight(callBarHeightFraction)
             .clip(RoundedCornerShape(10.dp))
             .background(CallBackground)
             .padding(horizontal = 24.dp, vertical = 14.dp)
     ) {
         val useWideCallText = state.callHasDoubleDigitScore()
+        val callTextSize = when {
+            ADS_ENABLED && useWideCallText -> TabletCallBarWideTextSizeWithAds
+            ADS_ENABLED -> TabletCallBarTextSizeWithAds
+            useWideCallText -> TabletCallBarWideTextSize
+            else -> TabletCallBarTextSize
+        }
+        val callLineHeight = when {
+            ADS_ENABLED && useWideCallText -> TabletCallBarWideLineHeightWithAds
+            ADS_ENABLED -> TabletCallBarLineHeightWithAds
+            useWideCallText -> TabletCallBarWideLineHeight
+            else -> TabletCallBarLineHeight
+        }
         Text(
             modifier = Modifier
                 .align(Alignment.Center)
@@ -364,9 +384,9 @@ internal fun TabletControlBar(
                 .padding(end = if (showControls) TabletCallBarControlInset else 0.dp, start = 12.dp),
             text = state.coloredScoreCall(),
             color = Color.White,
-            fontSize = if (useWideCallText) TabletCallBarWideTextSize else TabletCallBarTextSize,
+            fontSize = callTextSize,
             fontWeight = FontWeight.Black,
-            lineHeight = if (useWideCallText) TabletCallBarWideLineHeight else TabletCallBarLineHeight,
+            lineHeight = callLineHeight,
             textAlign = TextAlign.Center,
             maxLines = 1
         )

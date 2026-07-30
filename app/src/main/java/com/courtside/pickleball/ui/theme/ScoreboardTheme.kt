@@ -34,6 +34,14 @@ internal val TabletCallBarTextSize = 292.sp
 internal val TabletCallBarWideTextSize = 250.sp
 internal val TabletCallBarLineHeight = 296.sp
 internal val TabletCallBarWideLineHeight = 254.sp
+// Ad layout: the bottom banner steals vertical space, so the call bar is shortened and its text
+// scaled down to match, which frees enough height for the weighted score rows to keep the 122sp
+// tap number from clipping.
+internal val TabletCallBarHeightWithAds = 0.4f
+internal val TabletCallBarTextSizeWithAds = 268.sp
+internal val TabletCallBarWideTextSizeWithAds = 230.sp
+internal val TabletCallBarLineHeightWithAds = 272.sp
+internal val TabletCallBarWideLineHeightWithAds = 234.sp
 internal val TabletCallBarControlInset = 154.dp
 internal val SetupControlCornerRadius = 8.dp
 internal val SetupStatusHeight = 24.dp
