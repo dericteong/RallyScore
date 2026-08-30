@@ -5,6 +5,10 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,6 +18,8 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -23,10 +29,17 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.rotary.onRotaryScrollEvent
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
@@ -56,6 +69,7 @@ import com.courtside.pickleball.wear.theme.TeamGreen
 import com.courtside.pickleball.wear.theme.TeamGreenPanel
 import com.courtside.pickleball.wear.theme.UndoButtonBackground
 import com.courtside.pickleball.wear.theme.WatchBackground
+import kotlinx.coroutines.launch
 
 @Composable
 internal fun WearConnectedScoreboardScreen(
@@ -68,19 +82,24 @@ internal fun WearConnectedScoreboardScreen(
     onUndo: () -> Unit,
     onEndRequested: () -> Unit
 ) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(WatchBackground)
-            .padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 14.dp)
-    ) {
-        WearConnectionLabel(
+    val isRoundDisplay = LocalConfiguration.current.isScreenRound
+    WearScrollableScoreboard { contentModifier ->
+        Box(
+            modifier = contentModifier
+                .padding(
+                    start = 16.dp,
+                    end = 16.dp,
+                    top = 6.dp,
+                    bottom = if (isRoundDisplay) 32.dp else 14.dp
+                )
+        ) {
+            WearConnectionLabel(
             modifier = Modifier.align(Alignment.TopCenter),
             connectionMode = connectionMode,
             feedback = feedback
         )
 
-        ConnectedScoreSummary(
+            ConnectedScoreSummary(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .padding(top = 34.dp),
@@ -91,10 +110,11 @@ internal fun WearConnectedScoreboardScreen(
             endEnabled = true
         )
 
-        WearScorePanels(
+            WearScorePanels(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 2.dp),
+            isRoundDisplay = isRoundDisplay,
             teamAScore = state.teamAScore,
             teamBScore = state.teamBScore,
             servingTeam = state.servingTeam,
@@ -104,7 +124,8 @@ internal fun WearConnectedScoreboardScreen(
             enabled = actionsEnabled,
             onTeamATapped = onTeamAWon,
             onTeamBTapped = onTeamBWon
-        )
+            )
+        }
     }
 }
 
@@ -118,18 +139,23 @@ internal fun WearScoreboardScreen(
     onEndRequested: () -> Unit,
     onReset: () -> Unit
 ) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(WatchBackground)
-            .padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 14.dp)
-    ) {
-        WearConnectionLabel(
+    val isRoundDisplay = LocalConfiguration.current.isScreenRound
+    WearScrollableScoreboard { contentModifier ->
+        Box(
+            modifier = contentModifier
+                .padding(
+                    start = 16.dp,
+                    end = 16.dp,
+                    top = 6.dp,
+                    bottom = if (isRoundDisplay) 32.dp else 14.dp
+                )
+        ) {
+            WearConnectionLabel(
             modifier = Modifier.align(Alignment.TopCenter),
             connectionMode = WearConnectionMode.WatchOnly
         )
 
-        ScoreSummary(
+            ScoreSummary(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .padding(top = 34.dp),
@@ -139,10 +165,11 @@ internal fun WearScoreboardScreen(
             onEnd = onEndRequested
         )
 
-        WearScorePanels(
+            WearScorePanels(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 2.dp),
+            isRoundDisplay = isRoundDisplay,
             teamAScore = state.teamAScore,
             teamBScore = state.teamBScore,
             servingTeam = state.servingTeam,
@@ -152,7 +179,83 @@ internal fun WearScoreboardScreen(
             enabled = true,
             onTeamATapped = onTeamAWon,
             onTeamBTapped = onTeamBWon
-        )
+            )
+        }
+    }
+}
+
+/** Keeps the full scoreboard usable on small Wear displays without shrinking score text. */
+@Composable
+private fun WearScrollableScoreboard(
+    content: @Composable (Modifier) -> Unit
+) {
+    val scrollState = rememberScrollState()
+    val rotaryFocusRequester = remember { FocusRequester() }
+    val coroutineScope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) {
+        rotaryFocusRequester.requestFocus()
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(WatchBackground)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(scrollState)
+                .onRotaryScrollEvent { event ->
+                    coroutineScope.launch {
+                        scrollState.scrollBy(event.verticalScrollPixels)
+                    }
+                    true
+                }
+                .focusRequester(rotaryFocusRequester)
+                .focusable()
+        ) {
+            content(
+                Modifier
+                    .fillMaxWidth()
+                    // Leave a little more vertical separation between Undo and the score tiles
+                    // on normal-size watches. Smaller displays scroll this same safe layout.
+                    .heightIn(min = 230.dp)
+            )
+        }
+        WearScorePageScrollIndicator(scrollState)
+    }
+}
+
+@Composable
+private fun WearScorePageScrollIndicator(scrollState: androidx.compose.foundation.ScrollState) {
+    if (scrollState.maxValue <= 0) return
+
+    val progress = scrollState.value.toFloat() / scrollState.maxValue.toFloat()
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(end = 7.dp)
+            .semantics { contentDescription = "Scroll position" },
+        contentAlignment = Alignment.CenterEnd
+    ) {
+        Box(
+            modifier = Modifier
+                .height(42.dp)
+                .padding(vertical = 3.dp)
+                .width(3.dp)
+                .clip(RoundedCornerShape(999.dp))
+                .background(SecondaryText.copy(alpha = 0.28f))
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(12.dp)
+                    .offset(y = (24f * progress).dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(SecondaryText)
+            )
+        }
     }
 }
 
@@ -165,7 +268,7 @@ internal fun ServeChoiceButton(
     onClick: () -> Unit
 ) {
     Button(
-        modifier = modifier.height(58.dp),
+        modifier = modifier.height(48.dp),
         onClick = onClick,
         shape = RoundedCornerShape(24.dp),
         colors = ButtonDefaults.buttonColors(
@@ -232,7 +335,7 @@ private fun ScoreSummary(
     Column(
         modifier = modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(9.dp)
+        verticalArrangement = Arrangement.spacedBy(5.dp)
     ) {
         WearCallScoreText(
             teamAScore = state.teamAScore,
@@ -261,7 +364,7 @@ private fun ConnectedScoreSummary(
     Column(
         modifier = modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(9.dp)
+        verticalArrangement = Arrangement.spacedBy(5.dp)
     ) {
         WearCallScoreText(
             teamAScore = state.teamAScore,
@@ -333,6 +436,7 @@ internal fun ConnectedAndroidRole.startLabel(): String = when (this) {
 @Composable
 private fun WearScorePanels(
     modifier: Modifier = Modifier,
+    isRoundDisplay: Boolean,
     teamAScore: Int,
     teamBScore: Int,
     servingTeam: Team,
@@ -346,13 +450,18 @@ private fun WearScorePanels(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(92.dp),
+            // On a round watch, the lower corners of a full-width 92dp row lie outside the
+            // physical display. Narrow and raise the controls while keeping both tap targets
+            // comfortably larger than Wear's 48dp minimum.
+            .padding(horizontal = if (isRoundDisplay) 20.dp else 0.dp)
+            .height(if (isRoundDisplay) 70.dp else 92.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         WearScorePanel(
             modifier = Modifier.weight(1f),
             label = teamAName,
             score = teamAScore,
+            isRoundDisplay = isRoundDisplay,
             isServing = servingTeam == Team.A,
             serverNumber = serverNumber,
             panelColor = TeamBluePanel,
@@ -363,6 +472,7 @@ private fun WearScorePanels(
             modifier = Modifier.weight(1f),
             label = teamBName,
             score = teamBScore,
+            isRoundDisplay = isRoundDisplay,
             isServing = servingTeam == Team.B,
             serverNumber = serverNumber,
             panelColor = TeamGreenPanel,
@@ -377,6 +487,7 @@ private fun WearScorePanel(
     modifier: Modifier,
     label: String,
     score: Int,
+    isRoundDisplay: Boolean,
     isServing: Boolean,
     serverNumber: Int,
     panelColor: Color,
@@ -386,7 +497,12 @@ private fun WearScorePanel(
     Button(
         modifier = modifier
             .fillMaxHeight()
-            .semantics { contentDescription = "$label score" },
+            .semantics {
+                contentDescription = buildString {
+                    append("$label score $score")
+                    if (isServing) append(", serving, server $serverNumber")
+                }
+            },
         onClick = onClick,
         enabled = enabled,
         shape = RoundedCornerShape(18.dp),
@@ -396,42 +512,67 @@ private fun WearScorePanel(
             disabledContainerColor = InactiveGray,
             disabledContentColor = SecondaryText.copy(alpha = 0.6f)
         ),
-        contentPadding = PaddingValues(horizontal = 5.dp, vertical = 7.dp)
+        contentPadding = PaddingValues(horizontal = 5.dp, vertical = 2.dp)
     ) {
         Column(
             modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(5.dp, Alignment.CenterVertically)
+            verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically)
         ) {
-            Text(
-                text = label,
-                color = MainText,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Black,
-                maxLines = 1,
-                lineHeight = 15.sp,
-                textAlign = TextAlign.Center,
-                overflow = TextOverflow.Ellipsis
-            )
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(5.dp, Alignment.CenterVertically)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                WearServeDots(
-                    isServing = isServing,
-                    serverNumber = serverNumber
-                )
                 Text(
-                    text = score.toString(),
+                    text = label,
                     color = MainText,
-                    fontSize = 35.sp,
-                    lineHeight = 35.sp,
+                    fontSize = if (isRoundDisplay) 12.sp else 15.sp,
                     fontWeight = FontWeight.Black,
                     maxLines = 1,
-                    textAlign = TextAlign.Center
+                    lineHeight = 15.sp,
+                    textAlign = TextAlign.Center,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (isServing) {
+                    WearServeMarker(serverNumber = serverNumber)
+                }
+            }
+            Text(
+                text = score.toString(),
+                color = MainText,
+                fontSize = 35.sp,
+                lineHeight = 35.sp,
+                fontWeight = FontWeight.Black,
+                maxLines = 1,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+@Composable
+private fun WearServeMarker(serverNumber: Int) {
+    if (serverNumber == 2) {
+        // Draw the colon from the same 7dp dots used for Server 1. Font glyphs make the
+        // colon dots noticeably smaller and lighter than the single-server marker.
+        Column(
+            verticalArrangement = Arrangement.spacedBy(3.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            repeat(2) {
+                Box(
+                    modifier = Modifier
+                        .size(7.dp)
+                        .background(ConnectedAmber, CircleShape)
                 )
             }
         }
+    } else {
+        Box(
+            modifier = Modifier
+                .size(7.dp)
+                .background(ConnectedAmber, CircleShape)
+        )
     }
 }
 
@@ -466,8 +607,8 @@ private fun WearCallScoreText(
                 append(serverNumber.toString())
             }
         }.toAnnotatedString(),
-        fontSize = 34.sp,
-        lineHeight = 36.sp,
+        fontSize = 41.sp,
+        lineHeight = 43.sp,
         textAlign = TextAlign.Center,
         maxLines = 1
     )
@@ -521,28 +662,6 @@ private fun WearUtilityRow(
                 maxLines = 1,
                 color = if (canUndo) MainText else SecondaryText.copy(alpha = 0.55f)
             )
-        }
-    }
-}
-
-@Composable
-private fun WearServeDots(
-    isServing: Boolean,
-    serverNumber: Int
-) {
-    Row(
-        modifier = Modifier.height(8.dp),
-        horizontalArrangement = Arrangement.spacedBy(5.dp, Alignment.CenterHorizontally),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        if (isServing) {
-            repeat(serverNumber.coerceIn(1, 2)) {
-                Box(
-                    modifier = Modifier
-                        .size(7.dp)
-                        .background(ConnectedAmber, CircleShape)
-                )
-            }
         }
     }
 }

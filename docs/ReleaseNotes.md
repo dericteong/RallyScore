@@ -1,10 +1,13 @@
 # Release Notes
 
-## 1.1.0
+## 1.1.1
 
-Build: `versionName` 1.1.0, phone `versionCode` 4, Wear `versionCode` 5. Version codes
-are pooled across the shared `applicationId`, so the two modules bump as a pair to keep
-Wear above the phone (see `docs/RELEASE_CHECKLIST.md` "Versioning").
+Build: `versionName` 1.1.1, phone `versionCode` 7, Wear `versionCode` 7. Google Play
+requested aligned version codes across the handheld and Wear artifacts for this release.
+
+Wear `versionCode` 5 is rejected by Play and therefore cannot be reused; this policy-compliance
+update uses version code 7 for both artifacts; version code 6 was already consumed by an
+earlier upload attempt.
 
 ### Added
 
@@ -19,6 +22,19 @@ Wear above the phone (see `docs/RELEASE_CHECKLIST.md` "Versioning").
 
 ### Changed
 
+- Wear's scrollable connected-start form now shows a visible scroll-position indicator whenever
+  its content overflows, including on small round displays. The in-match score controls now use
+  round-display-specific inset, height, and text sizing so both full tap targets remain inside
+  the physical display area; square watches retain the existing larger layout.
+- Wear score-tile serve indicators now appear beside the team label rather than above the score:
+  Server 1 is an amber dot and Server 2 an amber colon. This preserves the 35sp score numerals
+  and avoids clipping them on round watches.
+- Wear score pages now scroll on smaller watch displays and show a visible scroll-position
+  indicator whenever the safe scoreboard layout overflows.
+- Wear's scrollable setup and score pages now support standard Wear OS rotary input, so a crown
+  or rotating bezel scrolls the same content as a touch swipe.
+- Wear's score-call readout is now 41sp, using available space above Undo while retaining the
+  safe score-tile spacing.
 - Both the phone/tablet and Wear modules now target Android 16 (API level 36), with
   `compileSdk` 36 to match. This keeps RallyScore within Google Play's requirement that the
   target API level stay within one year of the latest Android release — API 35 became

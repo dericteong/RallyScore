@@ -25,14 +25,16 @@ android {
         applicationId = "com.courtside.pickleball"
         minSdk = 30
         targetSdk = 36
-        // Shares the phone's applicationId, so the Wear versionCode must stay distinct from and
-        // higher than the phone's (currently 4): a watch can match both artifacts, and Play serves
-        // the highest applicable versionCode. Keep Wear above the phone on every future bump.
+        // Shares the phone's applicationId. Google Play requested that the current resubmission
+        // use the same version code as the handheld artifact; confirm Play's requirements again
+        // before selecting codes for a future release.
         // 2 was consumed by a discarded first upload; Play retires a versionCode
         // permanently once a bundle carrying it has been uploaded.
-        // Pooled sequence: 1 = phone 1.0.0, 2 = burned, 3 = Wear 1.0.0, 4 = phone 1.1.0, 5 = Wear 1.1.0.
-        versionCode = 5
-        versionName = "1.1.0"
+        // Pooled sequence: 1 = phone 1.0.0, 2 = burned, 3 = Wear 1.0.0, 4 = phone 1.1.0,
+        // 5 = rejected Wear 1.1.0, 6 = already-used aligned resubmission,
+        // 7 = aligned phone and Wear 1.1.1 resubmission.
+        versionCode = 7
+        versionName = "1.1.1"
     }
 
     signingConfigs {

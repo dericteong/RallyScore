@@ -12,7 +12,8 @@ This checklist is a low-risk release-readiness guide for publishing RallyScore t
   → Add form factor → Wear OS. Each track then gets its own Wear OS variant with a
   separate tester list and review.
 - The two bundles keep one `applicationId` and one Play app; only the tracks are
-  separate. Wear `versionCode` must stay distinct from and above the phone's.
+  separate. Confirm the required version-code relationship with Play Console before each
+  submission. For the current 1.1.1 resubmission, Google Play requested matching codes.
 - Keep local debug APK assembly for manual device testing, but do not treat debug APKs as release artifacts.
 
 ## Play App Signing / Upload Key
@@ -28,8 +29,9 @@ This checklist is a low-risk release-readiness guide for publishing RallyScore t
 - A `versionCode` is consumed at **upload**, not at rollout. Removing the bundle from a
   release, discarding the release, or failing review does not free it — Play keeps every
   artifact it has received. Bump and rebuild rather than trying to reuse a code.
-- **Version codes are pooled across the whole app, not per module.** The phone and Wear
-  modules share one `applicationId`, so both draw from a single sequence. Codes used so far:
+- The phone and Wear modules share one `applicationId`. Confirm the required relationship
+  with Play Console before choosing codes. For the current resubmission, the phone and Wear
+  artifacts use the same code, as directed by Google Play. Previous codes used were:
 
   | Code | Used by |
   | --- | --- |
@@ -37,12 +39,13 @@ This checklist is a low-risk release-readiness guide for publishing RallyScore t
   | 2 | burned — discarded first Wear upload |
   | 3 | Wear 1.0.0 |
   | 4 | phone 1.1.0 |
-  | 5 | Wear 1.1.0 |
+  | 5 | rejected Wear 1.1.0 |
+  | 6 | already-used aligned 1.1.1 upload |
+  | 7 | phone and Wear 1.1.1 resubmission |
 
-- Wear must stay **above** the phone, because a watch matches both artifacts and Play serves
-  the highest applicable code. Combined with the shared pool, this means **bumps often come in
-  pairs**: the next phone build takes 4, which would sit above Wear's 3, so Wear must move to 5
-  and both bundles get re-uploaded. Plan the two codes together rather than bumping one alone.
+- Keep the phone and Wear codes aligned when directed by Google Play. If Play Console reports a
+  version-code conflict or gives different guidance for a future release, follow that guidance
+  and update this record before building.
 - `versionName` should follow semantic versioning, for example:
   - `0.1.0`
   - `0.1.1`
@@ -67,7 +70,7 @@ This checklist is a low-risk release-readiness guide for publishing RallyScore t
 | Version | Phone versionCode | Wear versionCode | Status | Notes |
 | --- | --- | --- | --- | --- |
 | 1.0.0 | 1 | 3 | Internal testing | First Play upload (2026-07-22); phone and Wear uploaded to separate tracks. Wear code 2 was burned by a discarded upload |
-| 1.1.0 | 4 | 5 | Pending | API 36 (Android 16) target-level compliance, optional setup player names, first-scoreboard tap tutorial. Bumped as a pair so Wear stays above phone |
+| 1.1.1 | 7 | 7 | Pending | API 36 (Android 16) target-level compliance, optional setup player names, first-scoreboard tap tutorial, and Wear round-display refinements. Codes aligned at Google Play's direction for resubmission; code 6 was already consumed |
 
 ## Target SDK Status
 
