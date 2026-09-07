@@ -168,7 +168,7 @@ private fun AmbientScoreView(info: AmbientScoreInfo?) {
     ) {
         if (info == null) {
             Text(
-                text = "RallyScore",
+                text = "PickleCast",
                 color = Color(0xFF616161),
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Normal

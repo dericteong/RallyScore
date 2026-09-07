@@ -26,7 +26,7 @@ import com.courtside.pickleball.sync.TabletSetupPayload
 import com.courtside.pickleball.sync.WatchTabletFallbackSync
 import kotlinx.coroutines.flow.StateFlow
 
-/** ViewModel façade for RallyScore phone and tablet screens. */
+/** ViewModel façade for PickleCast phone and tablet screens. */
 class ScoreboardViewModel(
     private val store: ScoreboardStore,
     private val phoneHub: RallyScorePhoneHub,

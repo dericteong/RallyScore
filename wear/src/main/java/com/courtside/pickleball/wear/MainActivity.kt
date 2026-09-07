@@ -9,7 +9,7 @@ import androidx.compose.runtime.setValue
 import androidx.fragment.app.FragmentActivity
 import androidx.wear.ambient.AmbientModeSupport
 
-/** Wear host activity for RallyScore watch experiences. */
+/** Wear host activity for PickleCast watch experiences. */
 class MainActivity : FragmentActivity(), AmbientModeSupport.AmbientCallbackProvider {
     private var isAmbient by mutableStateOf(false)
 

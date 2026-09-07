@@ -73,7 +73,7 @@ Use a real phone when possible.
 
 - App launches into landscape setup when no match is active.
 - Setup screen shows side-by-side layout: team cards on left, score preview on right.
-- App title "RallyScore" with blue square badge at top left.
+- App title "PickleCast" with blue square badge at top left.
 - Swap teams button (⇅) appears between My Team and Opponent Team cards.
 - Team cards use solid blue (My Team) and solid green (Opponent Team) backgrounds.
 - Score preview card shows "CHOOSE SERVER" when no team selected, "WE SERVE FIRST" or "OPP SERVE FIRST" when selected, with team-colored background.
@@ -119,8 +119,8 @@ Use a real phone when possible.
 
 - Team cards and player-name fields are visibly larger than the phone layout.
 - The whole setup screen (team cards + right-side controls) is vertically centered in the available height, not pinned to the top with empty space below.
-- RallyScore icon/title render on their own row near the top, clearly larger than on phone.
-- COURT/WATCH/TABLET status badges render on their own row below the RallyScore row, each showing its full label with no truncation.
+- PickleCast icon/title render on their own row near the top, clearly larger than on phone.
+- COURT/WATCH/TABLET status badges render on their own row below the PickleCast row, each showing its full label with no truncation.
 - "MANAGE PLAYERS" button is visibly larger than on phone.
 - "Enter players by court position" sits between the "SET UP GAME" title and "MANAGE PLAYERS" button, not glued next to the button.
 - With exactly one discovered phone already selected, "AVAILABLE PHONES" shows as a single status-badge line, not the full card.
@@ -200,7 +200,7 @@ Use a real phone when possible.
 - Undo and Reset buttons are easy to tap.
 - Watch gives haptic feedback after undo and reset.
 - Reset returns to serving-team selection.
-- Watch screen stays awake while RallyScore is open.
+- Watch screen stays awake while PickleCast is open.
 - Watch screen stays awake through at least 60+ seconds of no input while a match is active (not
   just the first few seconds).
 - If the display dims for power saving, it shows a low-power ambient score readout instead of
@@ -384,7 +384,7 @@ or wear-module change:
 - Moving the tablet from external Wi-Fi to the phone hotspot reconnects automatically after both devices share the hotspot network.
 - Closing and reopening the tablet app reconnects automatically.
 - Closing and reopening the phone app restores the active phone-owned score and keeps accepting tablet reconnects.
-- Rebooting the tablet reconnects automatically after RallyScore is opened.
+- Rebooting the tablet reconnects automatically after PickleCast is opened.
 - When a tablet is connected only via the TCP-push fallback (not the WebSocket route), the phone's
   own status pill still reaches "TABLET CONNECTED" (not stuck on "FINDING TABLET") once the tablet
   is actually receiving live snapshots.

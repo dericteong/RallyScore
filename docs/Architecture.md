@@ -2,7 +2,7 @@
 
 ## Summary
 
-RallyScore is a flexible scoring ecosystem that supports multiple device combinations. Additional devices enhance the experience but are not required. Exactly one active source of truth must exist per match. Phone Only, Tablet Only, and Watch Only may each own standalone match state. When a watch is used in connected mode, the phone remains the primary hub. Phone + Tablet synced modes already share one canonical match state today (see "Display Surface And Phone-Tablet Sync" below) — what remains future work is deterministic conflict handling for near-simultaneous multi-device input, not the sync itself.
+PickleCast is a flexible scoring ecosystem that supports multiple device combinations. Additional devices enhance the experience but are not required. Exactly one active source of truth must exist per match. Phone Only, Tablet Only, and Watch Only may each own standalone match state. When a watch is used in connected mode, the phone remains the primary hub. Phone + Tablet synced modes already share one canonical match state today (see "Display Surface And Phone-Tablet Sync" below) — what remains future work is deterministic conflict handling for near-simultaneous multi-device input, not the sync itself.
 
 Supported modes:
 
@@ -218,7 +218,7 @@ hatch, unaffected by any of this.
 
 To reduce cross-court confusion on shared hotspot or Wi-Fi networks, tablet discovery is now explicit instead of silently auto-attaching to the first phone that answers. The phone setup screen exposes a compact court code derived from the stable `hostId`. An unpaired tablet stays on its normal setup screen, shows a list of discovered phones with court codes, and joins only after the user picks the intended court. After the first join, the tablet remembers that host and reconnects to it automatically until the user chooses Change Phone / forget pairing.
 
-This command/state sync path is still an MVP synced-controller transport, not the final conflict-handled phone/tablet peer model. Real Wi-Fi networks may block local-device discovery or direct delivery. Deterministic multi-controller conflict handling remains future work, but explicit tablet court selection is now the first user-visible safeguard for multiple RallyScore courts sharing one network.
+This command/state sync path is still an MVP synced-controller transport, not the final conflict-handled phone/tablet peer model. Real Wi-Fi networks may block local-device discovery or direct delivery. Deterministic multi-controller conflict handling remains future work, but explicit tablet court selection is now the first user-visible safeguard for multiple PickleCast courts sharing one network.
 
 Tablet screen routing uses the following priority:
 
@@ -280,7 +280,7 @@ The domain model is intentionally small. The app should prefer adding tests to s
 Current scoring-format behavior:
 
 - Traditional is the default and remains unchanged.
-- Rally mode is RallyScore's custom social-play variant:
+- Rally mode is PickleCast's custom social-play variant:
   - every rally awards a point to the rally winner
   - two serves remain active
   - first-server exception still applies
@@ -319,7 +319,7 @@ Current behavior:
   OS build actually entering the system ambient state before sleep — on at least one tested OEM
   skin, the manufacturer's own system UI takes over the display during the dozing transition
   instead of handing ambient rendering back to the app, a device-level constraint outside
-  RallyScore's control.
+  PickleCast's control.
 
 Standalone Watch Only behavior:
 
@@ -347,7 +347,7 @@ Remote-control behavior uses Wear OS Data Layer:
 - Phone score snapshots include active-match and undo-availability flags.
 - When both phone and tablet are connected to the watch, the watch prefers the
   phone as its single command target.
-- When no phone is available but a RallyScore tablet is connected, the watch may
+- When no phone is available but a PickleCast tablet is connected, the watch may
   target the tablet directly and the tablet becomes the source of truth for that
   connected match.
 - Direct watch-to-tablet discovery includes the tablet court code.

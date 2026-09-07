@@ -41,7 +41,7 @@ object WearSyncContract {
     const val VOICE_WATCH_THEN_PHONE_THEN_TABLET = "watch_then_phone_then_tablet"
 }
 
-/** Voice routing modes synchronized across RallyScore devices. */
+/** Voice routing modes synchronized across PickleCast devices. */
 enum class VoiceAnnouncementMode(val wireValue: String) {
     Off(WearSyncContract.VOICE_OFF),
     PhoneOnly(WearSyncContract.VOICE_PHONE_ONLY),

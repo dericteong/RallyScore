@@ -1,6 +1,6 @@
-# RallyScore Release Checklist
+# PickleCast Release Checklist
 
-This checklist is a low-risk release-readiness guide for publishing RallyScore to Google Play.
+This checklist is a low-risk release-readiness guide for publishing PickleCast to Google Play.
 
 ## Android App Bundle Release Process
 
@@ -103,7 +103,7 @@ This checklist is a low-risk release-readiness guide for publishing RallyScore t
 - `ACCESS_WIFI_STATE` is used to inspect current network state for local connectivity.
 - `CHANGE_WIFI_MULTICAST_STATE` is used to support local network discovery on the same Wi-Fi or hotspot network.
 - `VIBRATE` on Wear is used for watch haptic feedback during scoring.
-- RallyScore does not request location, contacts, camera, microphone, SMS, or notification runtime permission.
+- PickleCast does not request location, contacts, camera, microphone, SMS, or notification runtime permission.
 
 ## Pre-Release Checklist
 

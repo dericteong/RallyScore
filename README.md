@@ -1,8 +1,8 @@
-# RallyScore
+# PickleCast
 
 Wear. Play. Score.
 
-Flexible Android/Wear OS scoreboard ecosystem for live pickleball games. RallyScore works with different combinations of devices: Watch Only, Phone Only, Watch + Phone, and Watch + Phone + shared display. Additional devices enhance the experience but are not required.
+Flexible Android/Wear OS scoreboard ecosystem for live pickleball games. PickleCast works with different combinations of devices: Watch Only, Phone Only, Watch + Phone, and Watch + Phone + shared display. Additional devices enhance the experience but are not required.
 
 ## Current Product
 

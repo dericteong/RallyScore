@@ -67,7 +67,7 @@ internal fun ScoringTutorialDialog(onDismiss: () -> Unit) {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
                     text = "When a team wins the rally, tap that team's score. " +
-                        "RallyScore works out the serve and side-out for you.",
+                        "PickleCast works out the serve and side-out for you.",
                     fontSize = 15.sp
                 )
                 TutorialTeamRow(

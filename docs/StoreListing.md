@@ -1,4 +1,4 @@
-# Google Play Store Listing — RallyScore
+# Google Play Store Listing — PickleCast
 
 Draft copy for the Play Console listing. Character limits noted per field.
 
@@ -7,14 +7,14 @@ Draft copy for the Play Console listing. Character limits noted per field.
 ## App title (max 30 chars)
 
 ```
-RallyScore: Pickleball Score
+PickleCast: Pickleball Score
 ```
 *(28 chars. Keeps the brand first, adds the "pickleball" keyword for search. The
-phone launcher label stays "RallyScore" via `app_name` — this title is Play-only.)*
+phone launcher label stays "PickleCast" via `app_name` — this title is Play-only.)*
 
 Alternatives:
-- `RallyScore — Pickleball` (23)
-- `RallyScore Pickleball Scorer` (28)
+- `PickleCast — Pickleball` (23)
+- `PickleCast Pickleball Scorer` (28)
 
 ---
 
@@ -34,7 +34,7 @@ Alternatives:
 ## Full description (max 4000 chars)
 
 ```
-RallyScore is a flexible pickleball scoreboard that works the way you play —
+PickleCast is a flexible pickleball scoreboard that works the way you play —
 from a Wear OS watch, an Android phone, a courtside tablet, or all of them
 together. Add devices to enhance the experience; none of them are mandatory.
 
@@ -53,7 +53,7 @@ A SCOREBOARD FOR EVERY SETUP
 • Phone + Tablet — a big, glanceable shared scoreboard synced to your phone.
 
 KNOWS THE RULES SO YOU DON'T HAVE TO
-RallyScore handles doubles side-outs, server number changes, and the correct
+PickleCast handles doubles side-outs, server number changes, and the correct
 score-call order for you. Choose your format at setup:
 • Traditional — standard side-out scoring (only the serving team scores).
 • Rally — a fast, social variant where every rally awards a point, while two
@@ -74,7 +74,7 @@ BUILT FOR THE COURT
 PLAYER ROSTER MADE EASY
 Save your regular players for fast setup, with searchable name selectors for
 each team. Importing a group? Snap or select a screenshot of an attendee list
-and RallyScore reads the names on-device and lets you review before adding them.
+and PickleCast reads the names on-device and lets you review before adding them.
 
 WORKS WITHOUT THE INTERNET
 Phone-to-tablet scoreboard sync runs over your local Wi-Fi — or the phone's own
@@ -82,11 +82,11 @@ hotspot — so it keeps working on courts with no signal. On-device text
 recognition means your player names never leave your device.
 
 PRIVACY-FIRST
-No account required. No ads. RallyScore doesn't sell your data — scoring and
+No account required. No ads. PickleCast doesn't sell your data — scoring and
 player names stay on your own devices.
 
 Whether you're playing a quick social game, running a club session, or setting
-up a shared courtside display, RallyScore keeps scoring simple, glanceable, and
+up a shared courtside display, PickleCast keeps scoring simple, glanceable, and
 correct.
 
 Wear. Play. Score.
@@ -125,7 +125,7 @@ watch-focused to complement the phone listing above.
 ## Wear title (max 30 chars)
 
 ```
-RallyScore: Pickleball Watch
+PickleCast: Pickleball Watch
 ```
 *(28 chars.)*
 
@@ -139,7 +139,7 @@ Score pickleball from your wrist — tap, undo, and hear the call, hands-free.
 ## Wear full description (max 4000 chars)
 
 ```
-Keep scoring without leaving the court. RallyScore on Wear OS turns your watch
+Keep scoring without leaving the court. PickleCast on Wear OS turns your watch
 into a pickleball scorer you control from your wrist.
 
 SCORE FROM YOUR WRIST
@@ -166,7 +166,7 @@ BUILT FOR THE COURT
 PRIVACY-FIRST
 No account. No ads. Scoring stays on your devices.
 
-RallyScore keeps scoring simple, glanceable, and correct — right from your wrist.
+PickleCast keeps scoring simple, glanceable, and correct — right from your wrist.
 
 Wear. Play. Score.
 ```

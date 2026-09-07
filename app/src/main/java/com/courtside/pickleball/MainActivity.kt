@@ -16,7 +16,7 @@ import com.courtside.pickleball.sync.WatchTabletFallbackSync
 import com.courtside.pickleball.ui.ScoreboardApp
 import com.courtside.pickleball.ui.ScoreboardViewModel
 
-/** Phone and tablet host activity for RallyScore. */
+/** Phone and tablet host activity for PickleCast. */
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

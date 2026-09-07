@@ -33,7 +33,7 @@ android {
         // Pooled sequence: 1 = phone 1.0.0, 2 = burned, 3 = Wear 1.0.0, 4 = phone 1.1.0,
         // 5 = rejected Wear 1.1.0, 6 = already-used aligned resubmission,
         // 7 = aligned phone and Wear 1.1.1 resubmission.
-        versionCode = 7
+        versionCode = 11
         versionName = "1.1.1"
     }
 

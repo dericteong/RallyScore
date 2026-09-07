@@ -24,7 +24,7 @@ android {
         applicationId = "com.courtside.pickleball"
         minSdk = 26
         targetSdk = 36
-        versionCode = 7
+        versionCode = 12
         versionName = "1.1.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

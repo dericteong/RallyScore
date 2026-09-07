@@ -1,7 +1,7 @@
 package com.courtside.pickleball.domain
 
 /**
- * Highest score a team can reach. RallyScore supports timed play past the usual target score,
+ * Highest score a team can reach. PickleCast supports timed play past the usual target score,
  * but a hard ceiling keeps the score call and scoreboard display from overflowing to a third
  * digit, which the call bar's layout isn't designed to show.
  */
@@ -24,7 +24,7 @@ const val DEFAULT_TEAM_B_PLAYER_2 = "P4"
 /** Trims an entered label, falling back to [placeholder] when nothing was typed. */
 fun String.ifBlankPlaceholder(placeholder: String): String = trim().ifBlank { placeholder }
 
-/** Identifies the blue and green doubles teams tracked by RallyScore. */
+/** Identifies the blue and green doubles teams tracked by PickleCast. */
 enum class Team {
     A,
     B;
@@ -99,7 +99,7 @@ data class GameState(
     /**
      * Returns player names in their current court order based on the team's score parity.
      *
-     * RallyScore uses the same player-position display model for both Traditional and Rally
+     * PickleCast uses the same player-position display model for both Traditional and Rally
      * scoring so players can glance at the screen and confirm who should stand where.
      */
     fun courtOrderedTeamName(team: Team): String {
@@ -113,7 +113,7 @@ data class GameState(
     }
 
     /**
-     * Returns the current serving player's name using RallyScore's fixed-position doubles model.
+     * Returns the current serving player's name using PickleCast's fixed-position doubles model.
      */
     fun servingPlayerName(): String {
         val effectiveServerIsOne = isFirstServerException || serverNumber == ServerNumber.One

@@ -196,11 +196,11 @@ internal fun MatchSetupScreen(
                     ) {
                         Image(
                             painter = painterResource(id = R.drawable.ic_launcher_foreground),
-                            contentDescription = "RallyScore icon",
+                            contentDescription = "PickleCast icon",
                             modifier = Modifier.size(68.dp)
                         )
                         Text(
-                            text = "RallyScore",
+                            text = "PickleCast",
                             color = Ink,
                             fontSize = 46.sp,
                             fontWeight = FontWeight.Black,
@@ -238,11 +238,11 @@ internal fun MatchSetupScreen(
                         ) {
                             Image(
                                 painter = painterResource(id = R.drawable.ic_launcher_foreground),
-                                contentDescription = "RallyScore icon",
+                                contentDescription = "PickleCast icon",
                                 modifier = Modifier.size(if (isTabletLayout) 26.dp else 22.dp)
                             )
                             Text(
-                                text = "RallyScore",
+                                text = "PickleCast",
                                 color = Ink,
                                 fontSize = if (isTabletLayout) 20.sp else 17.sp,
                                 fontWeight = FontWeight.Black,

@@ -17,7 +17,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Pickleball Scoreboard"
+rootProject.name = "PickleCast"
 include(":app")
 include(":shared")
 include(":wear")

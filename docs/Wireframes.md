@@ -20,7 +20,7 @@ Landscape side-by-side layout:
 
 ```text
 ------------------------------------------------------------------
-| [blue square] RallyScore         WATCH CONNECTED | TABLET S... |
+| [blue square] PickleCast         WATCH CONNECTED | TABLET S... |
 | SET UP GAME                                                    |
 | Enter players by court position. [ MANAGE PLAYERS ]            |
 | -------------------------------------------------------------- |
@@ -40,7 +40,7 @@ Current setup behavior:
 
 - The phone setup screen uses landscape orientation (`SCREEN_ORIENTATION_SENSOR_LANDSCAPE`).
 - Side-by-side layout with team name fields on the left and score preview/voice controls on the right.
-- App title "RallyScore" with a solid blue square badge at top left.
+- App title "PickleCast" with a solid blue square badge at top left.
 - Swap teams button (⇅) between My Team and Opponent Team cards.
 - Solid team-colored cards (blue for My Team, green for Opponent Team).
 - The team form column is always vertically scrollable.
@@ -143,7 +143,7 @@ Ambient (dimmed-display) view:
   instead of the screen going fully black.
 - Dim gray text on a black background only — no filled color blocks, to stay burn-in safe.
 - Shows whichever score is currently active (standalone Watch Only, or the phone/tablet-connected
-  match); shows just the RallyScore wordmark if no match is active.
+  match); shows just the PickleCast wordmark if no match is active.
 - No controls are shown or usable in ambient view.
 
 Standalone Watch Only behavior:
@@ -154,7 +154,7 @@ Standalone Watch Only behavior:
 - Maintains its own local state.
 - Speaks the score after first-server selection, rally input, and undo.
 - Gives haptic feedback after rally, undo, and reset actions.
-- Keeps the watch screen awake while RallyScore is open.
+- Keeps the watch screen awake while PickleCast is open.
 - Reset returns to serving-team selection.
 
 Connected Watch + Phone behavior:
@@ -220,7 +220,7 @@ setup screen, sized up for the larger display rather than a separate layout:
 
 ```text
 -----------------------------------------------------------------
-| [icon] RallyScore  (large, its own row)                        |
+| [icon] PickleCast  (large, its own row)                        |
 | COURT 35DD | WATCH CONNECTED | TABLET CONNECTED                |
 | SET UP GAME   Enter players by court position [MANAGE PLAYERS] |
 | ---------------------------------------------------------------|
@@ -240,7 +240,7 @@ Tablet-specific setup differences from phone:
   `SetupPlayerInputTabletHeight`) than the phone equivalents, and the whole
   screen (team-card column + controls column) centers vertically in the
   available height instead of pinning to the top.
-- The RallyScore icon/title get their own full-width row at a larger size
+- The PickleCast icon/title get their own full-width row at a larger size
   (68dp icon, 46sp title); the COURT/WATCH/TABLET status badges sit on their
   own row below it, each showing its full label (unlike the phone layout,
   which shortens labels to fit three badges on one narrow row).

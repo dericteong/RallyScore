@@ -8,7 +8,7 @@ The project is a Kotlin multi-module Gradle Android project.
 - `wear`: Wear OS application, Watch Only scorer, and connected command controller.
 - `shared`: pure Kotlin scoring domain shared by phone and Wear.
 
-RallyScore supports multiple product modes: Watch Only, Phone Only, Tablet Only, Watch + Phone, Phone + Tablet synced, Watch + Phone + Android Tablet synced, and Watch + Phone + Portable Monitor. Additional devices enhance the experience but are not required. Exactly one active source of truth must exist per match. Phone Only, Tablet Only, and Watch Only may each own standalone state when used alone. When a watch is connected, the phone remains the primary hub. Phone-tablet synced modes already share one canonical match state (see "Phone + Tablet Synced Data Flow" below); deterministic conflict handling for near-simultaneous multi-device input is the remaining work, not the sync itself. The Android app uses Jetpack Compose and a ViewModel with `StateFlow`. The shared module owns scoring rules so they can be tested without Android.
+PickleCast supports multiple product modes: Watch Only, Phone Only, Tablet Only, Watch + Phone, Phone + Tablet synced, Watch + Phone + Android Tablet synced, and Watch + Phone + Portable Monitor. Additional devices enhance the experience but are not required. Exactly one active source of truth must exist per match. Phone Only, Tablet Only, and Watch Only may each own standalone state when used alone. When a watch is connected, the phone remains the primary hub. Phone-tablet synced modes already share one canonical match state (see "Phone + Tablet Synced Data Flow" below); deterministic conflict handling for near-simultaneous multi-device input is the remaining work, not the sync itself. The Android app uses Jetpack Compose and a ViewModel with `StateFlow`. The shared module owns scoring rules so they can be tested without Android.
 
 ## Technology Stack
 
@@ -111,7 +111,7 @@ accidental double taps during play. The watch should not contain pickleball
 scoring logic, server-transition logic, side-out logic, or authoritative match
 state in connected mode. If both phone and tablet are present, the watch
 prefers the phone as its single target. If no phone is available, the watch may
-target a RallyScore tablet directly using the same command/state-sync pattern.
+target a PickleCast tablet directly using the same command/state-sync pattern.
 When multiple tablets are discovered on one network, the watch requires an
 explicit tablet court selection and remembers the last selected tablet court for
 reconnect.
@@ -139,7 +139,7 @@ Ambient rendering depends on the device's own Wear OS build actually entering th
 state before going to sleep. On at least one tested OEM skin (a OnePlus/Oplus watch), the
 manufacturer's own system UI (`SysUiActivity`) takes over the display during the dozing
 transition instead of handing ambient rendering back to the foreground app — a device-level
-constraint outside RallyScore's control, not a bug in `AmbientScoreView`. On more standard Wear OS
+constraint outside PickleCast's control, not a bug in `AmbientScoreView`. On more standard Wear OS
 hardware (Pixel Watch, Galaxy Watch) the ambient view is expected to render as designed.
 
 ## Supported Product Modes
@@ -411,7 +411,7 @@ channel therefore adds:
 The periodic UDP/TCP/WebSocket state broadcast itself (scores, team and
 player names) remains plaintext — only the command channel is authenticated.
 Encrypting the broadcast would need its own key-exchange story and was judged
-disproportionate for a casual courtside app; revisit if RallyScore is ever
+disproportionate for a casual courtside app; revisit if PickleCast is ever
 used somewhere adversarial (e.g. open tournament Wi-Fi).
 
 **Idle broadcast cadence:** `TabletDisplaySync.runBroadcaster` drops from its normal 1 Hz cadence

@@ -64,7 +64,7 @@ Delivered in this phase:
 - Reflect phone-owned state back to the watch.
 - Add pairing/reconnect states.
 - Implement connected voice timing: confirmed watch announcement immediately, phone repeat approximately two seconds later.
-- Keep the watch visible in ambient/always-on style use while RallyScore is open.
+- Keep the watch visible in ambient/always-on style use while PickleCast is open.
 - Harden connected watch routing so `START ON PHONE`, live scoring, undo, and end behave consistently on real hardware.
 
 Phase 2 exit criteria before Phase 3 becomes the primary focus:

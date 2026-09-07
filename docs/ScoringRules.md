@@ -37,7 +37,7 @@ The user records only which team won the rally.
 
 ## Rally Scoring
 
-RallyScore's Rally mode is a custom social-play format that keeps the current
+PickleCast's Rally mode is a custom social-play format that keeps the current
 two-server and court-position model.
 
 The user still records only which team won the rally.

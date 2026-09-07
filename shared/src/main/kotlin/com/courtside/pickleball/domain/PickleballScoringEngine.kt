@@ -1,7 +1,7 @@
 package com.courtside.pickleball.domain
 
 /**
- * Pure scoring engine for RallyScore match updates.
+ * Pure scoring engine for PickleCast match updates.
  *
  * The engine never auto-completes a match. It only applies the configured scoring format,
  * serve transitions, side outs, and first-server exception rules.
